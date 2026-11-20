@@ -45,6 +45,7 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const schema = z.object({
   enabled: z.boolean(),
+  paidUsersOnly: z.boolean(),
   minQuota: z.coerce.number().int().min(0),
   maxQuota: z.coerce.number().int().min(0),
 })
@@ -56,6 +57,7 @@ export function CheckinSettingsSection({
 }: {
   defaultValues: {
     enabled: boolean
+    paidUsersOnly: boolean
     minQuota: number
     maxQuota: number
   }
@@ -67,35 +69,60 @@ export function CheckinSettingsSection({
     resolver: zodResolver(schema) as unknown as Resolver<Values>,
     defaultValues: {
       enabled: defaultValues.enabled,
+      paidUsersOnly: defaultValues.paidUsersOnly,
       minQuota: defaultValues.minQuota,
       maxQuota: defaultValues.maxQuota,
     },
   })
 
-  const { isDirty, isSubmitting } = form.formState
+  const {
+    defaultValues: savedValues = defaultValues,
+    isDirty,
+    isSubmitting,
+  } = form.formState
   const enabled = form.watch('enabled')
 
   async function onSubmit(values: Values) {
-    const updates: Array<{ key: string; value: string }> = []
+    const updates: Array<{ field: keyof Values; key: string; value: string }> =
+      []
 
-    if (values.enabled !== defaultValues.enabled) {
+    if (values.enabled !== savedValues.enabled && !values.enabled) {
       updates.push({
+        field: 'enabled',
         key: 'checkin_setting.enabled',
         value: String(values.enabled),
       })
     }
 
-    if (values.minQuota !== defaultValues.minQuota) {
+    if (values.minQuota !== savedValues.minQuota) {
       updates.push({
+        field: 'minQuota',
         key: 'checkin_setting.min_quota',
         value: String(values.minQuota),
       })
     }
 
-    if (values.maxQuota !== defaultValues.maxQuota) {
+    if (values.paidUsersOnly !== savedValues.paidUsersOnly) {
       updates.push({
+        field: 'paidUsersOnly',
+        key: 'checkin_setting.paid_users_only',
+        value: String(values.paidUsersOnly),
+      })
+    }
+
+    if (values.maxQuota !== savedValues.maxQuota) {
+      updates.push({
+        field: 'maxQuota',
         key: 'checkin_setting.max_quota',
         value: String(values.maxQuota),
+      })
+    }
+
+    if (values.enabled !== savedValues.enabled && values.enabled) {
+      updates.push({
+        field: 'enabled',
+        key: 'checkin_setting.enabled',
+        value: 'true',
       })
     }
 
@@ -104,8 +131,14 @@ export function CheckinSettingsSection({
       return
     }
 
-    for (const update of updates) {
-      await updateOption.mutateAsync(update)
+    try {
+      for (const { field, ...update } of updates) {
+        await updateOption.mutateAsync(update)
+        form.resetField(field, { defaultValue: values[field] })
+      }
+    } catch {
+      // useUpdateOption reports the error; keep unsaved fields available for retry.
+      return
     }
 
     form.reset(values)
@@ -145,6 +178,30 @@ export function CheckinSettingsSection({
             )}
           />
 
+          <FormField
+            control={form.control}
+            name='paidUsersOnly'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Only paying users can check in')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Users become eligible after a successful paid top-up or subscription purchase'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    disabled={updateOption.isPending || isSubmitting}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
           {enabled && (
             <div className='grid gap-6 sm:grid-cols-2'>
               <FormField
@@ -156,6 +213,7 @@ export function CheckinSettingsSection({
                     <FormControl>
                       <Input
                         type='number'
+                        disabled={updateOption.isPending || isSubmitting}
                         min={0}
                         placeholder={t('1000')}
                         {...field}
@@ -178,6 +236,7 @@ export function CheckinSettingsSection({
                     <FormControl>
                       <Input
                         type='number'
+                        disabled={updateOption.isPending || isSubmitting}
                         min={0}
                         placeholder={t('10000')}
                         {...field}
