@@ -71,6 +71,12 @@ interface MultiSelectProps {
   emptyText?: string
   /** Optional `id` to wire labels/aria-describedby to the input. */
   id?: string
+  /** Accessible name; defaults to the placeholder. */
+  'aria-label'?: string
+  /** Forwarded to the inner input so form description wiring survives. */
+  'aria-describedby'?: string
+  /** Forwarded to the inner input so form invalid state survives. */
+  'aria-invalid'?: React.AriaAttributes['aria-invalid']
   /** Disable the entire control. */
   disabled?: boolean
   /**
@@ -412,7 +418,9 @@ export function MultiSelect(props: MultiSelectProps) {
           }
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
-          aria-label={placeholder}
+          aria-label={props['aria-label'] ?? placeholder}
+          aria-describedby={props['aria-describedby']}
+          aria-invalid={props['aria-invalid']}
         />
       </ComboboxChips>
 

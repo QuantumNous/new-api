@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -198,4 +199,266 @@ func TestAdminResetPlanSubscriptionsNoMatchSucceeds(t *testing.T) {
 	assert.Zero(t, result.ResetCount)
 	assert.Zero(t, result.UserCount)
 	assert.Empty(t, result.AffectedUserIds)
+}
+
+func TestIsSubscriptionPlanEligibleForGroup(t *testing.T) {
+	tests := []struct {
+		name       string
+		plan       *SubscriptionPlan
+		usingGroup string
+		want       bool
+	}{
+		{name: "nil plan", plan: nil, usingGroup: "default", want: false},
+		{name: "empty means unrestricted", plan: &SubscriptionPlan{QuotaUsableGroups: ""}, usingGroup: "default", want: true},
+		{name: "whitespace means unrestricted", plan: &SubscriptionPlan{QuotaUsableGroups: "   "}, usingGroup: "vip", want: true},
+		{name: "single match", plan: &SubscriptionPlan{QuotaUsableGroups: "default"}, usingGroup: "default", want: true},
+		{name: "single no match", plan: &SubscriptionPlan{QuotaUsableGroups: "default"}, usingGroup: "vip", want: false},
+		{name: "multi match", plan: &SubscriptionPlan{QuotaUsableGroups: "default,vip"}, usingGroup: "vip", want: true},
+		{name: "multi no match", plan: &SubscriptionPlan{QuotaUsableGroups: "default,vip"}, usingGroup: "svip", want: false},
+		{name: "entries are trimmed", plan: &SubscriptionPlan{QuotaUsableGroups: " default , vip "}, usingGroup: "default", want: true},
+		{name: "empty using group not listed", plan: &SubscriptionPlan{QuotaUsableGroups: "default"}, usingGroup: "", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, IsSubscriptionPlanEligibleForGroup(tt.plan, tt.usingGroup))
+		})
+	}
+}
+
+func seedGroupPlan(t *testing.T, id int, groups string) *SubscriptionPlan {
+	t.Helper()
+	plan := &SubscriptionPlan{
+		Id:                id,
+		Title:             "GroupPlan",
+		PriceAmount:       10,
+		DurationUnit:      SubscriptionDurationMonth,
+		DurationValue:     1,
+		TotalAmount:       1000,
+		QuotaUsableGroups: groups,
+	}
+	require.NoError(t, DB.Create(plan).Error)
+	InvalidateSubscriptionPlanCache(plan.Id)
+	t.Cleanup(func() { InvalidateSubscriptionPlanCache(plan.Id) })
+	return plan
+}
+
+func seedGroupSub(t *testing.T, id, userId, planId int, status string, endTime int64) {
+	t.Helper()
+	now := common.GetTimestamp()
+	require.NoError(t, DB.Create(&UserSubscription{
+		Id:          id,
+		UserId:      userId,
+		PlanId:      planId,
+		AmountTotal: 1000,
+		AmountUsed:  0,
+		StartTime:   now - 3600,
+		EndTime:     endTime,
+		Status:      status,
+	}).Error)
+}
+
+func TestHasActiveUserSubscriptionForGroupRejectsInvalidUser(t *testing.T) {
+	ok, err := HasActiveUserSubscriptionForGroup(0, "default")
+	require.Error(t, err)
+	assert.False(t, ok)
+}
+
+func TestHasActiveUserSubscriptionForGroupNoSubscription(t *testing.T) {
+	truncateTables(t)
+	ok, err := HasActiveUserSubscriptionForGroup(8101, "default")
+	require.NoError(t, err)
+	assert.False(t, ok)
+}
+
+func TestHasActiveUserSubscriptionForGroupEligibility(t *testing.T) {
+	truncateTables(t)
+	now := common.GetTimestamp()
+	activeEnd := now + 30*24*3600
+
+	seedGroupPlan(t, 9701, "default")
+	seedGroupPlan(t, 9702, "")
+	seedGroupSub(t, 9711, 8201, 9701, "active", activeEnd)
+	seedGroupSub(t, 9712, 8202, 9702, "active", activeEnd)
+
+	ok, err := HasActiveUserSubscriptionForGroup(8201, "default")
+	require.NoError(t, err)
+	assert.True(t, ok, "restricted plan should fund its listed group")
+
+	ok, err = HasActiveUserSubscriptionForGroup(8201, "vip")
+	require.NoError(t, err)
+	assert.False(t, ok, "restricted plan should not fund an unlisted group")
+
+	ok, err = HasActiveUserSubscriptionForGroup(8202, "vip")
+	require.NoError(t, err)
+	assert.True(t, ok, "unrestricted plan should fund any group")
+}
+
+func TestHasActiveUserSubscriptionForGroupIgnoresInactive(t *testing.T) {
+	truncateTables(t)
+	now := common.GetTimestamp()
+
+	seedGroupPlan(t, 9703, "default")
+	seedGroupSub(t, 9713, 8301, 9703, "active", now-1)       // expired
+	seedGroupSub(t, 9714, 8302, 9703, "cancelled", now+3600) // cancelled
+
+	ok, err := HasActiveUserSubscriptionForGroup(8301, "default")
+	require.NoError(t, err)
+	assert.False(t, ok, "expired subscription must not count")
+
+	ok, err = HasActiveUserSubscriptionForGroup(8302, "default")
+	require.NoError(t, err)
+	assert.False(t, ok, "cancelled subscription must not count")
+}
+
+func TestHasActiveUserSubscriptionForGroupAnyEligiblePlan(t *testing.T) {
+	truncateTables(t)
+	now := common.GetTimestamp()
+	activeEnd := now + 30*24*3600
+
+	seedGroupPlan(t, 9704, "default")
+	seedGroupPlan(t, 9705, "vip")
+	seedGroupSub(t, 9715, 8401, 9704, "active", activeEnd)
+	seedGroupSub(t, 9716, 8401, 9705, "active", activeEnd)
+
+	ok, err := HasActiveUserSubscriptionForGroup(8401, "vip")
+	require.NoError(t, err)
+	assert.True(t, ok, "any active eligible plan should satisfy the group")
+}
+
+func TestUserActiveSubscriptionsAllowWalletOverflowIsGroupAware(t *testing.T) {
+	truncateTables(t)
+	now := common.GetTimestamp()
+	activeEnd := now + 30*24*3600
+
+	seedGroupPlan(t, 9801, "default")
+	seedGroupPlan(t, 9802, "vip")
+	// 两个订阅都禁止钱包回退，但分别只对 default / vip 生效。
+	require.NoError(t, DB.Create(&UserSubscription{Id: 9811, UserId: 8501, PlanId: 9801, AmountTotal: 1000, StartTime: now - 3600, EndTime: activeEnd, Status: "active", AllowWalletOverflow: false}).Error)
+	require.NoError(t, DB.Create(&UserSubscription{Id: 9812, UserId: 8501, PlanId: 9802, AmountTotal: 1000, StartTime: now - 3600, EndTime: activeEnd, Status: "active", AllowWalletOverflow: false}).Error)
+	// 该用户只有一个 vip 专属的严格订阅。
+	require.NoError(t, DB.Create(&UserSubscription{Id: 9813, UserId: 8502, PlanId: 9802, AmountTotal: 1000, StartTime: now - 3600, EndTime: activeEnd, Status: "active", AllowWalletOverflow: false}).Error)
+
+	allowed, err := UserActiveSubscriptionsAllowWalletOverflow(8501, "default")
+	require.NoError(t, err)
+	assert.False(t, allowed, "eligible strict subscription must block wallet overflow")
+
+	allowed, err = UserActiveSubscriptionsAllowWalletOverflow(8501, "svip")
+	require.NoError(t, err)
+	assert.True(t, allowed, "subscriptions restricted to other groups must not block wallet overflow")
+
+	allowed, err = UserActiveSubscriptionsAllowWalletOverflow(8502, "default")
+	require.NoError(t, err)
+	assert.True(t, allowed, "a vip-only strict subscription must not block default-group wallet overflow")
+
+	allowed, err = UserActiveSubscriptionsAllowWalletOverflow(8502, "vip")
+	require.NoError(t, err)
+	assert.False(t, allowed)
+
+	_, err = UserActiveSubscriptionsAllowWalletOverflow(0, "default")
+	require.Error(t, err)
+}
+
+func TestIsUserSubscriptionEligibleForGroup(t *testing.T) {
+	truncateTables(t)
+	now := common.GetTimestamp()
+	activeEnd := now + 30*24*3600
+
+	seedGroupPlan(t, 9803, "default")
+	seedGroupSub(t, 9814, 8601, 9803, "active", activeEnd)
+
+	eligible, err := IsUserSubscriptionEligibleForGroup(9814, "default")
+	require.NoError(t, err)
+	assert.True(t, eligible)
+
+	eligible, err = IsUserSubscriptionEligibleForGroup(9814, "vip")
+	require.NoError(t, err)
+	assert.False(t, eligible)
+
+	_, err = IsUserSubscriptionEligibleForGroup(999999, "default")
+	require.Error(t, err)
+}
+
+func TestPreConsumeUserSubscriptionGroupFilter(t *testing.T) {
+	truncateTables(t)
+	require.NoError(t, DB.AutoMigrate(&SubscriptionPreConsumeRecord{}))
+	t.Cleanup(func() { DB.Exec("DELETE FROM subscription_pre_consume_records") })
+	now := common.GetTimestamp()
+	activeEnd := now + 30*24*3600
+
+	seedGroupPlan(t, 9804, "default")
+	seedGroupSub(t, 9815, 8701, 9804, "active", activeEnd)
+
+	for _, group := range []string{"vip", ""} {
+		_, err := PreConsumeUserSubscription("group-filter-"+group, 8701, "m", 0, 100, group)
+		require.Error(t, err, "restricted plan must not fund group %q", group)
+		assert.Contains(t, err.Error(), "subscription quota insufficient")
+	}
+	var used int64
+	require.NoError(t, DB.Model(&UserSubscription{}).Where("id = ?", 9815).Select("amount_used").Scan(&used).Error)
+	assert.Zero(t, used, "ineligible attempts must not consume quota")
+
+	result, err := PreConsumeUserSubscription("group-filter-default", 8701, "m", 0, 100, "default")
+	require.NoError(t, err)
+	assert.EqualValues(t, 100, result.PreConsumed)
+	assert.EqualValues(t, 100, result.AmountUsedAfter)
+
+	replay, err := PreConsumeUserSubscription("group-filter-default", 8701, "m", 0, 100, "default")
+	require.NoError(t, err, "same requestId must stay idempotent")
+	assert.EqualValues(t, 100, replay.AmountUsedAfter)
+}
+
+func TestPreConsumeUserSubscriptionReplayGroupGuard(t *testing.T) {
+	truncateTables(t)
+	require.NoError(t, DB.AutoMigrate(&SubscriptionPreConsumeRecord{}))
+	t.Cleanup(func() { DB.Exec("DELETE FROM subscription_pre_consume_records") })
+	now := common.GetTimestamp()
+	activeEnd := now + 30*24*3600
+
+	seedGroupPlan(t, 9806, "default")
+	seedGroupSub(t, 9817, 8901, 9806, "active", activeEnd)
+
+	_, err := PreConsumeUserSubscription("group-replay-1", 8901, "m", 0, 100, "default")
+	require.NoError(t, err)
+
+	_, err = PreConsumeUserSubscription("group-replay-1", 8901, "m", 0, 100, "vip")
+	require.Error(t, err, "replay must not hand a restricted reservation to another group")
+	assert.Contains(t, err.Error(), "not eligible for group")
+
+	var sub UserSubscription
+	require.NoError(t, DB.First(&sub, 9817).Error)
+	assert.EqualValues(t, 100, sub.AmountUsed, "rejected replay must leave the reservation untouched")
+	var record SubscriptionPreConsumeRecord
+	require.NoError(t, DB.Where("request_id = ?", "group-replay-1").First(&record).Error)
+	assert.EqualValues(t, 100, record.PreConsumed)
+	assert.NotEqual(t, "refunded", record.Status)
+
+	replay, err := PreConsumeUserSubscription("group-replay-1", 8901, "m", 0, 100, "default")
+	require.NoError(t, err, "eligible replay must stay idempotent")
+	assert.EqualValues(t, 100, replay.AmountUsedAfter)
+}
+
+func TestRefundSubscriptionPreConsumeIsIdempotent(t *testing.T) {
+	truncateTables(t)
+	require.NoError(t, DB.AutoMigrate(&SubscriptionPreConsumeRecord{}))
+	t.Cleanup(func() { DB.Exec("DELETE FROM subscription_pre_consume_records") })
+	now := common.GetTimestamp()
+	activeEnd := now + 30*24*3600
+
+	seedGroupPlan(t, 9805, "")
+	seedGroupSub(t, 9816, 8801, 9805, "active", activeEnd)
+
+	_, err := PreConsumeUserSubscription("group-refund-1", 8801, "m", 0, 100, "default")
+	require.NoError(t, err)
+	require.NoError(t, RefundSubscriptionPreConsume("group-refund-1"))
+	require.NoError(t, RefundSubscriptionPreConsume("group-refund-1"), "repeated refund must not credit twice")
+
+	var sub UserSubscription
+	require.NoError(t, DB.First(&sub, 9816).Error)
+	assert.Zero(t, sub.AmountUsed)
+	var record SubscriptionPreConsumeRecord
+	require.NoError(t, DB.Where("request_id = ?", "group-refund-1").First(&record).Error)
+	assert.Equal(t, "refunded", record.Status)
+
+	_, err = PreConsumeUserSubscription("group-refund-1", 8801, "m", 0, 100, "default")
+	require.Error(t, err, "a refunded requestId must not be reused")
 }

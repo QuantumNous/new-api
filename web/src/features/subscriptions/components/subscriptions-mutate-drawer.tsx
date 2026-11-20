@@ -31,6 +31,7 @@ import {
   sideDrawerHeaderClassName,
   sideDrawerSwitchItemClassName,
 } from '@/components/drawer-layout'
+import { MultiSelect } from '@/components/multi-select'
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
 import {
@@ -491,6 +492,35 @@ export function SubscriptionsMutateDrawer({
                   )}
                 />
               </div>
+
+              <FormField
+                control={form.control}
+                name='quota_usable_groups'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Quota Usable Groups')}</FormLabel>
+                    <FormControl>
+                      <MultiSelect
+                        options={groupOptions.map((g) => ({
+                          value: g,
+                          label: g,
+                        }))}
+                        selected={field.value || []}
+                        onChange={field.onChange}
+                        placeholder={t('Empty = all groups')}
+                        aria-label={t('Quota Usable Groups')}
+                        className='w-full'
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Subscription quota only applies to these groups; requests in other groups use wallet balance. Leave empty to apply to all groups.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <FormField
                 control={form.control}
