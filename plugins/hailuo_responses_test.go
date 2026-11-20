@@ -64,6 +64,11 @@ func TestHailuoUsageProfilesPerModel(t *testing.T) {
 			resolutions: []string{"768P", "2K"},
 		},
 		{
+			models:      []string{"MiniMax-H3-Max"},
+			fields:      []string{"input_images", "input_video_seconds", "resolution", "seconds"},
+			resolutions: []string{"480P", "768P"},
+		},
+		{
 			models:      []string{"MiniMax-Hailuo-2.3", "MiniMax-Hailuo-2.3-Fast"},
 			fields:      []string{"resolution", "seconds"},
 			resolutions: []string{"768P", "1080P"},
@@ -328,6 +333,78 @@ func TestHailuoH3BuildSubmitRequest(t *testing.T) {
 
 // Every MiniMax-H3 request bound is rejected before the upstream call, so an
 // out-of-range duration can never reach quota calculation as a billing fact.
+func hailuoH3MaxSubmitContext(requestBody map[string]any) map[string]any {
+	ctx := hailuoH3SubmitContext(requestBody)
+	ctx["model"] = "MiniMax-H3-Max"
+	ctx["upstreamModel"] = "MiniMax-H3-Max"
+	return ctx
+}
+
+// MiniMax-H3-Max shares the /v2 contract at its own 480P/768P resolutions
+// and a 5 to 15 second duration.
+func TestHailuoH3MaxBuildSubmitRequest(t *testing.T) {
+	plugin := loadHailuoPlugin(t)
+	testCases := []struct {
+		name       string
+		request    map[string]any
+		wantBody   string
+		wantAction string
+	}{
+		{
+			name:       "text to video defaults to 768P",
+			request:    map[string]any{"prompt": "a cat napping"},
+			wantBody:   `{"model":"MiniMax-H3-Max","content":[{"type":"text","text":"a cat napping"}],"resolution":"768P","duration":5,"ratio":"16:9"}`,
+			wantAction: "text_to_video",
+		},
+		{
+			name:       "480P resolution from size at the longest duration",
+			request:    map[string]any{"prompt": "p", "duration": 15, "size": "480P"},
+			wantBody:   `{"model":"MiniMax-H3-Max","content":[{"type":"text","text":"p"}],"resolution":"480P","duration":15,"ratio":"16:9"}`,
+			wantAction: "text_to_video",
+		},
+		{
+			name:    "frame images keep the multimodal content contract",
+			request: map[string]any{"prompt": "p", "images": []any{"first.png", "last.png"}},
+			wantBody: `{"model":"MiniMax-H3-Max","content":[
+				{"type":"text","text":"p"},
+				{"type":"image_url","role":"first_frame","image_url":{"url":"first.png"}},
+				{"type":"image_url","role":"last_frame","image_url":{"url":"last.png"}}],
+				"resolution":"768P","duration":5,"ratio":"adaptive"}`,
+			wantAction: "image_to_video",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			descriptor := callHailuoHook(t, plugin, "buildSubmitRequest", hailuoH3MaxSubmitContext(testCase.request))
+			assert.Equal(t, "https://api.minimax.example/v2/video_generation", descriptor["url"])
+			assert.Equal(t, "POST", descriptor["method"])
+			assert.Equal(t, testCase.wantAction, descriptor["action"])
+			body, err := common.Marshal(descriptor["body"])
+			require.NoError(t, err)
+			assert.JSONEq(t, testCase.wantBody, string(body))
+		})
+	}
+}
+
+func TestHailuoH3MaxRejectsOutOfContractRequests(t *testing.T) {
+	plugin := loadHailuoPlugin(t)
+	testCases := []struct {
+		name    string
+		request map[string]any
+		wantErr string
+	}{
+		{"H3's four second duration", map[string]any{"prompt": "p", "duration": 4}, "duration must be an integer between 5 and 15"},
+		{"duration above the maximum", map[string]any{"prompt": "p", "duration": 16}, "duration must be an integer between 5 and 15"},
+		{"2K belongs to MiniMax-H3 only", map[string]any{"prompt": "p", "size": "2K"}, "resolution must be 480P or 768P"},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, err := plugin.Engine.Call(t.Context(), "buildSubmitRequest", hailuoH3MaxSubmitContext(testCase.request))
+			require.ErrorContains(t, err, testCase.wantErr)
+		})
+	}
+}
+
 func TestHailuoH3RejectsOutOfContractRequests(t *testing.T) {
 	plugin := loadHailuoPlugin(t)
 	tenReferenceImages := make([]any, 0, 10)
@@ -432,6 +509,11 @@ func TestHailuoQueryRequestEndpointByModel(t *testing.T) {
 			want: "https://api.minimax.example/v2/query/video_generation/t1",
 		},
 		{
+			name: "H3-Max uses the v2 path parameter",
+			ctx:  map[string]any{"taskId": "t1", "upstreamModel": "MiniMax-H3-Max"},
+			want: "https://api.minimax.example/v2/query/video_generation/t1",
+		},
+		{
 			name: "legacy models keep the v1 query parameter",
 			ctx:  map[string]any{"taskId": "t1", "upstreamModel": "MiniMax-Hailuo-2.3"},
 			want: "https://api.minimax.example/v1/query/video_generation?task_id=t1",
@@ -529,6 +611,12 @@ func TestHailuoExtractUsageFacts(t *testing.T) {
 		{"legacy model", "MiniMax-Hailuo-2.3", map[string]any{"prompt": "p", "duration": 10}, map[string]any{
 			"seconds": float64(10), "resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0),
 		}},
+		{"H3-Max defaults", "MiniMax-H3-Max", map[string]any{"prompt": "p"}, map[string]any{
+			"seconds": float64(5), "resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0),
+		}},
+		{"H3-Max 480P", "MiniMax-H3-Max", map[string]any{"prompt": "p", "duration": 15, "size": "480P"}, map[string]any{
+			"seconds": float64(15), "resolution": "480P", "input_images": float64(0), "input_video_seconds": float64(0),
+		}},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -571,6 +659,21 @@ func TestHailuoH3CompletionUsageFacts(t *testing.T) {
 			name: "out of contract usage cannot become a billing multiplier",
 			body: `{"task":{"id":"1","status":"succeeded","resolution":"2K","usage":{"output_seconds":16,"input_seconds":16,"input_image_count":10}}}`,
 			want: map[string]any{"resolution": "2K"},
+		},
+		{
+			name: "H3-Max actual usage settles at 480P",
+			body: `{"task":{"id":"1","model":"MiniMax-H3-Max","status":"succeeded","resolution":"480P","usage":{"output_seconds":5,"input_seconds":0,"input_image_count":1}}}`,
+			want: map[string]any{"seconds": float64(5), "resolution": "480P", "input_images": float64(1), "input_video_seconds": float64(0)},
+		},
+		{
+			name: "H3-Max four second output stays out of settlement",
+			body: `{"task":{"id":"1","model":"MiniMax-H3-Max","status":"succeeded","resolution":"768P","usage":{"output_seconds":4,"input_seconds":0,"input_image_count":0}}}`,
+			want: map[string]any{"resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0)},
+		},
+		{
+			name: "H3-Max drops a resolution the model does not render",
+			body: `{"task":{"id":"1","model":"MiniMax-H3-Max","status":"succeeded","resolution":"2K"}}`,
+			want: nil,
 		},
 	}
 	for _, testCase := range testCases {
