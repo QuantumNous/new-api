@@ -44,6 +44,29 @@ func createUserBindTestUser(t *testing.T) User {
 	return user
 }
 
+func TestTransferAffQuotaUpdatesCachedWallet(t *testing.T) {
+	setupUserUpdateTestState(t)
+	useUserCacheMiniRedis(t)
+
+	previousQuotaPerUnit := common.QuotaPerUnit
+	common.QuotaPerUnit = 100
+	t.Cleanup(func() { common.QuotaPerUnit = previousQuotaPerUnit })
+
+	user := User{Username: "affiliate-transfer", AffCode: "affiliate-transfer", Quota: 7, AffQuota: 100}
+	require.NoError(t, DB.Create(&user).Error)
+	require.NoError(t, populateUserCache(user))
+
+	require.NoError(t, user.TransferAffQuotaToQuota(100))
+	stored, err := GetUserById(user.Id, true)
+	require.NoError(t, err)
+	assert.Equal(t, 107, stored.Quota)
+	assert.Zero(t, stored.AffQuota)
+
+	walletQuota, err := GetUserQuota(user.Id, false)
+	require.NoError(t, err)
+	assert.Equal(t, 107, walletQuota)
+}
+
 func TestUserUpdateDoesNotOverwriteConcurrentAccountingOrTokenChanges(t *testing.T) {
 	setupUserUpdateTestState(t)
 
