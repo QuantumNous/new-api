@@ -46,6 +46,44 @@ function settingsOf(payload: { settings?: string | null }) {
 }
 
 describe('plugin channel settings', () => {
+  test('renaming keeps fields in setting that the form does not edit', () => {
+    const form = pluginForm({
+      name: 'Renamed channel',
+      setting: JSON.stringify({
+        task_plugin_key: 'vendor-x',
+        extension_option: { enabled: true },
+      }),
+    })
+
+    const payload = transformFormDataToUpdatePayload(form, 7)
+
+    expect(payload.name).toBe('Renamed channel')
+    expect(JSON.parse(payload.setting ?? '{}')).toMatchObject({
+      extension_option: { enabled: true },
+    })
+  })
+
+  test('saving default transport options clears saved overrides', () => {
+    const form = pluginForm({
+      setting: JSON.stringify({
+        http_protocol: 'http1',
+        http2_connection_shards: 8,
+        tls_insecure_skip_verify: true,
+      }),
+      http_protocol: 'auto',
+      http2_connection_shards: 1,
+      tls_insecure_skip_verify: false,
+    })
+
+    const setting = JSON.parse(
+      transformFormDataToUpdatePayload(form, 7).setting ?? '{}'
+    )
+
+    expect(setting).not.toHaveProperty('http_protocol')
+    expect(setting).not.toHaveProperty('http2_connection_shards')
+    expect(setting).not.toHaveProperty('tls_insecure_skip_verify')
+  })
+
   test('saves the plugin settings the administrator set next to other settings', () => {
     const settings = settingsOf(
       transformFormDataToCreatePayload(

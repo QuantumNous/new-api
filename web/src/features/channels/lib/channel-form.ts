@@ -685,8 +685,23 @@ export function transformChannelToFormDefaults(
 /**
  * Build the setting JSON string from form extra settings
  */
-export function buildSettingJSON(formData: ChannelFormValues): string {
+export function buildSettingJSON(
+  formData: ChannelFormValues,
+  previousSetting?: string
+): string {
+  let previous: unknown
+  if (previousSetting?.trim()) {
+    try {
+      previous = JSON.parse(previousSetting)
+    } catch {
+      // Fall back to the field values when the stored value is invalid JSON.
+    }
+  }
+
   const settingObj: Record<string, unknown> = {
+    ...(previous && typeof previous === 'object' && !Array.isArray(previous)
+      ? previous
+      : {}),
     task_plugin_key:
       formData.type === CHANNEL_TYPE_TASK_PLUGIN
         ? formData.task_plugin_key?.trim() || ''
@@ -710,6 +725,9 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
       formData.responses_websocket_enabled === true,
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
+    http_protocol: undefined,
+    http2_connection_shards: undefined,
+    tls_insecure_skip_verify: undefined,
   }
 
   const protocol = normalizeHttpProtocol(formData.http_protocol)
@@ -981,7 +999,7 @@ export function transformFormDataToUpdatePayload(
     status_code_mapping: formData.status_code_mapping || null,
     tag: formData.tag || null,
     remark: formData.remark || '',
-    setting: buildSettingJSON(formData),
+    setting: buildSettingJSON(formData, formData.setting),
     param_override: formData.param_override || null,
     header_override: formData.header_override || null,
     settings: buildSettingsJSON(formData),
