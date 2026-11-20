@@ -80,6 +80,17 @@ export function processChartData(
     Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value)
   const formatQuotaValue = (value: number) => renderQuotaCompat(value, 4)
   const formatQuotaTotal = (value: number) => renderQuotaCompat(value, 2)
+  const quotaAxes = [
+    { orient: 'bottom', type: 'band' },
+    {
+      orient: 'left',
+      type: 'linear',
+      label: {
+        formatMethod: (value: string | number) =>
+          formatQuotaValue(Number(value)),
+      },
+    },
+  ]
 
   const MAX_TOOLTIP_MODELS = 15
   const isOtherTooltipKey = (key: string) =>
@@ -169,7 +180,8 @@ export function processChartData(
         type: 'bar',
         data: [{ id: 'barData', values: [] }],
         xField: 'Time',
-        yField: 'Usage',
+        yField: 'rawQuota',
+        axes: quotaAxes,
         seriesField: 'Model',
         stack: true,
         legends: { visible: true, selectMode: 'single' },
@@ -178,7 +190,8 @@ export function processChartData(
         type: 'area',
         data: [{ id: 'areaData', values: [] }],
         xField: 'Time',
-        yField: 'Usage',
+        yField: 'rawQuota',
+        axes: quotaAxes,
         seriesField: 'Model',
         stack: true,
         legends: { visible: true, selectMode: 'single' },
@@ -497,7 +510,8 @@ export function processChartData(
       type: 'bar',
       data: [{ id: 'barData', values: lineValues }],
       xField: 'Time',
-      yField: 'Usage',
+      yField: 'rawQuota',
+      axes: quotaAxes,
       seriesField: 'Model',
       stack: true,
       legends: { visible: true, selectMode: 'single' },
@@ -535,7 +549,8 @@ export function processChartData(
       type: 'area',
       data: [{ id: 'areaData', values: areaValues }],
       xField: 'Time',
-      yField: 'Usage',
+      yField: 'rawQuota',
+      axes: quotaAxes,
       seriesField: 'Model',
       stack: false,
       legends: { visible: true, selectMode: 'single' },

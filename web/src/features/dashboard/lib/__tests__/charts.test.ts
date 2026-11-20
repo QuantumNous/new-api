@@ -16,10 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { describe, expect, test } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
 import type { QuotaDataItem } from '@/features/dashboard/types'
 import type { TimeGranularity } from '@/lib/time'
+import {
+  DEFAULT_CURRENCY_CONFIG,
+  useSystemConfigStore,
+  type CurrencyDisplayType,
+} from '@/stores/system-config-store'
 
 import { processChartData, processUserChartData } from '../charts'
 
@@ -152,5 +157,87 @@ describe.each(cases)('dashboard $granularity chart chronology', (scenario) => {
         )
       ).toEqual([0, 0, 0, 0, 0, 0, 8])
     }
+  })
+})
+
+describe('consumption chart currency axes', () => {
+  const data: QuotaDataItem[] = [
+    {
+      created_at: new Date('2026-10-20T12:00:00').getTime() / 1000,
+      model_name: 'model-a',
+      quota: 100000,
+      count: 2,
+    },
+  ]
+
+  beforeEach(() => {
+    useSystemConfigStore.getState().setConfig({
+      currency: {
+        ...DEFAULT_CURRENCY_CONFIG,
+        quotaDisplayType: 'CNY',
+        quotaPerUnit: 100000,
+        usdExchangeRate: 7,
+        customCurrencySymbol: '€',
+        customCurrencyExchangeRate: 0.9,
+      },
+    })
+  })
+
+  afterEach(() => {
+    useSystemConfigStore.setState(useSystemConfigStore.getInitialState(), true)
+    localStorage.clear()
+  })
+
+  test.each<{
+    currency: CurrencyDisplayType
+    expected: string
+  }>([
+    { currency: 'CNY', expected: '¥7.0000' },
+    { currency: 'USD', expected: '$1.0000' },
+    { currency: 'CUSTOM', expected: '€0.9000' },
+    { currency: 'TOKENS', expected: '100,000' },
+  ])('matches $currency axis values to tooltip amounts', (scenario) => {
+    useSystemConfigStore.getState().setConfig({
+      currency: {
+        ...useSystemConfigStore.getState().config.currency,
+        quotaDisplayType: scenario.currency,
+      },
+    })
+    const result = processChartData(data)
+
+    for (const spec of [result.spec_line, result.spec_area]) {
+      const row = spec.data[0].values.find(
+        (value: { rawQuota: number }) => value.rawQuota > 0
+      )
+      const axis = spec.axes?.find(
+        (value: { orient: string }) => value.orient === 'left'
+      )
+      const formatTick = axis?.label?.formatMethod ?? String
+      expect(formatTick(row[spec.yField])).toBe(scenario.expected)
+      expect(spec.tooltip.mark.content[0].value(row)).toBe(scenario.expected)
+    }
+  })
+
+  test('keeps small consumption values visible before currency formatting', () => {
+    const result = processChartData([{ ...data[0], quota: 1 }])
+
+    for (const spec of [result.spec_line, result.spec_area]) {
+      const row = spec.data[0].values.find(
+        (value: { rawQuota: number }) => value.rawQuota > 0
+      )
+      expect(row[spec.yField]).toBeGreaterThan(0)
+    }
+  })
+
+  test('formats empty chart axes in the configured currency', () => {
+    const result = processChartData([])
+
+    for (const spec of [result.spec_line, result.spec_area]) {
+      const axis = spec.axes?.find(
+        (value: { orient: string }) => value.orient === 'left'
+      )
+      expect(axis?.label?.formatMethod(0)).toBe('¥0.0000')
+    }
+    expect(result.totalQuotaDisplay).toBe('¥0.00')
   })
 })
