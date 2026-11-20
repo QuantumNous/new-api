@@ -22,10 +22,10 @@ import { readCachedStatus, statusQueryOptions } from '@/lib/status-query'
 
 export type ModuleAccess = { enabled: boolean; requireAuth: boolean }
 
-export type HeaderNavModule = 'rankings' | 'pricing'
+export type HeaderNavModule = 'home' | 'rankings' | 'pricing'
 
 export type HeaderNavModules = {
-  home: boolean
+  home: ModuleAccess
   console: boolean
   pricing: ModuleAccess
   rankings: ModuleAccess
@@ -35,7 +35,7 @@ export type HeaderNavModules = {
 }
 
 const DEFAULT_HEADER_NAV_MODULES: HeaderNavModules = {
-  home: true,
+  home: { enabled: true, requireAuth: false },
   console: true,
   pricing: { enabled: true, requireAuth: false },
   rankings: { enabled: true, requireAuth: false },
@@ -44,6 +44,7 @@ const DEFAULT_HEADER_NAV_MODULES: HeaderNavModules = {
 }
 
 const DEFAULTS: Record<HeaderNavModule, ModuleAccess> = {
+  home: DEFAULT_HEADER_NAV_MODULES.home,
   pricing: DEFAULT_HEADER_NAV_MODULES.pricing,
   rankings: DEFAULT_HEADER_NAV_MODULES.rankings,
 }
@@ -51,6 +52,7 @@ const DEFAULTS: Record<HeaderNavModule, ModuleAccess> = {
 function cloneHeaderNavDefaults(): HeaderNavModules {
   return {
     ...DEFAULT_HEADER_NAV_MODULES,
+    home: { ...DEFAULT_HEADER_NAV_MODULES.home },
     pricing: { ...DEFAULT_HEADER_NAV_MODULES.pricing },
     rankings: { ...DEFAULT_HEADER_NAV_MODULES.rankings },
   }
@@ -112,6 +114,10 @@ export function parseHeaderNavModules(raw: unknown): HeaderNavModules {
   if (!parsed) return result
 
   Object.entries(parsed).forEach(([key, value]) => {
+    if (key === 'home') {
+      result.home = parseAccess(value, result.home)
+      return
+    }
     if (key === 'pricing') {
       result.pricing = parseAccess(value, result.pricing)
       return
