@@ -1,0 +1,70 @@
+name: Aibuff release gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_production_commit:
+        description: "Expected production commit (full 40-character hash)"
+        required: true
+        type: string
+      expected_production_tree:
+        description: "Expected production tree (full 40-character hash)"
+        required: true
+        type: string
+      expected_production_image_digest:
+        description: "Expected production image digest (sha256:<64 lowercase hex>)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aibuff-release-gate
+  cancel-in-progress: false
+
+jobs:
+  package-and-validate:
+    name: Package and validate exact release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout complete Git history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run release-controller tests
+        run: python3 -m unittest discover -s ops/release/tests -p 'test_*.py' -v
+
+      - name: Prepare exact release package
+        env:
+          EXPECTED_PRODUCTION_COMMIT: ${{ inputs.expected_production_commit }}
+          EXPECTED_PRODUCTION_TREE: ${{ inputs.expected_production_tree }}
+          EXPECTED_PRODUCTION_IMAGE_DIGEST: ${{ inputs.expected_production_image_digest }}
+        run: |
+          output="$RUNNER_TEMP/aibuff-release-${GITHUB_SHA}"
+          python3 ops/release/release_controller.py prepare \
+            --repo . \
+            --output "$output" \
+            --candidate "$GITHUB_SHA" \
+            --expected-production-commit "$EXPECTED_PRODUCTION_COMMIT" \
+            --expected-production-tree "$EXPECTED_PRODUCTION_TREE" \
+            --expected-production-image-digest "$EXPECTED_PRODUCTION_IMAGE_DIGEST"
+          python3 ops/release/release_controller.py validate \
+            --repo . \
+            --manifest "$output/release-manifest.json"
+
+      - name: Upload release package
+        uses: actions/upload-artifact@v4
+        with:
+          name: aibuff-release-${{ github.sha }}
+          path: ${{ runner.temp }}/aibuff-release-${{ github.sha }}
+          if-no-files-found: error
