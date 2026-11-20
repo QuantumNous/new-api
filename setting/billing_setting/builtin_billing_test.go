@@ -210,3 +210,43 @@ func TestDeepSeekBuiltinBilling(t *testing.T) {
 		assert.Equal(t, 375, result.ActualQuotaAfterGroup, model)
 	}
 }
+
+func TestVoyageBuiltinBilling(t *testing.T) {
+	settings := config.GlobalConfig.Get("billing_setting").(*billing_setting.BillingSetting)
+	saved := *settings
+	savedRatios, savedPrices := ratio_setting.ModelRatio2JSONString(), ratio_setting.ModelPrice2JSONString()
+	t.Cleanup(func() {
+		*settings = saved
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedRatios))
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(savedPrices))
+	})
+	*settings = billing_setting.BillingSetting{BillingMode: map[string]string{}, BillingExpr: map[string]string{}}
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{}`))
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+
+	quota := func(model string, usage *dto.Usage) int {
+		expression, ok := billing_setting.GetBillingExpr(model)
+		require.True(t, ok, model)
+		result, err := billingexpr.ComputeTieredQuota(&billingexpr.BillingSnapshot{
+			ExprString: expression, ExprHash: billingexpr.ExprHashString(expression), GroupRatio: 1, QuotaPerUnit: 500000,
+		}, service.BuildTieredTokenParams(usage, false, billingexpr.UsedVars(expression)))
+		require.NoError(t, err)
+		return result.ActualQuotaAfterGroup
+	}
+	// One million tokens cost the listed USD price; QuotaPerUnit is 500000.
+	for model, usd := range map[string]float64{
+		"voyage-4-large": 0.12, "voyage-4": 0.06, "voyage-4-lite": 0.02, "voyage-code-4": 0.12,
+		"voyage-3-large": 0.18, "voyage-3.5": 0.06, "voyage-3.5-lite": 0.02, "voyage-code-3": 0.18,
+		"voyage-finance-2": 0.12, "voyage-law-2": 0.12, "voyage-context-4": 0.12, "voyage-context-3": 0.18,
+		"rerank-3": 0.05, "rerank-3-lite": 0.02, "rerank-2.5": 0.05, "rerank-2.5-lite": 0.02,
+	} {
+		assert.Equal(t, int(usd*500000), quota(model, &dto.Usage{PromptTokens: 1_000_000, TotalTokens: 1_000_000}), model)
+	}
+
+	// 1,000 text tokens ($0.12/M) and 560,000 pixels, which the adaptor reports
+	// as 1,000 image tokens ($0.60 per billion pixels): $0.00012 + $0.00036.
+	multimodal := &dto.Usage{PromptTokens: 2000, TotalTokens: 2000, PromptTokensDetails: dto.InputTokenDetails{TextTokens: 1000, ImageTokens: 1000}}
+	for _, model := range []string{"voyage-multimodal-3", "voyage-multimodal-3.5"} {
+		assert.Equal(t, 228, quota(model, multimodal), model)
+	}
+}

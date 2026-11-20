@@ -115,3 +115,42 @@ func TestEmbeddingTokenCountMetaCountsChatStyleParts(t *testing.T) {
 		{FileType: types.FileTypeVideo, Source: types.NewURLFileSource("https://example.com/cat.mp4")},
 	}, meta.Files)
 }
+
+// Voyage-style embedding input groups the parts of one input in
+// {"content": [...]}, takes base64 parts, and may be a single part object.
+// Every part must count, or the request is pre-charged nothing.
+func TestEmbeddingTokenCountMetaCountsGroupedAndBase64Parts(t *testing.T) {
+	const imageData = "data:image/png;base64,iVBORw0KGgo="
+	var request EmbeddingRequest
+	require.NoError(t, kitutil.UnmarshalJsonStr(`{"model":"m","input":[`+
+		`{"content":["a cat",{"type":"text","text":"on a mat"},{"type":"image_url","image_url":"https://example.com/cat.png"}]},`+
+		`{"type":"image_base64","image_base64":"`+imageData+`"},`+
+		`{"type":"video_base64","video_base64":"`+imageData+`"}]}`, &request))
+	meta := request.GetTokenCountMeta()
+	assert.Equal(t, "a cat\non a mat", meta.CombineText)
+	assert.Equal(t, []*types.FileMeta{
+		{FileType: types.FileTypeImage, Source: types.NewURLFileSource("https://example.com/cat.png")},
+		{FileType: types.FileTypeImage, Source: types.NewBase64FileSource(imageData, "")},
+		{FileType: types.FileTypeVideo, Source: types.NewBase64FileSource(imageData, "")},
+	}, meta.Files)
+
+	var single EmbeddingRequest
+	require.NoError(t, kitutil.UnmarshalJsonStr(`{"model":"m","input":{"type":"image_url","image_url":{"url":"https://example.com/a.png"}}}`, &single))
+	assert.Len(t, single.GetTokenCountMeta().Files, 1)
+}
+
+// input_type is read for adaptors that need it, but forwarding the request as
+// is must not send it to upstreams that reject unknown arguments.
+func TestEmbeddingInputTypeIsReadButNotMarshaled(t *testing.T) {
+	var request EmbeddingRequest
+	require.NoError(t, kitutil.UnmarshalJsonStr(`{"model":"m","input":["a"],"input_type":"query","dimensions":256}`, &request))
+	require.NotNil(t, request.InputType)
+	assert.Equal(t, "query", *request.InputType)
+	require.NotNil(t, request.Dimensions)
+	assert.Equal(t, 256, *request.Dimensions)
+
+	encoded, err := kitutil.Marshal(request)
+	require.NoError(t, err)
+	assert.NotContains(t, string(encoded), "input_type")
+	assert.Contains(t, string(encoded), `"dimensions":256`)
+}
