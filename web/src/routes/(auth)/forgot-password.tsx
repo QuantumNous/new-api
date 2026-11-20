@@ -18,8 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute } from '@tanstack/react-router'
 
+import { redirectIfPasswordRegisterDisabled } from '@/features/auth/lib/password-register-guard'
 import { ForgotPassword } from '@/features/auth/forgot-password'
 
 export const Route = createFileRoute('/(auth)/forgot-password')({
   component: ForgotPassword,
+  beforeLoad: async () => {
+    // 密码注册关闭时禁止访问忘记密码页
+    await redirectIfPasswordRegisterDisabled()
+  },
 })
