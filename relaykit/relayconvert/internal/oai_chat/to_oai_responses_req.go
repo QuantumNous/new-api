@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
 	relaymedia "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/media"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/oaicache"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 	"github.com/samber/lo"
@@ -91,10 +92,30 @@ func ChatCompletionsRequestToResponsesRequest(ctx context.Context, req *dto.Gene
 		return nil, fmt.Errorf("n>1 is not supported in responses compatibility mode")
 	}
 
+	promptCacheOptions, err := oaicache.OptionsToResponses(req.PromptCacheOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	if kitutil.GetJsonType(req.Prediction) == "object" {
+		var prediction struct {
+			Content any `json:"content"`
+		}
+		if err := kitutil.Unmarshal(req.Prediction, &prediction); err == nil {
+			if index := oaicache.BreakpointIndex(prediction.Content); index >= 0 {
+				return nil, fmt.Errorf("conversion to responses does not support prediction.content[%d].prompt_cache_breakpoint", index)
+			}
+		}
+	}
+
 	var instructionsParts []string
 	inputItems := make([]map[string]any, 0, len(req.Messages))
 
-	for _, msg := range req.Messages {
+	for index, msg := range req.Messages {
+		if partIndex := oaicache.BreakpointIndex(msg.Content); partIndex >= 0 {
+			return nil, fmt.Errorf("conversion to responses does not support messages[%d].content[%d].prompt_cache_breakpoint", index, partIndex)
+		}
+
 		role := strings.TrimSpace(msg.Role)
 		if role == "" {
 			continue
@@ -410,24 +431,26 @@ func ChatCompletionsRequestToResponsesRequest(ctx context.Context, req *dto.Gene
 	}
 
 	out := &dto.OpenAIResponsesRequest{
-		Model:             req.Model,
-		Input:             inputRaw,
-		Instructions:      instructionsRaw,
-		Stream:            req.Stream,
-		Temperature:       req.Temperature,
-		Text:              textRaw,
-		ToolChoice:        toolChoiceRaw,
-		Tools:             toolsRaw,
-		TopP:              topP,
-		FrequencyPenalty:  frequencyPenaltyRaw,
-		PresencePenalty:   presencePenaltyRaw,
-		User:              req.User,
-		ParallelToolCalls: parallelToolCallsRaw,
-		Store:             req.Store,
-		Metadata:          req.Metadata,
-		PromptCacheKey:    promptCacheKeyRaw,
-		EnableThinking:    req.EnableThinking,
-		ThinkingBudget:    req.ThinkingBudget,
+		Model:                req.Model,
+		Input:                inputRaw,
+		Instructions:         instructionsRaw,
+		Stream:               req.Stream,
+		Temperature:          req.Temperature,
+		Text:                 textRaw,
+		ToolChoice:           toolChoiceRaw,
+		Tools:                toolsRaw,
+		TopP:                 topP,
+		FrequencyPenalty:     frequencyPenaltyRaw,
+		PresencePenalty:      presencePenaltyRaw,
+		User:                 req.User,
+		ParallelToolCalls:    parallelToolCallsRaw,
+		Store:                req.Store,
+		Metadata:             req.Metadata,
+		PromptCacheKey:       promptCacheKeyRaw,
+		PromptCacheOptions:   promptCacheOptions,
+		PromptCacheRetention: req.PromptCacheRetention,
+		EnableThinking:       req.EnableThinking,
+		ThinkingBudget:       req.ThinkingBudget,
 	}
 	if req.MaxTokens != nil || req.MaxCompletionTokens != nil {
 		out.MaxOutputTokens = lo.ToPtr(maxOutputTokens)

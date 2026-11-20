@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
 	relaymedia "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/media"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/oaicache"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -39,6 +40,11 @@ func ResponsesRequestToChatCompletionsRequest(ctx context.Context, req *dto.Open
 		return nil, errors.New("model is required")
 	}
 	if err := validateResponsesRequestChatUnsupportedFields(req); err != nil {
+		return nil, err
+	}
+
+	promptCacheOptions, err := oaicache.OptionsToChat(req.PromptCacheOptions)
+	if err != nil {
 		return nil, err
 	}
 
@@ -78,6 +84,7 @@ func ResponsesRequestToChatCompletionsRequest(ctx context.Context, req *dto.Open
 		Store:                req.Store,
 		Metadata:             req.Metadata,
 		SafetyIdentifier:     req.SafetyIdentifier,
+		PromptCacheOptions:   promptCacheOptions,
 		PromptCacheRetention: req.PromptCacheRetention,
 		EnableThinking:       req.EnableThinking,
 		ThinkingBudget:       req.ThinkingBudget,
@@ -146,6 +153,19 @@ func ValidateRequestChatUnsupportedFields(req *dto.OpenAIResponsesRequest) error
 func responsesRequestMessagesToChat(ctx context.Context, req *dto.OpenAIResponsesRequest) ([]dto.Message, error) {
 	messages := make([]dto.Message, 0)
 	if rawJSONPresent(req.Instructions) {
+		// Check structured instructions before they become a Chat system string.
+		if kitutil.GetJsonType(req.Instructions) == "array" {
+			var items []any
+			if err := kitutil.Unmarshal(req.Instructions, &items); err != nil {
+				return nil, fmt.Errorf("invalid instructions array: %w", err)
+			}
+			for index, value := range items {
+				item, _ := value.(map[string]any)
+				if err := rejectResponsesItemBreakpoints(item, "instructions", index); err != nil {
+					return nil, err
+				}
+			}
+		}
 		instructions, err := responsesJSONString(req.Instructions)
 		if err != nil {
 			return nil, fmt.Errorf("invalid instructions: %w", err)
@@ -176,7 +196,10 @@ func responsesRequestMessagesToChat(ctx context.Context, req *dto.OpenAIResponse
 		// batch to stay contiguous, so media hoisted out of tool output items is
 		// held back and emitted as a single user message once the batch ends.
 		var pendingMedia []any
-		for _, item := range items {
+		for index, item := range items {
+			if err := rejectResponsesItemBreakpoints(item, "input", index); err != nil {
+				return nil, err
+			}
 			itemType := strings.TrimSpace(kitutil.Interface2String(item["type"]))
 			if len(pendingMedia) > 0 && itemType != responsesInputTypeFunctionCallOutput && itemType != responsesInputTypeCustomToolOutput {
 				messages = append(messages, dto.Message{Role: "user", Content: pendingMedia})
@@ -196,6 +219,22 @@ func responsesRequestMessagesToChat(ctx context.Context, req *dto.OpenAIResponse
 	default:
 		return nil, fmt.Errorf("unsupported responses input type %q", kitutil.GetJsonType(req.Input))
 	}
+}
+
+func rejectResponsesItemBreakpoints(item map[string]any, field string, index int) error {
+	itemType := strings.TrimSpace(kitutil.Interface2String(item["type"]))
+	switch itemType {
+	case "", "message":
+		if partIndex := oaicache.BreakpointIndex(item["content"]); partIndex >= 0 {
+			return fmt.Errorf("conversion to chat does not support %s[%d].content[%d].prompt_cache_breakpoint", field, index, partIndex)
+		}
+	case responsesInputTypeFunctionCallOutput, responsesInputTypeCustomToolOutput:
+		partIndex := oaicache.BreakpointIndex(item["output"], "input_text", "output_text", "text", "input_image", "input_file", "input_audio", "input_video")
+		if partIndex >= 0 {
+			return fmt.Errorf("conversion to chat does not support %s[%d].output[%d].prompt_cache_breakpoint", field, index, partIndex)
+		}
+	}
+	return nil
 }
 
 // responsesInputItemToChatMessages appends the Chat messages for one Responses input item.
