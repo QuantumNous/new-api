@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -148,4 +149,54 @@ func TestClaudeMessagesRequestToOpenAIChatKeepsParallelToolResultsContiguous(t *
 	assert.Equal(t, dto.ContentTypeImageURL, parts[0].Type)
 	require.NotNil(t, parts[0].GetImageMedia())
 	assert.Equal(t, dataURL, parts[0].GetImageMedia().Url)
+}
+
+// A search_result source is a plain string, so the block cannot be parsed as a
+// ClaudeMediaMessage; Chat receives it as text in both places it may appear.
+func TestClaudeMessagesRequestToOpenAIChatSearchResultAsText(t *testing.T) {
+	const searchResult = `{"type":"search_result","source":"https://docs.example.com/guide","title":"Product guide",` +
+		`"content":[{"type":"text","text":"The default timeout is 30 seconds."}],"citations":{"enabled":true},` +
+		`"cache_control":{"type":"ephemeral"}}`
+	const asText = "Title: Product guide\nSource: https://docs.example.com/guide\nThe default timeout is 30 seconds."
+
+	t.Run("user message", func(t *testing.T) {
+		var req dto.ClaudeRequest
+		require.NoError(t, kitutil.UnmarshalJsonStr(`{"model":"claude-test","max_tokens":64,"messages":[`+
+			`{"role":"user","content":[`+searchResult+`,{"type":"text","text":"What is the default timeout?"}]}]}`, &req))
+
+		got, err := ClaudeMessagesRequestToOpenAIChat(context.Background(), req, &convmeta.Values{})
+		require.NoError(t, err)
+
+		require.Len(t, got.Messages, 1)
+		parts := got.Messages[0].ParseContent()
+		require.Len(t, parts, 2)
+		assert.Equal(t, dto.ContentTypeText, parts[0].Type)
+		assert.Equal(t, asText, parts[0].Text)
+		assert.JSONEq(t, `{"type":"ephemeral"}`, string(parts[0].CacheControl))
+		assert.Equal(t, "What is the default timeout?", parts[1].Text)
+
+		// The client request stays intact for a retry on a native Claude channel.
+		original, ok := req.Messages[0].Content.([]any)
+		require.True(t, ok)
+		block, ok := original[0].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "search_result", block["type"])
+	})
+
+	t.Run("tool result", func(t *testing.T) {
+		var req dto.ClaudeRequest
+		require.NoError(t, kitutil.UnmarshalJsonStr(`{"model":"claude-test","max_tokens":64,"messages":[`+
+			`{"role":"user","content":"What is the default timeout?"},`+
+			`{"role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"search_docs","input":{"query":"default timeout"}}]},`+
+			`{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":[`+searchResult+`]}]}]}`, &req))
+
+		got, err := ClaudeMessagesRequestToOpenAIChat(context.Background(), req, &convmeta.Values{})
+		require.NoError(t, err)
+
+		require.Len(t, got.Messages, 3)
+		tool := got.Messages[2]
+		assert.Equal(t, "tool", tool.Role)
+		assert.Equal(t, "toolu_1", tool.ToolCallId)
+		assert.Equal(t, asText, tool.StringContent())
+	})
 }

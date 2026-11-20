@@ -115,3 +115,18 @@ func TestEmbeddingTokenCountMetaCountsChatStyleParts(t *testing.T) {
 		{FileType: types.FileTypeVideo, Source: types.NewURLFileSource("https://example.com/cat.mp4")},
 	}, meta.Files)
 }
+
+// A search_result source is a plain string, so the message used to fail to
+// parse and drop out of the estimate entirely, together with its other blocks.
+func TestClaudeTokenCountMetaCountsSearchResult(t *testing.T) {
+	var req ClaudeRequest
+	require.NoError(t, kitutil.UnmarshalJsonStr(`{"model":"m","max_tokens":64,"messages":[{"role":"user","content":[`+
+		`{"type":"search_result","source":"https://docs.example.com/guide","title":"Product guide",`+
+		`"content":[{"type":"text","text":"The default timeout is 30 seconds."}]},`+
+		`{"type":"text","text":"What is the default timeout?"}]}]}`, &req))
+
+	combined := req.GetTokenCountMeta().CombineText
+
+	assert.Contains(t, combined, "Title: Product guide\nSource: https://docs.example.com/guide\nThe default timeout is 30 seconds.")
+	assert.Contains(t, combined, "What is the default timeout?")
+}
