@@ -210,3 +210,53 @@ func TestDeepSeekBuiltinBilling(t *testing.T) {
 		assert.Equal(t, 375, result.ActualQuotaAfterGroup, model)
 	}
 }
+
+// MiniMax H3 video bills per output second by resolution, with input video
+// per input second and input images beyond a free allowance. The pinned
+// cases cover each resolution tier, the free allowance boundary, and input
+// video pricing.
+func TestMiniMaxH3BuiltinBilling(t *testing.T) {
+	settings := config.GlobalConfig.Get("billing_setting").(*billing_setting.BillingSetting)
+	saved := *settings
+	savedRatios, savedPrices := ratio_setting.ModelRatio2JSONString(), ratio_setting.ModelPrice2JSONString()
+	t.Cleanup(func() {
+		*settings = saved
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedRatios))
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(savedPrices))
+	})
+	*settings = billing_setting.BillingSetting{BillingMode: map[string]string{}, BillingExpr: map[string]string{}}
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{}`))
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+	for _, tc := range []struct {
+		model string
+		facts map[string]any
+		tier  string
+		quota int
+	}{
+		// H3 768P 5s with no media: 5 * 0.08 = $0.40.
+		{"MiniMax-H3", map[string]any{"seconds": 5.0, "resolution": "768P", "input_images": 0, "input_video_seconds": 0}, "768p", 200000},
+		// The fifth image stays free.
+		{"MiniMax-H3", map[string]any{"seconds": 5.0, "resolution": "768P", "input_images": 5, "input_video_seconds": 0}, "768p", 200000},
+		// The sixth image bills: $0.40 + $0.04.
+		{"MiniMax-H3", map[string]any{"seconds": 5.0, "resolution": "768P", "input_images": 6, "input_video_seconds": 0}, "768p", 220000},
+		// 2K with 10s of input video at the output price: (5 + 10) * 0.13.
+		{"MiniMax-H3", map[string]any{"seconds": 5.0, "resolution": "2K", "input_images": 0, "input_video_seconds": 10}, "2k", 975000},
+		// H3-Max 480P 5s: 5 * 0.05.
+		{"MiniMax-H3-Max", map[string]any{"seconds": 5.0, "resolution": "480P", "input_images": 0, "input_video_seconds": 0}, "480p", 125000},
+		// H3-Max 768P with 10s input video at its own price and 4 images:
+		// 5 * 0.08 + 10 * 0.143 + 2 * 0.074.
+		{"MiniMax-H3-Max", map[string]any{"seconds": 5.0, "resolution": "768P", "input_images": 4, "input_video_seconds": 10}, "768p", 989000},
+	} {
+		t.Run(tc.model+" "+tc.tier, func(t *testing.T) {
+			assert.Equal(t, billing_setting.BillingModeTieredExpr, billing_setting.GetBillingMode(tc.model))
+			expression, ok := billing_setting.GetBillingExpr(tc.model)
+			require.True(t, ok)
+			result, err := billingexpr.ComputeTieredQuotaWithRequest(&billingexpr.BillingSnapshot{
+				ExprString: expression, ExprHash: billingexpr.ExprHashString(expression), GroupRatio: 1, QuotaPerUnit: 500000, TaskUsageBilling: true,
+			}, billingexpr.TokenParams{}, billingexpr.RequestInput{Usage: tc.facts})
+			require.NoError(t, err)
+			assert.Equal(t, tc.tier, result.MatchedTier)
+			assert.Equal(t, tc.quota, result.ActualQuotaAfterGroup)
+		})
+	}
+}
