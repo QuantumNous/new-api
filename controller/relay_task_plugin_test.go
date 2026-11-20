@@ -543,6 +543,65 @@ func openTaskDialectDatabase(t *testing.T, models ...any) (*gorm.DB, common.Data
 	return db, dialect
 }
 
+func TestNativeVideoTaskSubmissionKey(t *testing.T) {
+	db, _ := openTaskDialectDatabase(t, &model.Task{}, &model.TaskSubmissionKey{})
+	previousDB, enabled := model.DB, constant.TaskSubmissionIdempotencyEnabled
+	model.DB, constant.TaskSubmissionIdempotencyEnabled = db, true
+	t.Cleanup(func() { model.DB, constant.TaskSubmissionIdempotencyEnabled = previousDB, enabled })
+	plugin := &pluginruntime.LoadedPlugin{}
+	plugin.Meta.Key = "doubao"
+	route := pluginruntime.Route{Path: "/api/v3/contents/generations/tasks", Type: pluginruntime.RouteTypeSubmit}
+
+	submit := func(user int, body string) (*model.TaskSubmissionKey, bool, *httptest.ResponseRecorder) {
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest(http.MethodPost, "/doubao"+route.Path, strings.NewReader(body))
+		c.Request.Header.Set("Idempotency-Key", "retry-key")
+		c.Set(pluginruntime.ContextKeyPinnedRoute, pluginruntime.PinnedRoute{Plugin: plugin, Route: route})
+		info := &relaycommon.RelayInfo{UserId: user, TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
+		reservation, handled := prepareTaskSubmissionKey(c, info)
+		return reservation, handled, recorder
+	}
+
+	original, handled, _ := submit(1, `{"prompt":"first"}`)
+	require.False(t, handled)
+	require.NotNil(t, original)
+	duplicate, handled, reply := submit(1, `{"prompt":"first"}`)
+	require.True(t, handled)
+	assert.Nil(t, duplicate)
+	assert.Equal(t, http.StatusConflict, reply.Code)
+	assert.Contains(t, reply.Body.String(), "idempotency_pending")
+
+	_, handled, reply = submit(1, `{"prompt":"different"}`)
+	require.True(t, handled)
+	assert.Equal(t, http.StatusConflict, reply.Code)
+	assert.Contains(t, reply.Body.String(), "idempotency_key_conflict")
+
+	require.NoError(t, db.Create(&model.Task{UserId: 1, TaskID: original.TaskID}).Error)
+	require.NoError(t, model.AcceptTaskSubmissionKey(context.Background(), *original))
+	_, handled, reply = submit(1, `{"prompt":"first"}`)
+	require.True(t, handled)
+	assert.Equal(t, http.StatusOK, reply.Code)
+	assert.Contains(t, reply.Body.String(), original.TaskID)
+
+	other, handled, _ := submit(2, `{"prompt":"first"}`)
+	require.False(t, handled)
+	require.NotNil(t, other)
+	assert.NotEqual(t, original.TaskID, other.TaskID)
+
+	start := make(chan struct{})
+	claims := make(chan bool, 2)
+	for range 2 {
+		go func() {
+			<-start
+			reservation, _, _ := submit(3, `{"prompt":"first"}`)
+			claims <- reservation != nil
+		}()
+	}
+	close(start)
+	assert.NotEqual(t, <-claims, <-claims, "only one concurrent request may submit")
+}
+
 func TestImmediateTaskSettlementDatabase(t *testing.T) {
 	db, dialect := openTaskDialectDatabase(t, &model.User{}, &model.Channel{}, &model.Task{}, &model.Log{})
 	oldDB, oldLogDB := model.DB, model.LOG_DB

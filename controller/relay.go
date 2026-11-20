@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -566,11 +567,23 @@ func RelayTask(c *gin.Context) {
 		return
 	}
 
+	reservation, handled := prepareTaskSubmissionKey(c, relayInfo)
+	if handled {
+		return
+	}
 	var outcome *taskSubmissionOutcome
 	outcome, taskErr = executeTaskSubmission(c, relayInfo)
 	if taskErr != nil {
 		respondTaskSubmissionError(c, taskErr)
 		return
+	}
+	if reservation != nil {
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(c.Request.Context()), 5*time.Second)
+		err := model.AcceptTaskSubmissionKey(ctx, *reservation)
+		cancel()
+		if err != nil {
+			logger.LogError(c, common.LogText("finalize task submission key: %s", err.Error()))
+		}
 	}
 	presentTaskSubmission(c, outcome)
 }
@@ -720,7 +733,11 @@ func executeTaskSubmissionWith(
 
 		taskAPIError := taskSubmissionAPIError(taskErr)
 		relayInfo.LastError = taskAPIError
-		decision := decideTaskRetry(c, taskErr, common.RetryTimes-retryParam.GetRetry())
+		remainingRetries := common.RetryTimes - retryParam.GetRetry()
+		if c.GetBool(taskSubmissionKeyReserved) {
+			remainingRetries = 0
+		}
+		decision := decideTaskRetry(c, taskErr, remainingRetries)
 		service.RecordPolicyFailure(c, channel.Id, taskAPIError, decision)
 		if !taskErr.LocalError {
 			processChannelError(c,
