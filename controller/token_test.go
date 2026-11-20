@@ -1015,3 +1015,44 @@ func verifyAPITokenAudit(t *testing.T) {
 		assert.EqualValues(t, 1, count)
 	})
 }
+
+func TestAddTokenImportsKeyOnlyForAdministrators(t *testing.T) {
+	imported := strings.Repeat("a1B2", 16)
+	for _, tc := range []struct {
+		name    string
+		role    int
+		key     string
+		wantOK  bool
+		wantKey string
+	}{
+		{name: "admin imports a key", role: common.RoleAdminUser, key: "sk-" + imported, wantOK: true, wantKey: imported},
+		{name: "admin without key gets a generated one", role: common.RoleAdminUser, wantOK: true},
+		{name: "common user cannot specify a key", role: common.RoleCommonUser, key: imported},
+		{name: "key with a hyphen is rejected", role: common.RoleRootUser, key: imported + "-x"},
+		{name: "short key is rejected", role: common.RoleRootUser, key: "abc"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db := setupTokenControllerTestDB(t)
+			body := map[string]any{"name": "imported", "expired_time": -1, "unlimited_quota": true, "key": tc.key}
+			ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/", body, 1)
+			ctx.Set("role", tc.role)
+			AddToken(ctx)
+
+			response := decodeAPIResponse(t, recorder)
+			assert.Equal(t, tc.wantOK, response.Success, response.Message)
+			var count int64
+			require.NoError(t, db.Model(&model.Token{}).Where("name = ?", "imported").Count(&count).Error)
+			if !tc.wantOK {
+				assert.Zero(t, count)
+				return
+			}
+			var saved model.Token
+			require.NoError(t, db.Where("name = ?", "imported").First(&saved).Error)
+			if tc.wantKey != "" {
+				assert.Equal(t, tc.wantKey, saved.Key)
+				return
+			}
+			assert.Len(t, saved.Key, 48)
+		})
+	}
+}
