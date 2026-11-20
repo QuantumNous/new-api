@@ -124,6 +124,13 @@ func TestModelPriceHelperTieredInputPreConsumeMultiplier(t *testing.T) {
 		require.NoError(t, config.GlobalConfig.LoadFromDB(saved))
 	})
 
+	// The output reservation is covered separately; this case isolates the
+	// input multiplier.
+	quotaSetting := operation_setting.GetQuotaSetting()
+	previousReserve := quotaSetting.PreConsumeOutputReserve
+	quotaSetting.PreConsumeOutputReserve = false
+	t.Cleanup(func() { quotaSetting.PreConsumeOutputReserve = previousReserve })
+
 	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
 		"billing_setting.billing_mode":    `{"tiered-fallback-model":"tiered_expr"}`,
 		"billing_setting.billing_expr":    `{"tiered-fallback-model":"len <= 1200 ? tier(\"base\", p * 3 + c * 15) : tier(\"long\", p * 30 + c * 150)"}`,
@@ -230,6 +237,13 @@ func TestModelPriceHelperRequestBillingRatiosOnlyApplyToFixedPrice(t *testing.T)
 		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(savedModelPrices))
 		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedModelRatios))
 	})
+
+	// The output reservation is covered separately; this case isolates the
+	// request billing ratios.
+	quotaSetting := operation_setting.GetQuotaSetting()
+	previousReserve := quotaSetting.PreConsumeOutputReserve
+	quotaSetting.PreConsumeOutputReserve = false
+	t.Cleanup(func() { quotaSetting.PreConsumeOutputReserve = previousReserve })
 
 	modelPrices, err := common.Marshal(map[string]float64{
 		"fixed-image-price":      0.04,
@@ -756,6 +770,12 @@ func TestInputPreConsumeMultiplierLegacyAndRequestPrices(t *testing.T) {
 	})
 	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"legacy-input-policy":1.5}`))
 	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"request-input-policy":0.01}`))
+	// The output reservation is covered separately; this case isolates the
+	// input multiplier policy.
+	quotaSetting := operation_setting.GetQuotaSetting()
+	previousReserve := quotaSetting.PreConsumeOutputReserve
+	quotaSetting.PreConsumeOutputReserve = false
+	t.Cleanup(func() { quotaSetting.PreConsumeOutputReserve = previousReserve })
 	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
 		"billing_setting.billing_mode":    `{"fixed-input-policy":"tiered_expr","image-input-policy":"tiered_expr"}`,
 		"billing_setting.billing_expr":    `{"fixed-input-policy":"tier(\"request\", fixed(0.01))","image-input-policy":"tier(\"image\", p * 3) * image_count"}`,
@@ -802,3 +822,155 @@ func (s *priceTestReservation) GetPreConsumedQuota() int { return s.held }
 func (s *priceTestReservation) Reserve(quota int) error  { s.held = max(s.held, quota); return nil }
 
 func (s *priceTestReservation) ReserveBeforeSubmit(quota int) error { return s.Reserve(quota) }
+
+// The pre-consume reservation must cover the settlement: the output side is
+// reserved from the client-declared output limit, capped by the configured
+// ceiling, so a wallet check at admission covers the worst case of the
+// request instead of only its input.
+func TestModelPriceHelperOutputReservation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	saved := map[string]string{}
+	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error {
+		saved[key] = value
+		return nil
+	}))
+	savedRatios := ratio_setting.ModelRatio2JSONString()
+	savedCompletionRatios := ratio_setting.GetCompletionRatioCopy()
+	t.Cleanup(func() {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(saved))
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedRatios))
+		completionRatios, err := common.Marshal(savedCompletionRatios)
+		require.NoError(t, err)
+		require.NoError(t, ratio_setting.UpdateCompletionRatioByJSONString(string(completionRatios)))
+	})
+
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"reserve-ratio-model":2}`))
+	require.NoError(t, ratio_setting.UpdateCompletionRatioByJSONString(`{"reserve-ratio-model":5}`))
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting.billing_mode":    `{"reserve-expr-model":"tiered_expr","reserve-fixed-model":"tiered_expr"}`,
+		"billing_setting.billing_expr":    `{"reserve-expr-model":"tier(\"base\", p * 3 + c * 15)","reserve-fixed-model":"tier(\"request\", fixed(0.01))"}`,
+		"group_ratio_setting.group_ratio": `{"default":1}`,
+	}))
+
+	quotaSetting := operation_setting.GetQuotaSetting()
+	previousReserve := quotaSetting.PreConsumeOutputReserve
+	previousLimit := quotaSetting.PreConsumeMaxOutputTokens
+	previousMultiplier := quotaSetting.PreConsumeMultiplier
+	t.Cleanup(func() {
+		quotaSetting.PreConsumeOutputReserve = previousReserve
+		quotaSetting.PreConsumeMaxOutputTokens = previousLimit
+		quotaSetting.PreConsumeMultiplier = previousMultiplier
+	})
+
+	// The secure behavior is the default.
+	require.True(t, quotaSetting.PreConsumeOutputReserve)
+	require.Equal(t, operation_setting.DefaultPreConsumeMaxOutputTokens, quotaSetting.PreConsumeMaxOutputTokens)
+
+	newInfo := func(model string, format types.RelayFormat, request dto.Request) *relaycommon.RelayInfo {
+		return &relaycommon.RelayInfo{
+			OriginModelName: model,
+			UserGroup:       "default",
+			UsingGroup:      "default",
+			RelayFormat:     format,
+			Request:         request,
+		}
+	}
+	priceOf := func(t *testing.T, info *relaycommon.RelayInfo, prompt int, maxTokens int) int {
+		t.Helper()
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+		ctx.Set("group", "default")
+		price, err := ModelPriceHelper(ctx, info, prompt, &types.TokenCountMeta{MaxTokens: maxTokens})
+		require.NoError(t, err)
+		return price.QuotaToPreConsume
+	}
+
+	t.Run("declared output limit is reserved", func(t *testing.T) {
+		// (100 prompt + 1000 output * 5) * model ratio 2
+		require.Equal(t, 10200, priceOf(t, newInfo("reserve-ratio-model", types.RelayFormatOpenAI, nil), 100, 1000))
+	})
+
+	t.Run("missing output limit uses the configured default", func(t *testing.T) {
+		// (100 prompt + 8192 output * 5) * model ratio 2
+		require.Equal(t, 82120, priceOf(t, newInfo("reserve-ratio-model", types.RelayFormatOpenAI, nil), 100, 0))
+	})
+
+	t.Run("declared output limit is capped", func(t *testing.T) {
+		quotaSetting.PreConsumeMaxOutputTokens = 1000
+		t.Cleanup(func() { quotaSetting.PreConsumeMaxOutputTokens = previousLimit })
+		require.Equal(t, 10200, priceOf(t, newInfo("reserve-ratio-model", types.RelayFormatOpenAI, nil), 100, 100000))
+	})
+
+	t.Run("disabled reservation keeps the input-only estimate", func(t *testing.T) {
+		quotaSetting.PreConsumeOutputReserve = false
+		t.Cleanup(func() { quotaSetting.PreConsumeOutputReserve = previousReserve })
+		require.Equal(t, 200, priceOf(t, newInfo("reserve-ratio-model", types.RelayFormatOpenAI, nil), 100, 1000))
+	})
+
+	t.Run("requests without billable completion are not reserved", func(t *testing.T) {
+		info := newInfo("reserve-ratio-model", types.RelayFormatEmbedding, &dto.EmbeddingRequest{Model: "reserve-ratio-model"})
+		require.Equal(t, 200, priceOf(t, info, 100, 0))
+	})
+
+	t.Run("expression reservation prices the output side at face value", func(t *testing.T) {
+		// (1000 prompt * 3 + 1000 output * 15) / 1e6 * QuotaPerUnit
+		require.Equal(t, 9000, priceOf(t, newInfo("reserve-expr-model", types.RelayFormatOpenAI, nil), 1000, 1000))
+	})
+
+	t.Run("expression multiplier applies to the input side only", func(t *testing.T) {
+		quotaSetting.PreConsumeMultiplier = 2
+		t.Cleanup(func() { quotaSetting.PreConsumeMultiplier = previousMultiplier })
+		// (1000 prompt * 3 * 2 + 1000 output * 15) / 1e6 * QuotaPerUnit
+		require.Equal(t, 10500, priceOf(t, newInfo("reserve-expr-model", types.RelayFormatOpenAI, nil), 1000, 1000))
+	})
+
+	t.Run("fixed price expressions reserve no output", func(t *testing.T) {
+		// fixed(0.01) * QuotaPerUnit
+		require.Equal(t, 5000, priceOf(t, newInfo("reserve-fixed-model", types.RelayFormatOpenAI, nil), 1000, 1000))
+	})
+
+	t.Run("expression snapshot records the reserved output", func(t *testing.T) {
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+		ctx.Set("group", "default")
+		info := newInfo("reserve-expr-model", types.RelayFormatOpenAI, nil)
+		info.BillingRequestInput = &billingexpr.RequestInput{}
+		_, err := ModelPriceHelper(ctx, info, 1000, &types.TokenCountMeta{MaxTokens: 1000})
+		require.NoError(t, err)
+		require.NotNil(t, info.TieredBillingSnapshot)
+		assert.Equal(t, 1000, info.TieredBillingSnapshot.ReservedOutputTokens)
+		assert.Equal(t, 0, info.TieredBillingSnapshot.EstimatedCompletionTokens)
+	})
+}
+
+// Claude manual thinking raises the upstream max_tokens above the client's
+// declaration, so the declared thinking budget must be part of the reserved
+// output ceiling.
+func TestReservedOutputTokensCoversClaudeThinkingBudget(t *testing.T) {
+	quotaSetting := operation_setting.GetQuotaSetting()
+	previousReserve := quotaSetting.PreConsumeOutputReserve
+	previousLimit := quotaSetting.PreConsumeMaxOutputTokens
+	t.Cleanup(func() {
+		quotaSetting.PreConsumeOutputReserve = previousReserve
+		quotaSetting.PreConsumeMaxOutputTokens = previousLimit
+	})
+	quotaSetting.PreConsumeOutputReserve = true
+	quotaSetting.PreConsumeMaxOutputTokens = 8192
+
+	budget := 4096
+	request := &dto.ClaudeRequest{Model: "claude-test", Thinking: &dto.Thinking{Type: "enabled", BudgetTokens: &budget}}
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "claude-test",
+		RelayFormat:     types.RelayFormatClaude,
+		Request:         request,
+	}
+
+	// The declared limit is below the thinking budget, so the budget decides.
+	assert.Equal(t, budget+1, ReservedOutputTokens(info, &types.TokenCountMeta{MaxTokens: 1024}))
+	// A declared limit above the budget keeps the declared limit.
+	assert.Equal(t, 6000, ReservedOutputTokens(info, &types.TokenCountMeta{MaxTokens: 6000}))
+	// The configured ceiling still caps the reservation.
+	quotaSetting.PreConsumeMaxOutputTokens = 2048
+	assert.Equal(t, 2048, ReservedOutputTokens(info, &types.TokenCountMeta{MaxTokens: 1024}))
+}

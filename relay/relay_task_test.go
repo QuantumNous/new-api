@@ -619,6 +619,9 @@ func TestRelayTaskSubmitPricesModelsAPluginAlsoRelays(t *testing.T) {
 	const chatRoute = `[{incoming_path:"/v1/chat/completions",upstream_path:"/v1/chat/completions"}]`
 	const tokenExpr = `tier("tokens", p * 2 + c * 8)`
 	const usageExpr = `tier("seconds", u("seconds") * 0.3)`
+	// A chat reservation covers the output side: the chat request declares no
+	// output limit, so the default ceiling (8192 output tokens) is reserved.
+	// The task side keeps the plugin's own usage price.
 	const notConfigured = "Model declared-model has no task price for plugin bill-fallback"
 	savedPrices, savedRatios := ratio_setting.ModelPrice2JSONString(), ratio_setting.ModelRatio2JSONString()
 	t.Cleanup(func() {
@@ -634,11 +637,11 @@ func TestRelayTaskSubmitPricesModelsAPluginAlsoRelays(t *testing.T) {
 		taskQuota         int
 	}{
 		{name: "per-call price prices chat and tasks", relay: chatRoute, price: "0.04", chatQuota: 20000, taskQuota: 40000},
-		{name: "token ratio alone leaves tasks unpriced", relay: chatRoute, ratio: "10", chatQuota: 10000, taskErr: notConfigured},
-		{name: "token expression is the chat price", relay: chatRoute, expr: tokenExpr, chatQuota: 1000, taskErr: notConfigured},
+		{name: "token ratio alone leaves tasks unpriced", relay: chatRoute, ratio: "10", chatQuota: 91920, taskErr: notConfigured},
+		{name: "token expression is the chat price", relay: chatRoute, expr: tokenExpr, chatQuota: 33768, taskErr: notConfigured},
 		{name: "constant expression is the chat price", relay: chatRoute, expr: `tier("flat", 0.04)`, taskErr: notConfigured},
 		{name: "usage expression prices tasks only", relay: chatRoute, expr: usageExpr, chatErr: "task usage expression", taskExpr: usageExpr, taskQuota: 300000},
-		{name: "plugin price splits a chat price", relay: chatRoute, expr: tokenExpr, override: usageExpr, chatQuota: 1000, taskExpr: usageExpr, taskQuota: 300000},
+		{name: "plugin price splits a chat price", relay: chatRoute, expr: tokenExpr, override: usageExpr, chatQuota: 33768, taskExpr: usageExpr, taskQuota: 300000},
 		{name: "plugin price splits a token ratio", relay: chatRoute, ratio: "10", override: usageExpr, taskExpr: usageExpr, taskQuota: 300000},
 		{name: "plugin price reading token counts is rejected", expr: usageExpr, override: `tier("tokens", p * 2 + u("seconds"))`, taskErr: notConfigured},
 		{name: "task model token expression no longer bills zero", expr: tokenExpr, taskErr: notConfigured},

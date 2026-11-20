@@ -63,14 +63,18 @@ type TraceResult struct {
 // auto-group retry and settlement. It is fully serializable and contains no
 // compiled program pointers.
 type BillingSnapshot struct {
-	EstimatedImageCount       *int           `json:"estimated_image_count,omitempty"`
-	BillingMode               string         `json:"billing_mode"`
-	ModelName                 string         `json:"model_name"`
-	ExprString                string         `json:"expr_string"`
-	ExprHash                  string         `json:"expr_hash"`
-	GroupRatio                float64        `json:"group_ratio"`
-	EstimatedPromptTokens     int            `json:"estimated_prompt_tokens"`
-	EstimatedCompletionTokens int            `json:"estimated_completion_tokens"`
+	EstimatedImageCount       *int    `json:"estimated_image_count,omitempty"`
+	BillingMode               string  `json:"billing_mode"`
+	ModelName                 string  `json:"model_name"`
+	ExprString                string  `json:"expr_string"`
+	ExprHash                  string  `json:"expr_hash"`
+	GroupRatio                float64 `json:"group_ratio"`
+	EstimatedPromptTokens     int     `json:"estimated_prompt_tokens"`
+	EstimatedCompletionTokens int     `json:"estimated_completion_tokens"`
+	// ReservedOutputTokens is the output token ceiling counted in the
+	// reservation. It is observation only: the reservation itself lives in
+	// EstimatedQuotaBeforeGroup.
+	ReservedOutputTokens      int            `json:"reserved_output_tokens,omitempty"`
 	PreConsumeMultiplier      float64        `json:"pre_consume_multiplier,omitempty"` // Reservation only; zero in older snapshots means 1.
 	EstimatedQuotaBeforeGroup float64        `json:"estimated_quota_before_group"`
 	EstimatedQuotaAfterGroup  int            `json:"estimated_quota_after_group"`
