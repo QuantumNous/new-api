@@ -748,6 +748,69 @@ func TestRunTaskPollingOnceDoesNotRefundHistoricalFailedTask(t *testing.T) {
 	assert.Equal(t, int64(0), countLogs(t))
 }
 
+func TestRunTaskPollingOnceContinuesAtFullProgress(t *testing.T) {
+	previousLimit := constant.TaskQueryLimit
+	constant.TaskQueryLimit = 100
+	t.Cleanup(func() { constant.TaskQueryLimit = previousLimit })
+	for _, action := range []string{constant.TaskActionTextToVideo, constant.TaskActionImageToVideo} {
+		for _, progress := range []string{"99%", "100%"} {
+			for _, terminal := range []string{model.TaskStatusSuccess, model.TaskStatusFailure} {
+				t.Run(action+"/"+progress+"/"+terminal, func(t *testing.T) {
+					truncate(t)
+					const channelID, userID, initialQuota, taskQuota = 405, 405, 10_000, 1_200
+					seedUser(t, userID, initialQuota)
+					seedTaskPollingChannel(t, channelID, true)
+					task := seedPollingTask(t, channelID, "task_progress", "upstream_progress")
+					task.Action = action
+					task.UserId = userID
+					task.Quota = taskQuota
+					task.SubmitTime = time.Now().Unix()
+					require.NoError(t, model.DB.Save(task).Error)
+					adaptor := &scriptedPollingAdaptor{parse: &relaycommon.TaskInfo{
+						TaskID: task.GetUpstreamTaskID(), Status: model.TaskStatusInProgress, Progress: progress,
+					}}
+					previousFactory := GetTaskAdaptorFunc
+					GetTaskAdaptorFunc = func(constant.TaskPlatform) TaskPollingAdaptor { return adaptor }
+					t.Cleanup(func() { GetTaskAdaptorFunc = previousFactory })
+
+					assert.Equal(t, 1, RunTaskPollingOnce(context.Background(), nil).UnfinishedTasks)
+					var persisted model.Task
+					require.NoError(t, model.DB.First(&persisted, task.ID).Error)
+					assert.EqualValues(t, model.TaskStatusInProgress, persisted.Status)
+					assert.Equal(t, progress, persisted.Progress)
+					assert.Zero(t, persisted.FinishTime)
+					assert.Equal(t, initialQuota, getUserQuota(t, userID))
+					assert.Zero(t, countLogs(t))
+					require.True(t, model.HasUnfinishedSyncTasks(), "the scheduler must run again even at 100%")
+
+					adaptor.parse = &relaycommon.TaskInfo{TaskID: task.GetUpstreamTaskID(), Status: terminal, Progress: "100%"}
+					if terminal == model.TaskStatusFailure {
+						adaptor.parse.Reason = "upstream finalization failed"
+					}
+					assert.Equal(t, 1, RunTaskPollingOnce(context.Background(), nil).UnfinishedTasks)
+					require.NoError(t, model.DB.First(&persisted, task.ID).Error)
+					assert.EqualValues(t, terminal, persisted.Status)
+					assert.NotZero(t, persisted.FinishTime)
+					if terminal == model.TaskStatusFailure {
+						assert.Zero(t, persisted.Quota)
+						assert.Equal(t, initialQuota+taskQuota, getUserQuota(t, userID))
+						assert.EqualValues(t, 1, countLogs(t))
+					} else {
+						assert.Equal(t, taskQuota, persisted.Quota)
+						assert.Equal(t, initialQuota, getUserQuota(t, userID))
+						assert.Zero(t, countLogs(t))
+					}
+					quota, logs := getUserQuota(t, userID), countLogs(t)
+					assert.False(t, model.HasUnfinishedSyncTasks())
+					assert.Zero(t, RunTaskPollingOnce(context.Background(), nil).UnfinishedTasks)
+					assert.Equal(t, quota, getUserQuota(t, userID))
+					assert.Equal(t, logs, countLogs(t), "terminal tasks must not be settled or refunded again")
+				})
+			}
+		}
+	}
+}
+
 func TestSweepTimedOutTasksHonorsRefundRolloutBoundary(t *testing.T) {
 	truncate(t)
 
@@ -805,7 +868,7 @@ func TestSweepTimedOutTasksAtTheDefaultDeadline(t *testing.T) {
 	require.NoError(t, model.DB.Create(running).Error)
 	stuck := makeTask(userID, 0, taskQuota, 0, BillingSourceWallet, 0)
 	stuck.TaskID = "running_for_73_hours"
-	stuck.Progress = "50%"
+	stuck.Progress = "100%"
 	stuck.SubmitTime = time.Now().Add(-73 * time.Hour).Unix()
 	require.NoError(t, model.DB.Create(stuck).Error)
 
@@ -823,6 +886,10 @@ func TestSweepTimedOutTasksAtTheDefaultDeadline(t *testing.T) {
 	assert.EqualValues(t, model.TaskStatusFailure, reloadedStuck.Status)
 	assert.Equal(t, "Task timed out", reloadedStuck.FailReason)
 	assert.Equal(t, initialQuota+taskQuota, getUserQuota(t, userID))
+	assert.Zero(t, reloadedStuck.Quota)
+	sweepTimedOutTasks(context.Background())
+	assert.Equal(t, initialQuota+taskQuota, getUserQuota(t, userID))
+	assert.EqualValues(t, 1, countLogs(t), "a timed out task is refunded only once")
 }
 
 type scriptedPollingAdaptor struct {
