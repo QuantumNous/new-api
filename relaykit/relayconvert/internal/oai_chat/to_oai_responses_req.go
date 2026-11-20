@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
 	relaymedia "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/media"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/oaicache"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 	"github.com/samber/lo"
@@ -89,6 +90,11 @@ func ChatCompletionsRequestToResponsesRequest(ctx context.Context, req *dto.Gene
 	}
 	if lo.FromPtrOr(req.N, 1) > 1 {
 		return nil, fmt.Errorf("n>1 is not supported in responses compatibility mode")
+	}
+
+	promptCacheOptions, err := oaicache.OptionsToResponses(req.PromptCacheOptions)
+	if err != nil {
+		return nil, err
 	}
 
 	var instructionsParts []string
@@ -426,7 +432,7 @@ func ChatCompletionsRequestToResponsesRequest(ctx context.Context, req *dto.Gene
 		Store:                req.Store,
 		Metadata:             req.Metadata,
 		PromptCacheKey:       promptCacheKeyRaw,
-		PromptCacheOptions:   req.PromptCacheOptions,
+		PromptCacheOptions:   promptCacheOptions,
 		PromptCacheRetention: req.PromptCacheRetention,
 		EnableThinking:       req.EnableThinking,
 		ThinkingBudget:       req.ThinkingBudget,

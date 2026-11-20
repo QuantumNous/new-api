@@ -52,12 +52,46 @@ func TestResponsesRequestToChatCompletionsRequestInstructionsAndScalarInput(t *t
 	assert.Equal(t, 0.9, lo.FromPtr(got.TopP))
 	assert.True(t, lo.FromPtr(got.ParallelTooCalls))
 	assert.Equal(t, "cache-key", got.PromptCacheKey)
-	assert.JSONEq(t, `{"mode":"implicit","ttl":"30m","prewarm":false}`, string(got.PromptCacheOptions))
+	encoded, err := kitutil.Marshal(got)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"mode":"implicit","ttl":"30m"}`, ojson.GetBytes(encoded, "prompt_cache_options").Raw)
 	assert.JSONEq(t, `"24h"`, string(got.PromptCacheRetention))
 	assert.Equal(t, "medium", got.ReasoningEffort)
 	assert.Equal(t, `"user-1"`, string(got.User))
 	assert.Equal(t, `false`, string(got.Store))
 	assert.Equal(t, "abc", ojson.GetBytes(got.Metadata, "trace").String())
+}
+
+func TestResponsesRequestToChatCompletionsRequestCacheControls(t *testing.T) {
+	for _, tc := range []struct {
+		name, options, wantError string
+	}{
+		{name: "absent"},
+		{name: "no-op Responses fields", options: `{"prewarm":false,"comparison_response_id":null}`},
+		{name: "prewarm cannot become generation", options: `{"prewarm":true}`, wantError: "does not support prompt_cache_options.prewarm"},
+		{name: "comparison needs Responses diagnostics", options: `{"comparison_response_id":"resp_123"}`, wantError: "does not support prompt_cache_options.comparison_response_id"},
+		{name: "TTL cannot be shortened", options: `{"ttl":"12h"}`, wantError: "does not support prompt_cache_options.ttl=12h"},
+		{name: "explicit breakpoints unsupported", options: `{"mode":"explicit"}`, wantError: "breakpoints are not converted"},
+		{name: "malformed prewarm", options: `{"prewarm":"false"}`, wantError: "invalid prompt_cache_options.prewarm"},
+		{name: "non-object", options: `[]`, wantError: "invalid prompt_cache_options"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			converted, err := ResponsesRequestToChatCompletionsRequest(context.Background(), &dto.OpenAIResponsesRequest{
+				Model:              "gpt-test",
+				Input:              json.RawMessage(`"hello"`),
+				PromptCacheOptions: json.RawMessage(tc.options),
+			})
+			if tc.wantError != "" {
+				require.ErrorContains(t, err, tc.wantError)
+				assert.Nil(t, converted)
+				return
+			}
+			require.NoError(t, err)
+			encoded, err := kitutil.Marshal(converted)
+			require.NoError(t, err)
+			assert.False(t, ojson.GetBytes(encoded, "prompt_cache_options").Exists())
+		})
+	}
 }
 
 func TestResponsesRequestToChatCompletionsRequestPreservesQwenThinkingBudget(t *testing.T) {

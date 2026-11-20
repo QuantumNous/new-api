@@ -103,26 +103,42 @@ func TestChatCompletionsRequestToResponsesRequestPreservesPromptCacheKey(t *test
 	})
 }
 
-func TestChatCompletionsRequestToResponsesRequestPreservesCacheControls(t *testing.T) {
+func TestChatCompletionsRequestToResponsesRequestCacheControls(t *testing.T) {
 	for _, tc := range []struct {
-		name               string
-		options, retention json.RawMessage
+		name, options, retention, wantOptions, wantError string
 	}{
-		{name: "implicit cache options", options: json.RawMessage(`{"mode":"implicit","ttl":"30m","prewarm":false}`)},
-		{name: "legacy retention", retention: json.RawMessage(`"24h"`)},
+		{name: "shared options", options: `{"mode":"implicit","ttl":"30m"}`, wantOptions: `{"mode":"implicit","ttl":"30m"}`},
+		{name: "legacy retention stays independent", retention: `"24h"`},
 		{name: "absent"},
+		{name: "null", options: `null`},
+		{name: "empty", options: `{}`},
+		{name: "explicit breakpoints unsupported", options: `{"mode":"explicit"}`, wantError: "breakpoints are not converted"},
+		{name: "Responses-only TTL", options: `{"ttl":"12h"}`, wantError: "prompt_cache_options.ttl"},
+		{name: "Responses-only prewarm", options: `{"prewarm":true}`, wantError: "unsupported field \"prewarm\""},
+		{name: "malformed mode", options: `{"mode":true}`, wantError: "invalid prompt_cache_options.mode"},
+		{name: "unknown option", options: `{"extra":true}`, wantError: "unsupported field \"extra\""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			request := &dto.GeneralOpenAIRequest{Model: "gpt-test", Messages: []dto.Message{{Role: "user", Content: "stable prompt"}}, PromptCacheOptions: tc.options, PromptCacheRetention: tc.retention}
+			request := &dto.GeneralOpenAIRequest{
+				Model:                "gpt-test",
+				Messages:             []dto.Message{{Role: "user", Content: "stable prompt"}},
+				PromptCacheOptions:   json.RawMessage(tc.options),
+				PromptCacheRetention: json.RawMessage(tc.retention),
+			}
 			converted, err := ChatCompletionsRequestToResponsesRequest(context.Background(), request)
+			if tc.wantError != "" {
+				require.ErrorContains(t, err, tc.wantError)
+				assert.Nil(t, converted)
+				return
+			}
 			require.NoError(t, err)
 			encoded, err := kitutil.Marshal(converted)
 			require.NoError(t, err)
-			for name, expected := range map[string]json.RawMessage{"prompt_cache_options": tc.options, "prompt_cache_retention": tc.retention} {
-				if len(expected) == 0 {
+			for name, expected := range map[string]string{"prompt_cache_options": tc.wantOptions, "prompt_cache_retention": tc.retention} {
+				if expected == "" {
 					assert.False(t, ojson.GetBytes(encoded, name).Exists(), name)
 				} else {
-					assert.JSONEq(t, string(expected), ojson.GetBytes(encoded, name).Raw, name)
+					assert.JSONEq(t, expected, ojson.GetBytes(encoded, name).Raw, name)
 				}
 			}
 		})

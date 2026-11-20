@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
 	relaymedia "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/media"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/oaicache"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -39,6 +40,11 @@ func ResponsesRequestToChatCompletionsRequest(ctx context.Context, req *dto.Open
 		return nil, errors.New("model is required")
 	}
 	if err := validateResponsesRequestChatUnsupportedFields(req); err != nil {
+		return nil, err
+	}
+
+	promptCacheOptions, err := oaicache.OptionsToChat(req.PromptCacheOptions)
+	if err != nil {
 		return nil, err
 	}
 
@@ -78,7 +84,7 @@ func ResponsesRequestToChatCompletionsRequest(ctx context.Context, req *dto.Open
 		Store:                req.Store,
 		Metadata:             req.Metadata,
 		SafetyIdentifier:     req.SafetyIdentifier,
-		PromptCacheOptions:   req.PromptCacheOptions,
+		PromptCacheOptions:   promptCacheOptions,
 		PromptCacheRetention: req.PromptCacheRetention,
 		EnableThinking:       req.EnableThinking,
 		ThinkingBudget:       req.ThinkingBudget,
