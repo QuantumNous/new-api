@@ -577,11 +577,12 @@ func normalizeTaskMediaHost(scheme, host string) string {
 	if err != nil {
 		return strings.TrimSuffix(host, ".")
 	}
-	hostname = strings.TrimSuffix(strings.ToLower(hostname), ".")
 	if (strings.EqualFold(scheme, "http") && port == "80") || (strings.EqualFold(scheme, "https") && port == "443") {
-		return hostname
+		// Keep an IPv6 literal bracketed, as it is when the port is omitted.
+		host = strings.TrimSuffix(host, ":"+port)
+		return strings.TrimSuffix(host, ".")
 	}
-	return net.JoinHostPort(hostname, port)
+	return net.JoinHostPort(strings.TrimSuffix(hostname, "."), port)
 }
 
 func isSelfTaskMediaURL(c *gin.Context, target *url.URL) bool {

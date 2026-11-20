@@ -247,6 +247,7 @@ func TestTaskMediaChannelOriginComparison(t *testing.T) {
 	}{
 		{"https://provider.example/v1", "https://PROVIDER.example:443/video", true},
 		{"http://provider.example/v1", "http://provider.example:80/video", true},
+		{"http://[::1]:80", "http://[::1]/video", true},
 		{"http://[::1]:8080", "http://[::1]:8080/video", true},
 		{"https://provider.example", "http://provider.example/video", false},
 		{"http://provider.example:8080", "http://provider.example:8081/video", false},
