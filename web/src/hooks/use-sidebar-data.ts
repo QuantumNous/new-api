@@ -29,6 +29,7 @@ import {
   MessageSquare,
   PlugZap,
   Radio,
+  Receipt,
   ServerCog,
   Settings,
   ShieldCheck,
@@ -118,6 +119,11 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
             icon: Wallet,
           },
           {
+            title: t('My External Usage'),
+            url: '/external-billing?view=self',
+            icon: Receipt,
+          },
+          {
             title: t('Profile'),
             url: '/profile',
             icon: User,
@@ -137,6 +143,11 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
             title: t('Channels'),
             url: '/channels',
             icon: Radio,
+          },
+          {
+            title: t('External Billing'),
+            url: '/external-billing',
+            icon: Receipt,
           },
           {
             title: t('Models'),
