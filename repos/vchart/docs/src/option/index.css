@@ -1,0 +1,50 @@
+.markdown-code {
+  margin: 0 !important;
+}
+
+.markdown-code pre {
+  padding: 0 !important;
+}
+
+.markdown-code pre code {
+  padding: 0 !important;
+}
+
+.markdown-image img {
+  max-width: min(100%, 800px);
+  max-height: 800px;
+}
+
+figure {
+  margin: 0;
+}
+
+code {
+  background: rgb(242, 243, 245);
+  padding: 4px 8px;
+  border-radius: 2px;
+}
+
+pre {
+  background: rgb(242, 243, 245);
+  padding: 24px 40px;
+  border-radius: 2px;
+  overflow-x: auto;
+}
+
+pre:has(> .live-demo-container) {
+  padding: 24px 0px;
+}
+
+p {
+  line-height: 32px;
+  margin-bottom: 16px;
+}
+
+li {
+  margin-bottom: 8px;
+}
+
+.option-outline-submenu .arco-menu-inline-header {
+  line-height: 28px !important;
+}

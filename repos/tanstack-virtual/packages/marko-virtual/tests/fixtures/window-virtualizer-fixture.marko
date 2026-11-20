@@ -1,0 +1,26 @@
+// Test fixture for <window-virtualizer> tag.
+
+export interface Input {
+  count?: number
+  itemHeight?: number
+}
+
+<window-virtualizer|{ virtualItems, totalSize }|
+  count=input.count ?? 100
+  estimateSize=() => input.itemHeight ?? 50
+>
+  <div
+    data-testid="virtual-wrapper"
+    style=`height: ${totalSize}px; position: relative`
+  >
+    <for|item| of=virtualItems>
+      <div
+        data-testid="virtual-item"
+        data-index=item.index
+        style=`position: absolute; height: ${item.size}px; transform: translateY(${item.start}px)`
+      >
+        Row ${item.index}
+      </div>
+    </for>
+  </div>
+</window-virtualizer>

@@ -1,0 +1,248 @@
+---
+description: '本章节介绍如何将 Rsbuild 项目部署到静态托管平台或运行时平台。'
+---
+
+# 部署
+
+本章节介绍如何将 Rsbuild 项目部署到静态托管平台或运行时平台。
+
+## 背景信息
+
+在开始进行部署前，你需要了解一些背景信息：
+
+- 用于构建和预览产物的 CLI 命令。
+- 构建产物的目录结构。
+- 静态资源的 URL 前缀。
+
+### 构建命令
+
+Rsbuild 提供的构建命令：
+
+- [build 命令](/guide/basic/cli#rsbuild-build)，用于生成部署到生产环境的构建产物；
+- [preview 命令](/guide/basic/cli#rsbuild-preview)，用于在本地预览生产构建的产物, 注意你需要提前执行 `rsbuild build` 命令构建出对应产物。
+
+```json title="package.json"
+{
+  "scripts": {
+    "build": "rsbuild build",
+    "preview": "rsbuild preview"
+  }
+}
+```
+
+:::tip
+preview 命令仅用于本地预览，请勿将它用于生产服务器，因为它不是为此而设计的。
+:::
+
+### 产物目录
+
+Rsbuild 的构建产物通常包含 HTML、JS、CSS 等文件，默认输出到 `dist` 目录下，dist 目录的名称和结构可以通过一些配置项来修改，请参考 [构建产物](/guide/basic/output-files) 章节来了解更多。
+
+```bash
+dist
+├── static
+│   ├── image
+│   ├── css
+│   └── js
+└── [name].html
+```
+
+### 静态资源前缀
+
+我们可以把构建产物分为两部分：**HTML 文件**和**静态资源**。
+
+- HTML 文件指的是产物目录中 `.html` 后缀的文件，它们通常需要被部署到服务器上。
+- 静态资源位于产物目录中的 `static` 目录，里面包含了 JavaScript、CSS、图片等资源，它们可以被部署到服务器或者 CDN 上。
+
+如果静态资源被部署到了服务器的某个子目录下，你可以将 [output.assetPrefix](/config/output/asset-prefix) 配置为一个 base 路径：
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+
+export default defineConfig({
+  output: {
+    assetPrefix: '/some-base-folder/',
+  },
+});
+```
+
+你想要将静态资源放到 CDN 上，以保证更好的访问性能，而不是像 HTML 一样直接放到服务器上，那么你就需要将 [output.assetPrefix](/config/output/asset-prefix) 配置为 CDN 地址，使应用能够正确的引用到这些静态资源：
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+
+export default defineConfig({
+  output: {
+    assetPrefix: 'https://cdn.com/path/',
+  },
+});
+```
+
+这样，在 HTML 中引用静态资源的时候，就会自动加上指定的前缀，例如：
+
+```html
+<script src="https://cdn.com/path/static/js/index.some-hash.js"></script>
+```
+
+## 部署平台
+
+下面介绍一些常见平台的部署方式。
+
+> 平台名称按照字母顺序排列。
+
+### Cloudflare
+
+Cloudflare 提供了多种部署 Rsbuild 项目的方式。如果只需要托管生成的静态产物，可以使用 Cloudflare Pages；如果应用需要运行在 Workers runtime 中，可以使用 Cloudflare Workers。
+
+#### Cloudflare Pages
+
+[Cloudflare Pages](https://developers.cloudflare.com/pages/) 是一个由 Cloudflare 提供的静态网站托管平台。
+
+你可以按照 [Cloudflare Pages - Git integration guide](https://developers.cloudflare.com/pages/get-started/git-integration/) 操作，通过 Git 集成，将你的站点部署到 Cloudflare Pages。
+
+在进行配置时，你需要填写 "Build settings" 中的以下字段：
+
+- **Build command**：构建命令，填写项目的 build 命令即可，通常是 `npm run build`。
+- **Build output directory**：产物目录，填写项目中的产物目录，默认是 `dist`。
+
+然后点击 **Save and Deploy** 按钮，就可以开始部署了。
+
+#### Cloudflare workers
+
+Cloudflare Workers 属于运行时部署目标，而不是静态托管。对于需要运行在 Cloudflare Workers runtime 中的 Rsbuild 项目，[rsbuild-cloudflare](https://github.com/Nsttt/rsbuild-cloudflare) 是一个实验性插件，可以读取 Wrangler 配置、通过 Miniflare 提供开发服务，并生成可部署的 Worker 产物。
+
+### GitHub Pages
+
+[GitHub Pages](https://pages.github.com/) 是一个静态站点托管服务，可以直接从 GitHub 上的存储库获取 HTML、CSS 和 JavaScript 文件。
+
+下面是部署到 GitHub Pages 的步骤示例。
+
+1. 通过 [output.assetPrefix](/config/output/asset-prefix) 设置静态资源的 URL 前缀。
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+
+export default defineConfig({
+  output: {
+    // 请将 <REPO_NAME> 替换为仓库的名称。
+    // 比如 "/my-project/"
+    assetPrefix: '/<REPO_NAME>/',
+  },
+});
+```
+
+2. 打开 GitHub 仓库的 "Settings" 页面，点击左侧菜单的 "Pages" 选项，进入 GitHub Pages 的配置页面。
+3. 选择 "Source" -> "GitHub Actions"，点击 "create your own" 来创建 GitHub Action 配置文件。
+4. 将以下内容粘贴到输入框，将文件命名为 `github-pages.yml`（你可以根据需要来调整文件的内容和名称）。
+
+```yaml title="github-pages.yml"
+# 用于构建和部署 Rsbuild 站点到 GitHub Pages 的示例工作流
+name: Rsbuild Deployment
+
+on:
+  # 在推送到默认分支时触发
+  push:
+    branches: ['main']
+  # 允许你从 Actions tabs 手动运行这个工作流
+  workflow_dispatch:
+
+# 设置 GITHUB_TOKEN 的权限以允许部署到 GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同时只允许一个部署执行
+concurrency:
+  group: 'pages'
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Use Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      # 如果你使用其他的包管理器，如 yarn 或 pnpm，
+      # 你需要先安装它们
+      - name: Install dependencies
+        run: npm i
+
+      - name: Build
+        run: npm run build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: './dist'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
+```
+
+5. 提交，等待 GitHub Actions 执行，执行完成后，你可以访问 `https://<USERNAME>.github.io/<REPO_NAME>/` 来查看部署后的页面。
+
+### Netlify
+
+[Netlify Core](https://netlify.com/) 是一个针对开发者的前端云解决方案，使用现代、可组合的工具构建和部署具有未来兼容性的数字解决方案。
+
+#### 新增站点
+
+Netlify 提供了详细的指南，你可以按照 [Netlify - Add new site](https://docs.netlify.com/welcome/add-new-site/) 操作，配置一些基础信息，就可以开始部署了。
+
+你需要配置以下两个字段：
+
+- **Build command**：构建命令，填写项目的 build 命令即可，通常是 `npm run build`。
+- **Publish directory**：产物目录，填写项目中的产物目录，默认是 `dist`。
+
+然后点击 **Deploy site** 按钮，就可以开始部署了。
+
+#### 配置域名
+
+如果你想要使你的站点可以通过你自己的域名访问，那么你可以在 Netlify 的 "Domain management" 栏目中进行配置。
+
+> 详细指南：[Netlify - Custom domains](https://docs.netlify.com/domains-https/custom-domains/)。
+
+### Vercel
+
+[Vercel](https://vercel.com/) 是一个为开发者提供的平台，它提供了构建和快速部署网络应用所需的工具、工作流程和基础设施，无需额外的配置。
+
+#### 新增站点
+
+Vercel 提供了详细的指南，你可以按照 [Vercel - Projects](https://vercel.com/docs/projects/overview) 操作，在 dashboard 中创建一个项目，配置一些基础信息，就可以开始部署了。
+
+你只需要配置 "Build and Output Settings" 下的字段：
+
+- **Output directory**：产物目录，填写项目中的产物目录，默认是 `dist`。
+
+然后点击 **Deploy** 按钮，就可以开始部署了。
+
+#### 配置域名
+
+如果你想要使你的站点可以通过你自己的域名访问，那么你可以在 Vercel 的 "Domains" 栏目中进行配置。
+
+> 详细指南：[Vercel - Domains](https://vercel.com/docs/projects/domains)。
+
+### Zephyr Cloud
+
+[Zephyr Cloud](https://zephyr-cloud.io) 是一个零配置的部署平台，它可以直接集成到构建流程中，并为模块联邦应用提供全球边缘分发。
+
+#### 如何部署
+
+请按照 [zephyr-rsbuild-plugin](https://www.npmjs.com/package/zephyr-rsbuild-plugin) 中的步骤进行操作。
+
+在构建过程中，你的应用会被自动部署，并生成一个可访问的部署 URL。Zephyr Cloud 会负责资源优化、全球 CDN 分发、模块联邦配置，并提供自动回滚功能。
+
+参考 [zephyr-cloud.io](https://zephyr-cloud.io) 开始使用。

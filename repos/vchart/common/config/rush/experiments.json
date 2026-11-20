@@ -1,0 +1,50 @@
+/**
+ * This configuration file allows repo maintainers to enable and disable experimental
+ * Rush features.  More documentation is available on the Rush website: https://rushjs.io
+ */
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/rush/v5/experiments.schema.json",
+
+  /**
+   * By default, 'rush install' passes --no-prefer-frozen-lockfile to 'pnpm install'.
+   * Set this option to true to pass '--frozen-lockfile' instead for faster installs.
+   */
+  // "usePnpmFrozenLockfileForRushInstall": true,
+
+  /**
+   * By default, 'rush update' passes --no-prefer-frozen-lockfile to 'pnpm install'.
+   * Set this option to true to pass '--prefer-frozen-lockfile' instead to minimize shrinkwrap changes.
+   */
+  // "usePnpmPreferFrozenLockfileForRushUpdate": true,
+
+  /**
+   * If using the 'preventManualShrinkwrapChanges' option, restricts the hash to only include the layout of external dependencies.
+   * Used to allow links between workspace projects or the addition/removal of references to existing dependency versions to not
+   * cause hash changes.
+   */
+  // "omitImportersFromPreventManualShrinkwrapChanges": true,
+
+  /**
+   * If true, the chmod field in temporary project tar headers will not be normalized.
+   * This normalization can help ensure consistent tarball integrity across platforms.
+   */
+  // "noChmodFieldInTarHeaderNormalization": true,
+
+  /**
+   * If true, build caching will respect the allowWarningsInSuccessfulBuild flag and cache builds with warnings.
+   * This will not replay warnings from the cached build.
+   */
+  // "buildCacheWithAllowWarningsInSuccessfulBuild": true,
+
+  /**
+   * If true, the phased commands feature is enabled. To use this feature, create a "phased" command
+   * in common/config/rush/command-line.json.
+   */
+  // "phasedCommands": true,
+
+  /**
+   * If true, perform a clean install after when running `rush install` or `rush update` if the
+   * `.npmrc` file has changed since the last install.
+   */
+  // "cleanInstallAfterNpmrcChanges": true
+}

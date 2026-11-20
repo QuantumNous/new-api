@@ -1,0 +1,152 @@
+{
+  "name": "@visactor/lark-vchart",
+  "entries": [
+    {
+      "version": "1.2.1",
+      "tag": "@visactor/lark-vchart_v1.2.1",
+      "date": "Tue, 15 Aug 2023 07:25:04 GMT",
+      "comments": {
+        "patch": [
+          {
+            "comment": "feat: the api updateViewBox adds the relayout parameter, which supports not redrawing the chart immediately after updateViewbox, details in #497\n\n"
+          },
+          {
+            "comment": "fix(axis-layout): fix the problem that the axis-component cannot take effect after configuring minWidth and maxWidth, details are in #379\n\n"
+          },
+          {
+            "comment": "fix(axis-layout): fix the issue of axis move slighty when manual legend filtering, details are in #426\n\n"
+          },
+          {
+            "comment": "fix: fix the issue about when axis.label is autoLimit, the chart layout can not work as expect after resize, details in #429\n\n"
+          }
+        ]
+      }
+    },
+    {
+      "version": "1.2.0",
+      "tag": "@visactor/lark-vchart_v1.2.0",
+      "date": "Thu, 10 Aug 2023 05:23:25 GMT",
+      "comments": {
+        "patch": [
+          {
+            "comment": "feat: dimension tooltip supports linear axis\n\n"
+          },
+          {
+            "comment": "perf(axis-tick): optimize the calculation times of axis ticks, optimize the discrete axis sampling algorithm\n\n"
+          },
+          {
+            "comment": "perf(data): remove redundant data statistics calculations\n\n"
+          }
+        ],
+        "none": [
+          {
+            "comment": "feat(marker): marker support formatMethod. fix #288, fix #298"
+          },
+          {
+            "comment": "fix(brush): fix mark can not resume to unselected state when click blank space. fix #307"
+          },
+          {
+            "comment": "fix(brush): fix brush interactive range cannot update when chart is resize. fix #194"
+          }
+        ],
+        "minor": [
+          {
+            "comment": "feat: supplement sync methods in vchart instance\n\n"
+          }
+        ]
+      }
+    },
+    {
+      "version": "1.1.3",
+      "tag": "@visactor/lark-vchart_v1.1.3",
+      "date": "Thu, 03 Aug 2023 10:32:10 GMT",
+      "comments": {
+        "patch": [
+          {
+            "comment": "fix: fix the issue of sankeyChart sourceFiled and targetFiled not working, closed #341"
+          },
+          {
+            "comment": "fix: fix the issue of SankeyChart can't render, when unset nodeAlign, closed #343"
+          }
+        ]
+      }
+    },
+    {
+      "version": "1.1.2",
+      "tag": "@visactor/lark-vchart_v1.1.2",
+      "date": "Tue, 01 Aug 2023 09:47:58 GMT",
+      "comments": {}
+    },
+    {
+      "version": "1.1.1",
+      "tag": "@visactor/lark-vchart_v1.1.1",
+      "date": "Fri, 28 Jul 2023 08:52:08 GMT",
+      "comments": {}
+    },
+    {
+      "version": "1.1.0",
+      "tag": "@visactor/lark-vchart_v1.1.0",
+      "date": "Wed, 26 Jul 2023 03:18:52 GMT",
+      "comments": {
+        "patch": [
+          {
+            "comment": "chore: sync version"
+          },
+          {
+            "comment": "feat: set default logger level to level error\n\n"
+          },
+          {
+            "comment": "feat: modify function parameters to make it more user-friendly\n\n"
+          },
+          {
+            "comment": "feat: support specified of scale in vchart\n\n"
+          },
+          {
+            "comment": "feat(lark): support mouse event for lark"
+          },
+          {
+            "comment": "fix: pickable shoule be false if label component is configured `interactive: false`\n\n"
+          },
+          {
+            "comment": "fix(rangeColumn): The \"label.visible\" is not effect in RangeColumn Chart"
+          },
+          {
+            "comment": "fix: add global-scale updateDomain on chart updateData\n\n"
+          },
+          {
+            "comment": "fix: fix the freecanvasId for block-vchart lark-vchart and taro-vchart"
+          },
+          {
+            "comment": "fix(react-vchart): rebind event to chart after chart is re-render, fix #68\n\n"
+          },
+          {
+            "comment": "fix(mini-program): Ensure that dpr is updated in real time and release old charts in time"
+          },
+          {
+            "comment": "fix: the issue that mode value does not exit in trigger config"
+          }
+        ],
+        "none": [
+          {
+            "comment": "feat(marker): markline support autoRange and marker performance enhance"
+          },
+          {
+            "comment": "feat(brush): add operate type about 'brushStart' | 'brushEnd' and export element data of inBrush and outOfBrush"
+          },
+          {
+            "comment": "fix(dataZoom): fix bug of datazoom not clear when updateSpec and mark disappear when xField is array"
+          },
+          {
+            "comment": "fix(dataZoom): preview compute and theme config"
+          },
+          {
+            "comment": "fix(wordCloud): text clip when layoutmode is fast"
+          },
+          {
+            "comment": "fix(wordCloud): get padding from chartInstance padding"
+          }
+        ]
+      }
+    }
+  ]
+}

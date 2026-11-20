@@ -1,0 +1,29 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`doGenerate > response headers > should include response data with timestamp, modelId and headers 1`] = `
+{
+  "body": {
+    "chunks": [
+      {
+        "text": "Hello from the Versal AISDK.",
+        "timestamp": [
+          0,
+          2.508,
+        ],
+      },
+    ],
+    "languages": [
+      "en",
+    ],
+    "text": "Hello from the Versal AISDK.",
+  },
+  "headers": {
+    "content-length": "131",
+    "content-type": "application/json",
+    "x-ratelimit-remaining": "123",
+    "x-request-id": "test-request-id",
+  },
+  "modelId": "wizper",
+  "timestamp": 1970-01-01T00:00:00.000Z,
+}
+`;

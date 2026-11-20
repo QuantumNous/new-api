@@ -1,0 +1,82 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`options.onEnd > should send correct event information (single call path) 1`] = `
+{
+  "callId": "test-call-id",
+  "embedding": [
+    [
+      0.1,
+      0.2,
+      0.3,
+    ],
+    [
+      0.4,
+      0.5,
+      0.6,
+    ],
+    [
+      0.7,
+      0.8,
+      0.9,
+    ],
+  ],
+  "modelId": "mock-model-id",
+  "operationId": "ai.embedMany",
+  "provider": "mock-provider",
+  "providerMetadata": undefined,
+  "response": [
+    {
+      "body": {},
+      "headers": {},
+    },
+  ],
+  "usage": {
+    "tokens": 10,
+  },
+  "value": [
+    "sunny day at the beach",
+    "rainy afternoon in the city",
+    "snowy night in the mountains",
+  ],
+  "warnings": [],
+}
+`;
+
+exports[`options.onStart > should send correct event information 1`] = `
+{
+  "callId": "test-call-id",
+  "headers": {
+    "user-agent": "ai/0.0.0-test",
+  },
+  "maxRetries": 2,
+  "modelId": "mock-model-id",
+  "operationId": "ai.embedMany",
+  "provider": "mock-provider",
+  "providerOptions": undefined,
+  "value": [
+    "sunny day at the beach",
+    "rainy afternoon in the city",
+    "snowy night in the mountains",
+  ],
+}
+`;
+
+exports[`result.responses > should include responses in the result 1`] = `
+[
+  {
+    "body": {
+      "first": true,
+    },
+  },
+  {
+    "body": {
+      "second": true,
+    },
+  },
+  {
+    "body": {
+      "third": true,
+    },
+  },
+]
+`;

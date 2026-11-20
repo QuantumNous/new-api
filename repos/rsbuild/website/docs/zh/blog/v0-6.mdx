@@ -1,0 +1,102 @@
+---
+description: 'Rsbuild 0.6 发布，默认启用 error overlay，支持 Vue JSX HMR，并引入全新的 transform API。'
+date: 2024-04-10 18:00:00
+sidebar: false
+authors:
+  - name: Jiahan Chen
+    avatar: 'https://github.com/chenjiahan.png'
+    github: 'chenjiahan'
+  - name: 9aoy
+    avatar: 'https://github.com/9aoy.png'
+    github: '9aoy'
+---
+
+import { BlogAuthors } from '@rstack-dev/doc-ui/blog-authors';
+
+# Rsbuild 0.6 发布
+
+_2024 年 4 月 10 日_
+
+<BlogAuthors />
+
+![](https://assets.rspack.rs/rsbuild/rsbuild-banner-v0-6.png)
+
+Rsbuild 0.6 已与 Rspack 0.6 同步发布！
+
+主要变更：
+
+- 升级 Rspack 0.6
+- 默认启用 error overlay
+- 支持 Vue JSX HMR
+- 全新的 transform 插件 API
+- 默认端口调整为 3000
+
+## 升级 Rspack 0.6
+
+Rsbuild 已将依赖的 Rspack 升级至 0.6 版本，并适配了 Rspack 0.6 包含的 CSS Modules 不兼容更新。
+
+在新版本中，Rspack 默认开启了新版 tree shaking 算法，使产物体积和产物稳定性得到显著提升。请参考 [Rspack 0.6 发布公告](https://rspack.rs/zh/blog/announcing-0-6) 了解更多。
+
+## 默认启用 error overlay
+
+从 Rsbuild 0.6 开始，[dev.client.overlay](/config/dev/client) 的默认值调整为 `true`。这意味着当出现编译错误时，Rsbuild 将默认弹出 error overlay 来展示错误信息：
+
+![](https://assets.rspack.rs/rsbuild/assets/rsbuild-error-overlay.png)
+
+如果你不需要此功能，可以将 `dev.client.overlay` 设置为 `false` 来禁用：
+
+```ts title="rsbuild.config.ts"
+export default defineConfig({
+  dev: {
+    client: {
+      overlay: false,
+    },
+  },
+});
+```
+
+## 支持 Vue JSX HMR
+
+`@rsbuild/plugin-vue-jsx` 现已支持 JSX HMR，当你在 Vue 3 应用中修改 JSX 代码时，会自动触发模块热替换，并保留当前页面的状态。
+
+该功能由社区贡献者 [@liyincode](https://github.com/liyincode) 实现 ❤️，并且发布为独立的 [babel-plugin-vue-jsx-hmr](https://github.com/liyincode/babel-plugin-vue-jsx-hmr) 包，以便在 Rsbuild 以外的项目中使用。
+
+## 全新的 transform API
+
+Rsbuild 插件现已支持 [transform API](/plugins/dev/core#apitransform)，这可以理解为 Rspack loader 的一个轻量化实现，它提供了简单易用的 API，并在底层自动调用 Rspack loader 进行代码转换。
+
+在 Rsbuild 插件中，你可以通过 `api.transform` 快速实现代码转换功能，能够满足大部分常见场景，而无须学习 Rspack loader 的编写方法。
+
+比如匹配以 .pug 为后缀的模块，并转换为 JavaScript 代码：
+
+```ts
+import pug from 'pug';
+
+const pluginPug = () => ({
+  name: 'my-pug-plugin',
+  setup(api) {
+    api.transform({ test: /\.pug$/ }, ({ code }) => {
+      const templateCode = pug.compileClient(code, {});
+      return `${templateCode}; module.exports = template;`;
+    });
+  },
+});
+```
+
+对于一些复杂的代码转换场景，`api.transform` 可能无法满足，此时你可以使用 Rspack loader 进行实现。
+
+## 默认端口调整为 3000
+
+Rsbuild 已将 [server.port](/config/server/port) 的默认值从 `8080` 调整到 `3000`。
+
+端口 3000 通常用于 web 开发领域，也是 create-react-app 等工具默认使用的端口。通过更改默认端口为 3000，可以避免在使用 8080 时可能遇到的端口冲突问题。
+
+如果你需要使用 8080 端口，可以手动设置：
+
+```ts title="rsbuild.config.ts"
+export default defineConfig({
+  server: {
+    port: 8080,
+  },
+});
+```

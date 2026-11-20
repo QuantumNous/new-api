@@ -1,0 +1,13 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "ignoreDependencies": ["@size-limit/preset-small-lib"],
+  "ignoreWorkspaces": ["examples/**"],
+  "workspaces": {
+    "packages/match-sorter-utils": {
+      "ignoreDependencies": ["remove-accents"]
+    },
+    "packages/react-table": {
+      "ignore": ["**/*.notest.*", "**/makeTestData.ts"]
+    }
+  }
+}

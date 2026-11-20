@@ -1,0 +1,73 @@
+// Rstest Snapshot v1
+
+exports[`plugin-cache > should add cache config correctly 1`] = `
+{
+  "buildDependencies": [
+    "<ROOT>/package.json",
+  ],
+  "storage": {
+    "directory": "<ROOT>/node_modules/.cache/rspack",
+    "type": "filesystem",
+  },
+  "type": "persistent",
+  "version": "web-test",
+}
+`;
+
+exports[`plugin-cache > should apply cacheDigest 1`] = `
+{
+  "buildDependencies": [
+    "<ROOT>/package.json",
+  ],
+  "storage": {
+    "directory": "<ROOT>/node_modules/.cache/rspack",
+    "type": "filesystem",
+  },
+  "type": "persistent",
+  "version": "web-test-fa1844c2988ad15a",
+}
+`;
+
+exports[`plugin-cache > should custom cache directory by user 1`] = `
+{
+  "buildDependencies": [
+    "<ROOT>/package.json",
+  ],
+  "storage": {
+    "directory": "<ROOT>/node_modules/.cache/tmp",
+    "type": "filesystem",
+  },
+  "type": "persistent",
+  "version": "web-test",
+}
+`;
+
+exports[`plugin-cache > should disable cache 1`] = `undefined`;
+
+exports[`plugin-cache > should not apply cacheDigest 1`] = `
+{
+  "buildDependencies": [
+    "<ROOT>/package.json",
+  ],
+  "storage": {
+    "directory": "<ROOT>/node_modules/.cache/rspack",
+    "type": "filesystem",
+  },
+  "type": "persistent",
+  "version": "web-test",
+}
+`;
+
+exports[`plugin-cache > should watch tsconfig change 1`] = `
+{
+  "buildDependencies": [
+    "<ROOT>/package.json",
+  ],
+  "storage": {
+    "directory": "<ROOT>/node_modules/.cache/rspack",
+    "type": "filesystem",
+  },
+  "type": "persistent",
+  "version": "web-test",
+}
+`;

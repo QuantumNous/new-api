@@ -1,0 +1,16 @@
+node_modules/
+dist/
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+.vscode
+.docz/
+coverage/
+.rpt2_cache/
+.idea
+examples/**/*/package-lock.json
+examples/**/*/yarn.lock
+examples/**/*/pnpm-lock.yaml
+examples/**/*/bun.lockb

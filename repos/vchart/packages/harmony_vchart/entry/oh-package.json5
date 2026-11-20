@@ -1,0 +1,13 @@
+{
+  "name": "entry",
+  "version": "1.0.0",
+  "description": "Please describe the basic information.",
+  "main": "",
+  "author": "",
+  "license": "",
+  "dependencies": {
+    "@visactor/harmony-vchart": "file:../library",
+    "@ohos/mpchart": "^3.0.2"
+  }
+}
+

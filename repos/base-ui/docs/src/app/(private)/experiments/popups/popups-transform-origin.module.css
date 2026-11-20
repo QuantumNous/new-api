@@ -1,0 +1,42 @@
+.Popup {
+  transition: transform 1s;
+  transform-origin: var(--transform-origin);
+  background: black;
+  width: 100px;
+  height: 100px;
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    transform: scale(0);
+  }
+}
+
+.Trigger {
+  background: #ddd;
+  width: 75px;
+  height: 50px;
+  border: none;
+  font-size: inherit;
+}
+
+.Arrow {
+  width: 10px;
+  height: 10px;
+  background: red;
+
+  &[data-side='top'] {
+    bottom: -10px;
+  }
+
+  &[data-side='bottom'] {
+    top: -10px;
+  }
+
+  &[data-side='left'] {
+    right: -10px;
+  }
+
+  &[data-side='right'] {
+    left: -10px;
+  }
+}

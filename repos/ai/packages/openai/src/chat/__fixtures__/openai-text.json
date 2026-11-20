@@ -1,0 +1,36 @@
+{
+  "id": "chatcmpl-D8Z5f52zQqikDBEKQMQoYcWMcWPeU",
+  "object": "chat.completion",
+  "created": 1770933883,
+  "model": "gpt-4.1-nano-2025-04-14",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "**Holiday Name:** Galaxy Day  \n\n**Date:** October 31st, aligning with the night sky's peak viewing of constellations and celestial events.  \n\n**Purpose:** Galaxy Day celebrates the universe's vastness, beauty, and our collective curiosity about the cosmos. It's a time to honor science, imagination, and our shared human wonder about the stars and beyond.  \n\n**Traditions:**  \n\n1. **Stargazing Festivals:** Communities host outdoor gatherings in parks, rooftops, or open fields. People set up telescopes, enjoy guided stargazing sessions, and share stories about space, astronomy, and mythologies linked to constellations.  \n\n2. **Cosmic Costumes:** Participants dress up as planets, stars, astronauts, aliens, or celestial phenomena. Parades and costume contests encourage creativity inspired by the universe's mysteries.  \n\n3. **Celestial Art:** Art installations and light shows depict galaxies, nebulae, and astronomical phenomena. Schools and galleries often hold exhibitions or workshops focusing on space-inspired creativity.  \n\n4. **Educational Activities:** Museums and science centers offer special exhibits, planetarium shows, and activities for all ages to learn about space exploration, astronomy, and the universe's origins.  \n\n5. **Offering of Light:** In homage to distant stars, families and communities light candles or lanterns, symbolizing hope, curiosity, and the idea that even the smallest light can illuminate vast darkness\u2014mirroring our quest to find knowledge amidst the cosmos.  \n\n6. **Global Connection:** As Galaxy Day emphasizes shared wonder, people are encouraged to connect virtually with friends or communities worldwide to share discoveries, stories, and aspirations related to space.  \n\nGalaxy Day fosters a sense of unity, exploration, and awe, inspiring individuals to look up and dream beyond our world.",
+        "refusal": null,
+        "annotations": []
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 16,
+    "completion_tokens": 363,
+    "total_tokens": 379,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "audio_tokens": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 0,
+      "audio_tokens": 0,
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0
+    }
+  },
+  "service_tier": "default",
+  "system_fingerprint": "fp_de604bd877"
+}

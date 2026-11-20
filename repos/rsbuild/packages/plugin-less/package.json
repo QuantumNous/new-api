@@ -1,0 +1,58 @@
+{
+  "name": "@rsbuild/plugin-less",
+  "version": "2.0.1",
+  "description": "Less plugin for Rsbuild",
+  "homepage": "https://rsbuild.rs",
+  "bugs": {
+    "url": "https://github.com/web-infra-dev/rsbuild/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/web-infra-dev/rsbuild",
+    "directory": "packages/plugin-less"
+  },
+  "files": [
+    "dist",
+    "compiled"
+  ],
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "build": "rslib",
+    "dev": "rslib -w",
+    "prebundle": "prebundle"
+  },
+  "dependencies": {
+    "deepmerge": "catalog:",
+    "less": "catalog:",
+    "less-loader": "catalog:",
+    "reduce-configs": "catalog:"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "workspace:*",
+    "@rslib/core": "catalog:",
+    "@scripts/test-helper": "workspace:*",
+    "@types/less": "catalog:",
+    "prebundle": "catalog:",
+    "typescript": "catalog:"
+  },
+  "peerDependencies": {
+    "@rsbuild/core": "^2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@rsbuild/core": {
+      "optional": true
+    }
+  }
+}

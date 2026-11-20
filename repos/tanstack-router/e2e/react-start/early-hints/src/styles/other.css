@@ -1,0 +1,12 @@
+/* Other route styles */
+.other-container {
+  background-color: #fce7f3;
+  padding: 16px;
+  border-radius: 8px;
+  border: 2px solid #ec4899;
+}
+
+.other-title {
+  color: #9d174d;
+  font-weight: 600;
+}

@@ -1,0 +1,57 @@
+
+# See https://help.github.com/ignore-files/ for more about ignoring files.
+
+# dependencies
+node_modules
+package-lock.json
+yarn.lock
+
+# builds
+types
+build
+dist
+lib
+es
+artifacts
+.rpt2_cache
+coverage
+*.tgz
+
+# misc
+.DS_Store
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.next
+.svelte-kit
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.history
+size-plugin.json
+stats-hydration.json
+stats-react.json
+stats.html
+.vscode/settings.json
+.idea
+
+*.log
+.DS_Store
+.cache
+.idea
+.pnpm-store
+
+package-lock.json
+yarn.lock
+*.tsbuildinfo
+*.tsbuildinfo
+
+.nx/cache
+.nx/workspace-data
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+.angular

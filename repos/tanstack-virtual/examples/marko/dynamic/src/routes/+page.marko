@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Dynamic Virtualisation — @tanstack/marko-virtual</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: system-ui, sans-serif; padding: 24px; }
+      h1 { font-size: 24px; margin-bottom: 8px; }
+      p { color: #555; margin-bottom: 16px; font-size: 14px; line-height: 1.5; }
+      .scroll-container { height: 400px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 6px; }
+      .item { padding: 10px 12px; font-size: 14px; border-bottom: 1px solid #f3f4f6; box-sizing: border-box; line-height: 1.5; }
+      .item-even { background: #f9fafb; }
+      .item-odd  { background: #ffffff; }
+    </style>
+  </head>
+  <body>
+    <h1>Dynamic Virtualisation</h1>
+    <p>Item sizes are unknown at render time. Each rendered item is measured via measureElement.</p>
+
+    <const/items = Array.from({ length: 1000 }, (_, idx) => ({
+      id: idx,
+      text: "Item " + idx + " — " + "lorem ipsum dolor sit amet ".repeat(1 + (idx % 5)),
+    }))/>
+
+    <let/mounted = false/>
+    <lifecycle onMount() { mounted = true }/>
+
+    <div/scrollEl class="scroll-container">
+      <if=mounted>
+        <virtualizer|{ virtualItems, totalSize, measureElement }|
+          count=items.length
+          estimateSize=() => 80
+          getScrollElement=scrollEl
+        >
+          <div style=`height: ${totalSize}px; width: 100%; position: relative`>
+            <for|item| of=virtualItems>
+              <div/itemEl
+                data-index=item.index
+                class=item.index % 2 === 0 ? "item item-even" : "item item-odd"
+                style=`position: absolute; top: 0; left: 0; width: 100%; transform: translateY(${item.start}px)`
+              >
+                <effect() {
+                  const _key = item.key
+                  const node = itemEl()
+                  if (node && measureElement) measureElement(node)
+                }/>
+                <strong>${items[item.index]!.id}.</strong> ${items[item.index]!.text}
+              </div>
+            </for>
+          </div>
+        </virtualizer>
+      </if>
+    </div>
+  </body>
+</html>

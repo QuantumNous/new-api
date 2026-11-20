@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "lib": ["ESNext", "DOM"],
+    "strict": true,
+    "moduleResolution": "bundler",
+    "skipLibCheck": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "types": ["vite/client"],
+    "jsx": "preserve",
+    "jsxImportSource": "vue"
+  },
+  "include": ["src", "tests"],
+  "exclude": ["node_modules", "dist"]
+}

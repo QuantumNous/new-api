@@ -1,0 +1,337 @@
+---
+description: 'Rsbuild 的 CSS Modules 功能是基于 css-loader 的 modules 选项实现的，你可以参考 css-loader - modules 来了解更多。'
+---
+
+# output.cssModules
+
+- **类型：** `CSSModules`
+
+用于自定义 CSS Modules 配置。
+
+Rsbuild 的 CSS Modules 功能是基于 css-loader 的 `modules` 选项实现的，你可以参考 [css-loader - modules](https://github.com/webpack/css-loader#modules) 来了解更多。
+
+## cssModules.auto
+
+`auto` 配置项允许基于文件名自动启用 CSS Modules。
+
+- **类型：**
+
+```ts
+type Auto =
+  | boolean
+  | RegExp
+  | ((resourcePath: string, resourceQuery: string, resourceFragment: string) => boolean);
+```
+
+- **默认值：** `true`
+
+类型说明：
+
+- `true`: 为所有匹配 `/\.module\.\w+$/i.test(filename)` 正则表达式的文件启用 CSS Modules。
+- `false`: 禁用 CSS Modules。
+- `RegExp`: 为所有匹配 `/RegExp/i.test(filename)` 正则表达式的文件启用 CSS Modules。
+- `function`: 为所有通过基于文件名的过滤函数校验的文件启用 CSS Modules。
+
+例如，为 `shared/` 目录下的文件额外启用 CSS Modules：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    cssModules: {
+      auto: (resource) => {
+        return resource.includes('.module.') || resource.includes('shared/');
+      },
+    },
+  },
+};
+```
+
+再比如，将所有包含 .module. 和 .modules. 的文件都视为 CSS Modules：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    cssModules: {
+      auto: /\.modules?\./,
+    },
+  },
+};
+```
+
+## cssModules.exportLocalsConvention
+
+导出的 class 名称的命名风格。
+
+- **类型：**
+
+```ts
+type CSSModulesLocalsConvention = 'asIs' | 'camelCase' | 'camelCaseOnly' | 'dashes' | 'dashesOnly';
+```
+
+- **默认值：** `'camelCase'`
+
+类型说明：
+
+- `asIs`：类名将按原样导出。
+- `camelCase`：类名将被驼峰化，然后被导出。原始类名也会被导出。
+- `camelCaseOnly`：类名将被驼峰化，然后被导出。原始类名不会被导出。
+- `dashes`：只有类名中的破折号会被驼峰化，然后被导出。原始类名也会被导出。
+- `dashesOnly`：类名中的破折号会被驼峰化，然后被导出。原始类名不会被导出。
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    cssModules: {
+      exportLocalsConvention: 'camelCaseOnly',
+    },
+  },
+};
+```
+
+### 示例
+
+假设你有以下 CSS 文件：
+
+```css title="src/style.module.css"
+.dash-class {
+  color: blue;
+}
+.camelClass {
+  color: red;
+}
+.underscore_class {
+  color: green;
+}
+```
+
+不同的 `exportLocalsConvention` 配置会产生不同的导出结果：
+
+```js title="src/index.js"
+import styles from './style.module.css';
+
+console.log(styles);
+// camelCase（默认）
+// { 'dash-class': '...', 'dashClass': '...', 'camelClass': '...', 'underscore_class': '...', 'underscoreClass': '...' }
+
+// camelCaseOnly
+// { 'dashClass': '...', 'camelClass': '...', 'underscoreClass': '...' }
+
+// dashes
+// { 'dash-class': '...', 'dashClass': '...', 'camelClass': '...', 'underscore_class': '...' }
+
+// dashesOnly
+// { 'dashClass': '...', 'camelClass': '...', 'underscore_class': '...' }
+
+// asIs
+// { 'dash-class': '...', 'camelClass': '...', 'underscore_class': '...' }
+```
+
+## cssModules.exportGlobals
+
+- **类型：** `boolean`
+- **默认值：** `false`
+
+允许从 global class names 导出名称，以便你可以通过 import 使用它们。
+
+### 示例
+
+将 `exportGlobals` 设置为 `true`：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    cssModules: {
+      exportGlobals: true,
+    },
+  },
+};
+```
+
+在 CSS Modules 中使用 `:global()`：
+
+```css title="style.module.css"
+:global(.blue) {
+  color: blue;
+}
+
+.red {
+  color: red;
+}
+```
+
+然后你可以导入 `:global()` 包裹的类名：
+
+```tsx title="Button.tsx"
+import styles from './style.module.css';
+
+console.log(styles.blue); // 'blue'
+console.log(styles.red); // 'red-[hash]'
+```
+
+## cssModules.localIdentName
+
+- **类型：** `string`
+- **默认值：**
+
+```ts
+const localIdentName =
+  rsbuildConfig.mode === 'production'
+    ? '[local]-[hash:base64:6]'
+    : '[path][name]__[local]-[hash:base64:6]';
+```
+
+设置 CSS Modules 编译后生成的 class names 格式。
+
+### 默认值
+
+`localIdentName` 在开发模式和生产模式有不同的默认值。
+
+在生产模式，Rsbuild 会生成更简短的类名，从而减少构建产物的体积。
+
+```ts
+import styles from './index.module.scss';
+
+// 在开发模式下，值为 `src-index-module__header-[hash]`
+// 在生产模式下，值为 `header-[hash]`
+console.log(styles.header);
+```
+
+### 占位符
+
+在 `localIdentName` 中，你可以使用以下占位符：
+
+- `[name]` - 源文件名称。
+- `[local]` - 原始类名。
+- `[hash]` - 字符串的哈希值。
+- `[folder]` - 文件夹的相对路径。
+- `[path]` - 源文件的相对路径。
+- `[file]` - 文件名和路径。
+- `[ext]` - 文件后缀名，包含点号。
+- `[hash:<hashDigest>:<hashDigestLength>]` - 带有哈希设置的哈希。其中 `hashDigest` 是[哈希编码](https://rspack.rs/zh/config/output#outputhashdigest)，`hashDigestLength` 是哈希值的长度。
+
+### 示例
+
+将 `localIdentName` 设置为其他值，例如更简短的五位哈希值：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    cssModules: {
+      localIdentName: '[hash:base64:5]',
+    },
+  },
+};
+```
+
+:::tip
+如果 hash 长度设置得较短，可能会增加类名冲突的风险。
+:::
+
+## cssModules.mode
+
+- **类型：**
+
+```ts
+type Mode =
+  | 'local'
+  | 'global'
+  | 'pure'
+  | 'icss'
+  | ((resourcePath: string) => 'local' | 'global' | 'pure' | 'icss');
+```
+
+- **默认值：** `'local'`
+
+控制 CSS Modules 的编译模式。
+
+### 可选值
+
+`cssModules.mode` 可以取以下值之一：
+
+1. `'local'` (默认值)：启用 CSS Modules 规范和局部作用域。类名和 ID 选择器会被重写为模块作用域，并注入 `@value` 绑定。
+2. `'global'`：不启用 CSS Modules 的行为，禁用局部作用域和 `@value` 绑定注入。全局选择器将按照原样保留。
+3. `'pure'`：通过删除最终 CSS 中未使用的本地类名和值来实现死代码消除。仍然执行局部作用域和 `@value` 注入。
+4. `'icss'`：编译成 low-level 可互操作的 CSS 格式，该格式提供在 CSS 和其他语言之间声明 `:import` 和 `:export` 依赖项的语法。它不执行任何作用域或 `@value` 注入。
+
+`'local'` 模式是 CSS Modules 最常见的用法，在组件内启用模块化和局部作用域样式。其他模式可能在特定场景下被使用。
+
+例如：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    cssModules: {
+      mode: 'global',
+    },
+  },
+};
+```
+
+### 函数
+
+你还可以传递一个函数给 `cssModules.mode`，并根据资源路径、query 或 fragment 确定 mode。这允许你为不同的文件使用不同的 mode。
+
+例如，对 `.module.css` 文件使用局部作用域，对其他文件使用全局样式：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    cssModules: {
+      mode: (resourcePath) => {
+        if (/\.module\.css$/.test(resourcePath)) {
+          return 'local';
+        }
+        return 'global';
+      },
+    },
+  },
+};
+```
+
+## cssModules.namedExport
+
+- **类型：** `boolean`
+- **默认值：** `false`
+
+是否具名导出 class names。
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    cssModules: {
+      namedExport: true,
+    },
+  },
+};
+```
+
+### 示例
+
+```css title="style.module.css"
+.foo {
+  color: blue;
+}
+```
+
+- `namedExport: false`:
+
+```js
+import styles from './style.module.css';
+
+console.log(styles.foo);
+```
+
+- `namedExport: true`:
+
+```js
+import { foo } from './style.module.css';
+// or
+import * as styles from './style.module.css';
+
+console.log(foo);
+console.log(styles.foo);
+```
+
+:::tip
+当 namedExport 为 true 时，CSS Modules 导出的 `default` class 会被自动重命名为 `_default` class，因为 default 是 ECMA modules 的保留字。
+:::

@@ -1,0 +1,64 @@
+---
+description: 'Rsbuild 与前端构建术语表，涵盖 Bundler、CSR、Environment、Module Federation、SSR 和 SWC 等概念。'
+---
+
+# 名词解释
+
+## Bundler
+
+指 [Rspack](https://rspack.rs/zh/)、[webpack](https://webpack.js.org/) 等模块打包工具。
+
+打包工具的主要目标是将 JavaScript、CSS 等文件打包在一起，打包后的文件可以在浏览器、Node.js 等环境中使用。当打包工具处理 Web 应用时，它会构建一个依赖关系图，其中包含应用需要的各个模块，然后将所有模块打包成一个或多个 bundle。
+
+## CSR
+
+CSR 是 "Client-Side Rendering"（客户端渲染）的缩写。它表示页面是在浏览器中通过 JavaScript 渲染的，数据获取、模板和路由等逻辑都在浏览器端完成，而不是在服务器上。
+
+在 CSR 中，服务器会向浏览器端发送一个空的 HTML 外壳和一些 JavaScript 脚本，然后由浏览器端从服务器的 API 中拉取数据，并将动态内容渲染到页面中。
+
+## Environment
+
+`environment` 指的是构建产物的运行环境，详见 [多环境构建](/guide/advanced/environments)。
+
+## Micro-frontend
+
+微前端（Micro-frontend，简称 MFE）是一种类似于微服务的架构，是一种由独立交付的多个前端应用组成整体的架构风格，它将前端应用分解成一些更小、更简单的能够独立开发、测试、部署的应用，而在用户看来仍然是内聚的单个产品。
+
+它主要解决了两个问题：
+
+- 随着项目迭代应用越来越庞大，难以维护。
+- 跨团队或跨部门协作开发项目导致效率低下的问题。
+
+## Modern.js
+
+[Modern.js](https://github.com/web-infra-dev/modern.js) 是一个基于 Rsbuild 实现的渐进式 Web 开发框架。
+
+## Module Federation
+
+Module Federation 是一种 JavaScript 应用分治的架构模式（类似于服务端的微服务），它允许你在多个 JavaScript 应用程序（或微前端）之间共享代码和资源。
+
+详见 [模块联邦](/guide/advanced/module-federation)。
+
+## Rspack
+
+[Rspack](https://rspack.rs/zh/) 是一个基于 Rust 编写的高性能 JavaScript 打包工具，它提供对 webpack 生态良好的兼容性，能够无缝替换 webpack，并提供闪电般的构建速度。
+
+## Rspress
+
+[Rspress](https://github.com/web-infra-dev/rspress) 是一个基于 Rsbuild 的静态站点生成器。
+
+## SSR
+
+SSR 是 "Server-side rendering"（服务端渲染）的缩写。它表示由服务器生成网页的 HTML，并将其发送给客户端，而不是只发送一个空的 HTML 外壳，并依赖 JavaScript 来生成页面内容。
+
+详见 [服务端渲染（SSR）](/guide/advanced/ssr)。
+
+## SWC
+
+SWC (Speedy Web Compiler) 是基于 Rust 语言编写的高性能 JavaScript 和 TypeScript 转译和压缩工具。
+
+详见 [配置 SWC](/guide/configuration/swc)。
+
+## 更多
+
+访问 [Rspack - 术语表](https://rspack.rs/zh/misc/glossary) 查看更多名词解释。

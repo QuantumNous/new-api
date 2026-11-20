@@ -1,0 +1,33 @@
+.Control {
+  position: relative;
+  display: flex;
+  width: 100px;
+  height: 20px;
+  align-items: center;
+  background: #e5e7eb;
+  touch-action: none;
+  user-select: none;
+}
+
+.ThumbRed {
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  outline: 1px solid #d1d5db;
+  background: red;
+  user-select: none;
+}
+
+.ThumbBlue {
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  outline: 1px solid #d1d5db;
+  background: blue;
+  user-select: none;
+}
+
+.ThumbRed:has(:focus-visible),
+.ThumbBlue:has(:focus-visible) {
+  outline: 2px solid #1e40af;
+}

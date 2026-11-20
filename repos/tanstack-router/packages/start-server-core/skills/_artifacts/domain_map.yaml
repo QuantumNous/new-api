@@ -1,0 +1,65 @@
+# domain_map.yaml
+# Library: @tanstack/start-server-core
+# Version: 1.166.2
+# Date: 2026-03-08
+# Status: reviewed
+
+library:
+  name: '@tanstack/start-server-core'
+  version: '1.166.2'
+  repository: 'https://github.com/TanStack/router'
+  description: >-
+    Server-side runtime for TanStack Start: createStartHandler,
+    request/response utilities, cookie/session management,
+    three-phase request handling, AsyncLocalStorage context.
+  primary_framework: 'framework-agnostic'
+
+domains:
+  - name: 'Server Runtime'
+    slug: 'server-runtime'
+    description: >-
+      Server-side request handling, start handler creation,
+      cookie/session management, and AsyncLocalStorage context
+      for TanStack Start applications.
+
+skills:
+  - name: 'Start Server Core'
+    slug: 'start-server-core'
+    domain: 'server-runtime'
+    description: >-
+      Server-side runtime for TanStack Start: createStartHandler,
+      request/response utilities, cookie/session management,
+      three-phase request handling, AsyncLocalStorage context.
+    type: core
+    packages:
+      - '@tanstack/start-server-core'
+    covers:
+      - createStartHandler factory
+      - Request/response utilities
+      - Cookie management
+      - Session management
+      - Three-phase request handling
+      - AsyncLocalStorage context
+      - Server entry point setup
+    tasks:
+      - 'Create server entry point with createStartHandler'
+      - 'Manage cookies and sessions'
+      - 'Handle server-side request lifecycle'
+    failure_modes:
+      - mistake: 'Missing AsyncLocalStorage setup'
+        mechanism: >-
+          Server functions rely on AsyncLocalStorage for request
+          context. Not initializing the context store causes
+          undefined access errors at runtime.
+        priority: HIGH
+        status: active
+
+      - mistake: 'Incorrect handler export for deployment target'
+        mechanism: >-
+          createStartHandler returns a handler shaped for the
+          deployment target. Exporting the wrong format (e.g.
+          Node handler for edge runtime) causes request failures.
+        priority: MEDIUM
+        status: active
+
+gaps: []

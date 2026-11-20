@@ -1,0 +1,182 @@
+---
+description: 'Rsbuild 0.2 updates core configuration such as targets and entry, and redesigns the Babel plugin API.'
+date: 2023-12-11 08:00:00
+sidebar: false
+authors:
+  - name: Jiahan Chen
+    avatar: 'https://github.com/chenjiahan.png'
+    github: 'chenjiahan'
+  - name: 9aoy
+    avatar: 'https://github.com/9aoy.png'
+    github: '9aoy'
+---
+
+import { BlogAuthors } from '@rstack-dev/doc-ui/blog-authors';
+
+# Announcing Rsbuild 0.2
+
+_December 11, 2023_
+
+<BlogAuthors />
+
+![](https://assets.rspack.rs/rsbuild/rsbuild-banner-v0-2.png)
+
+The Rsbuild 0.2 contains some incompatible API changes. Please refer to the current documentation for upgrading.
+
+## Targets
+
+We will move the `target` option of `createRsbuild` to rsbuild config, this change allows user to configure `targets` in the rsbuild config file.
+
+- before:
+
+```js
+const rsbuild = await createRsbuild({
+  target: ['web', 'node'],
+});
+```
+
+- after:
+
+```js
+// rsbuild.config.ts
+export default {
+  output: {
+    targets: ['web', 'node'],
+  },
+};
+```
+
+> Only affect JavaScript API. Users using the Rsbuild CLI do not need to change.
+
+## Entry
+
+Remove the deprecated `source.entries` config.
+
+`source.entries` has been renamed to `source.entry` since Rsbuild 0.1.0, and we will remove the legacy `source.entries` config in Rsbuild v0.2.0.
+
+- before:
+
+```js
+// rsbuild.config.ts
+export default {
+  source: {
+    entries: {},
+  },
+};
+```
+
+- after:
+
+```js
+// rsbuild.config.ts
+export default {
+  source: {
+    entry: {},
+  },
+};
+```
+
+## Write to disk
+
+`dev.writeToDisk` defaults to `false`.
+
+Motivation:
+
+- Reduce fs overhead and improve dev server performance.
+- Avoid trigger watcher of UnoCSS and other tools. See [#654](https://github.com/web-infra-dev/rsbuild/issues/654).
+- Align the default behavior with webpack-dev-middleware and other community dev servers.
+
+User can enable writeToDisk manually:
+
+```js
+export default {
+  dev: {
+    writeToDisk: true,
+  },
+};
+```
+
+## Babel plugin
+
+`@rsbuild/plugin-babel` will move all babel-loader options to `babelLoaderOptions`:
+
+- before:
+
+```ts
+pluginBabel({
+  plugins: [],
+  presets: [],
+});
+```
+
+- after:
+
+```ts
+pluginBabel([
+  babelLoaderOptions: {
+    plugins: [],
+    presets: [],
+  }
+]);
+```
+
+This change allows us to add more options for `pluginBabel`, such as `include` and `exclude`.
+
+## Source map
+
+`output.disableSourceMap` has been renamed to `output.sourceMap`.
+
+- before:
+
+```js
+export default {
+  output: {
+    disableSourceMap: {
+      js: true,
+      css: true,
+    },
+  },
+};
+```
+
+- after:
+
+```js
+export default {
+  output: {
+    sourceMap: {
+      js: false,
+      css: false,
+    },
+  },
+};
+```
+
+The default value of source map has also been updated to improve build performance.
+
+- before: generate JS / CSS source map in development, generate JS source map in production.
+- after: generate JS source map in development, no source map are generated in production.
+
+## Inject styles
+
+Rename `output.disableCssExtract` to `output.injectStyles` to be clearer:
+
+- before:
+
+```js
+export default {
+  output: {
+    disableCssExtract: true,
+  },
+};
+```
+
+- after:
+
+```js
+export default {
+  output: {
+    injectStyles: true,
+  },
+};
+```

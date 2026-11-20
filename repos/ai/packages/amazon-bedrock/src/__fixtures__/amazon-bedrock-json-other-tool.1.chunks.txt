@@ -1,0 +1,6 @@
+{"contentBlockStart":{"contentBlockIndex":0,"start":{"toolUse":{"toolUseId":"toolu_01PQjhxo3eirCdKNvCJrKc8f","name":"get-weather"}}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"toolUse":{"input":"{\"location\":"}}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"toolUse":{"input":"\"San Francisco\"}"}}}}
+{"contentBlockStop":{"contentBlockIndex":0}}
+{"metadata":{"usage":{"inputTokens":843,"outputTokens":28,"totalTokens":871}}}
+{"messageStop":{"stopReason":"tool_use"}}

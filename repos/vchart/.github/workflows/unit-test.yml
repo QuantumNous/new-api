@@ -1,0 +1,70 @@
+# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
+
+name: TEST CI
+
+on:
+  push:
+    branches: ['main', 'develop']
+  pull_request:
+    branches: ['main', 'develop', 'dev/**']
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x]
+        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: './common/config/rush/pnpm-lock.yaml'
+
+      - name: Install Python distutils (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          python3 -m pip install setuptools --break-system-packages
+
+      - name: Install Python distutils (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-distutils
+          python3 -m pip install setuptools --break-system-packages
+
+      - name: Install latest pnpm
+        run: npm install -g pnpm@10.7.0
+
+      - name: Install native deps for node-canvas (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install pkg-config cairo pango libpng jpeg giflib librsvg
+
+      - name: Install native deps for node-canvas (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev pkg-config
+
+        # Install rush
+      - name: Install rush
+        run: node common/scripts/install-run-rush.js install --bypass-policy
+
+      - name: Build vutils-extension
+        run: node common/scripts/install-run-rush.js build --only @visactor/vutils-extension
+
+      - name: Build VChart
+        env:
+          NODE_OPTIONS: '--max_old_space_size=4096'
+        run: node common/scripts/install-run-rush.js run -p @visactor/vchart -s build:cjs
+
+      - name: Test VChart
+        run: node common/scripts/install-run-rush.js run -p @visactor/vchart -s test

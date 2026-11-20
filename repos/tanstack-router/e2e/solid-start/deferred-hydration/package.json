@@ -1,0 +1,55 @@
+{
+  "name": "tanstack-solid-start-e2e-deferred-hydration",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm dev:vite --port 3000",
+    "dev:e2e": "pnpm dev:vite",
+    "dev:vite": "vite dev",
+    "dev:rsbuild": "rsbuild dev",
+    "build": "pnpm build:vite",
+    "build:vite": "vite build && tsc --noEmit",
+    "build:rsbuild": "rsbuild build && tsc --noEmit",
+    "preview": "vite preview",
+    "start": "pnpm start:vite",
+    "start:vite": "srvx --prod --dir=. -s dist-vite-ssr/client --entry dist-vite-ssr/server/server.js",
+    "start:rsbuild": "srvx --prod --dir=. -s dist-rsbuild-ssr/client --entry dist-rsbuild-ssr/server/index.js",
+    "test:e2e": "playwright test --project=chromium"
+  },
+  "dependencies": {
+    "@tanstack/solid-router": "workspace:^",
+    "@tanstack/solid-start": "workspace:^",
+    "solid-js": "^1.9.10"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "^2.0.11",
+    "@rsbuild/plugin-babel": "^1.1.2",
+    "@rsbuild/plugin-solid": "^1.1.1",
+    "@tanstack/router-e2e-utils": "workspace:^",
+    "@types/node": "^22.10.2",
+    "srvx": "^0.11.9",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14",
+    "vite-plugin-solid": "^2.11.11"
+  },
+  "nx": {
+    "targets": {
+      "test:e2e": {
+        "parallelism": false
+      }
+    },
+    "metadata": {
+      "playwrightModes": [
+        {
+          "toolchain": "vite",
+          "mode": "ssr"
+        },
+        {
+          "toolchain": "rsbuild",
+          "mode": "ssr"
+        }
+      ]
+    }
+  }
+}

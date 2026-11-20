@@ -1,0 +1,452 @@
+/*
+ * Main stylesheet for the public site: docs, home page, careers, etc. Also used in e2e/regression tests.
+ *
+ * Rules when writing CSS for the public site (except demos):
+ *   - Components' CSS must be wrapped in "@layer components".
+ *   - Use component name as the prefix to avoid conflicts, e.g. ".SelectTriggerIcon".
+ *   - Prefix CSS variables with component name too, e.g. "--root-layout-padding-x".
+ *   - Use custom utility classes (./utilities) for layout and one-off styles.
+ *   - There are two reset layers:
+ *     - "@layer all" is a truly global reset (includes all demos).
+ *     - "@layer base" is Tailwind's reset (`tailwindcss/preflight`) that is reverted in non-Tailwind demos.
+ *     - We rely on both to build the docs.
+ *
+ * Demos:
+ * - Do not use our custom styles or CSS vars in demos.
+ * - Only the Tailwind demos in the (docs) use Tailwind.
+ *   - Use only what's available in Tailwind's default theme, both classes and CSS vars.
+ */
+
+/* Extend Tailwind layers to add our global reset layer `all` */
+@layer all, base, theme, components, utilities;
+
+@import 'tailwindcss/preflight' layer(base);
+@import 'tailwindcss/theme' layer(theme);
+/* `source(none)` disables automatic detection of sources to generate Tailwind classes. Use the safelist below instead. */
+@import 'tailwindcss/utilities' layer(utilities) source(none);
+
+/* ═══ Docs-only imports ═══ */
+
+@import './fonts/index.css';
+@import './custom-media.css';
+
+/* TODO: Remove these component imports once we make these components' styles truly isolated and they import their own styles. */
+@import '../components/Code.css';
+@import '../components/Accordion.css';
+@import '../components/Table.css';
+@import '../components/TableCode.css';
+@import '../components/DescriptionList.css';
+@import '../components/ReferenceTable/ReferenceTable.css';
+
+@import './syntax.css';
+
+@import './utilities/index.css';
+
+/* ═══ Safelist to generate Tailwind classes ═══ */
+
+/* Tailwind demos */
+@source '../app/(docs)/**/demos/**/*.{ts,tsx}';
+
+/* Enable all CSS files in the docs to ensure that all Tailwind CSS vars are available e.g. `--font-serif` */
+@source '../**/*.css';
+
+/* Disable Tailwind CSS vars in CSS Modules demos */
+@source not '../app/(docs)/**/demos/**/*.css';
+
+/* ═══ Tailwind theme ═══ */
+/* Register demo-relevant tokens so Tailwind can generate utility classes. */
+
+@theme {
+  /* Handy link to the default Tailwind theme: https://github.com/tailwindlabs/tailwindcss/blob/next/packages/tailwindcss/theme.css */
+
+  /* Color */
+  --color-*: initial; /* Disable all Tailwind colors to only add our own */
+  --color-white: white;
+  --color-black: black;
+
+  --color-neutral-50: oklch(98.5% 0 0deg);
+  --color-neutral-100: oklch(97% 0 0deg);
+  --color-neutral-200: oklch(92.2% 0 0deg);
+  --color-neutral-300: oklch(87% 0 0deg);
+  --color-neutral-400: oklch(70.8% 0 0deg);
+  --color-neutral-500: oklch(55.6% 0 0deg);
+  --color-neutral-600: oklch(43.9% 0 0deg);
+  --color-neutral-700: oklch(37.1% 0 0deg);
+  --color-neutral-800: oklch(26.9% 0 0deg);
+  --color-neutral-900: oklch(20.5% 0 0deg);
+  --color-neutral-950: oklch(14.5% 0 0deg);
+
+  --color-blue-500: oklch(62.3% 0.214 259.815deg);
+  --color-blue-700: oklch(48.8% 0.243 264.376deg);
+  --color-blue-800: oklch(42.4% 0.199 265.638deg);
+
+  --color-red-400: oklch(70.4% 0.191 22.216deg);
+  --color-red-700: oklch(50.5% 0.213 27.518deg);
+
+  --color-green-400: oklch(79.2% 0.209 151.711deg);
+  --color-green-700: oklch(52.7% 0.154 150.069deg);
+
+  /* Typography */
+  --font-mono: 'Paper Mono', monospace;
+  --font-sans: 'die grotesk a', system-ui, sans-serif;
+  --font-serif: Georgia, 'Times New Roman', Times, 'Noto Serif', 'DejaVu Serif', serif;
+}
+
+/* ═══ Demo isolation ═══ */
+/* Undo `tailwindcss/preflight` in non-Tailwind demos. */
+
+@layer base {
+  /*
+   * Disable Die Grotesk OpenType features in demos and regression tests.
+   * We disable it also on all portal elements because popups from demos are rendered outside [data-demo].
+   */
+  [data-demo],
+  [data-base-ui-portal],
+  [data-testid='testcase'] {
+    font-feature-settings: normal;
+  }
+
+  [data-demo]:not([data-demo='tailwind']) * {
+    all: revert-layer;
+  }
+}
+
+/* ═══ Docs-only theme tokens ═══ */
+
+@layer theme {
+  :root {
+    /* Colors */
+    --gray-s1: hsl(0deg 0% 99%);
+    --gray-s2: hsl(0deg 0% 97.5%);
+    --gray-c1: hsl(0deg 0% 95.25%);
+    --gray-c2: hsl(0deg 0% 94%);
+    --gray-c3: hsl(0deg 0% 88%);
+    --gray-p1: hsl(0deg 0% 55%);
+    --gray-p2: hsl(0deg 0% 51%);
+    --gray-t1: hsl(0deg 0% 46.4%);
+    --gray-t2: hsl(0deg 0% 18%);
+
+    --indigo-s1: hsl(204deg 100% 98.75%);
+    --indigo-s2: hsl(198deg 100% 97.5%);
+    --indigo-c1: hsl(204deg 100% 95%);
+    --indigo-c2: hsl(205deg 100% 93.5%);
+    --indigo-c3: hsl(206deg 100% 92.5%);
+    --indigo-p1: hsl(214deg 98% 50%);
+    --indigo-p2: hsl(207deg 96% 48%);
+    --indigo-t1: hsl(221deg 74% 51%);
+    --indigo-t2: hsl(221deg 74% 19.8%);
+
+    --blackA-1: hsl(0deg 0% 0% / 4%);
+    --blackA-2: hsl(0deg 0% 0% / 8%);
+    --blackA-3: hsl(0deg 0% 0% / 12%);
+    --blackA-4: hsl(0deg 0% 0% / 16%);
+    --blackA-5: hsl(0deg 0% 0% / 24%);
+    --blackA-6: hsl(0deg 0% 0% / 64%);
+
+    --whiteA-1: hsl(0deg 0% 100% / 4%);
+    --whiteA-2: hsl(0deg 0% 100% / 8%);
+    --whiteA-3: hsl(0deg 0% 100% / 12%);
+    --whiteA-4: hsl(0deg 0% 100% / 16%);
+    --whiteA-5: hsl(0deg 0% 100% / 24%);
+    --whiteA-6: hsl(0deg 0% 100% / 64%);
+
+    --poppy-t1: hsl(10deg 86% 48%);
+    --blue-t1: hsl(211deg 100% 49%);
+    --green-t1: hsl(156deg 81% 29%);
+    --orange-t1: hsl(14deg 96% 52.5%);
+    --pink-t1: hsl(316deg 84% 51%);
+    --grape-t1: hsl(276deg 66% 54%);
+    --lime-t1: hsl(91deg 64% 38.75%);
+
+    /* Legacy colors */
+    --color-blue: oklch(45% 50% 264deg);
+    --color-red: oklch(50% 55% 31deg);
+
+    /* Functional colors */
+    --color-content: white;
+    --color-background: var(--gray-s2);
+    --color-foreground: var(--gray-t2);
+    --color-border: var(--blackA-2);
+    --color-popup: white;
+    --color-gridline: var(--gray-c3);
+    --color-selection: hsl(0deg 0% 92%);
+    --color-line-highlight: hsl(205deg 100% 96%);
+    --color-line-highlight-strong: hsl(205deg 100% 90%);
+    --color-line-highlight-strong-mark: hsl(205deg 100% 80%);
+
+    /* Syntax highlighting */
+    --color-gray: var(--gray-t1);
+    --color-navy: oklch(31% 25% 264deg);
+    --color-green: oklch(46% 30% 150deg);
+    --color-violet: oklch(40% 60% 300deg);
+
+    /* Font family */
+    --font-sans-b: 'die grotesk b', system-ui, sans-serif;
+
+    /* Font size */
+    --font-size-13: 0.8125rem; /* 13px */
+    --font-size-14: 0.875rem; /* 14px */
+    --font-size-15: 0.9375rem; /* 15px */
+    --font-size-16: 1rem; /* 16px */
+    --font-size-18: 1.125rem; /* 18px */
+    --font-size-21: 1.3125rem; /* 21px */
+    --font-size-24: 1.5rem; /* 24px */
+    --font-size-34: 2.125rem; /* 34px */
+    --font-size-42: 2.625rem; /* 42px */
+
+    /* Font weight */
+    --font-weight-400: 400;
+    --font-weight-700: 700;
+
+    /* Spacing (`--spacing-*` is used by Tailwind) */
+    --space-4: 0.25rem; /* 4px */
+    --space-8: 0.5rem; /* 8px */
+    --space-12: 0.75rem; /* 12px */
+    --space-16: 1rem; /* 16px */
+    --space-20: 1.25rem; /* 20px */
+    --space-24: 1.5rem; /* 24px */
+    --space-28: 1.75rem; /* 28px */
+    --space-32: 2rem; /* 32px */
+    --space-40: 2.5rem; /* 40px */
+    --space-48: 3rem; /* 48px */
+
+    /* Radius */
+    --radius-2: 0.125rem; /* 2px */
+    --radius-3: 0.1875rem; /* 3px */
+    --radius-4: 0.25rem; /* 4px */
+    --radius-6: 0.375rem; /* 6px */
+    --radius-8: 0.5rem; /* 8px */
+    --radius-12: 0.75rem; /* 12px */
+    --radius-16: 1rem; /* 16px */
+    --radius-pill: 9999px;
+    --radius-circle: 50%;
+
+    /* Shadow */
+    --shadow-1:
+      0 1px 1px 0 var(--blackA-1), 0 2px 1px -1px var(--blackA-1), 0 1px 3px 0 var(--blackA-1);
+    --shadow-2:
+      0 1px 1px 0 var(--blackA-1), 0 1px 3px -1px var(--blackA-1), 0 4px 8px -2px var(--blackA-1);
+    --shadow-3:
+      0 1px 1px 0 var(--blackA-1), 0 2px 6px -1px var(--blackA-1), 0 6px 12px -3px var(--blackA-1),
+      0 8px 16px -4px var(--blackA-1);
+    --shadow-4:
+      0 1px 1px 0 var(--blackA-1), 0 2px 4px -1px var(--blackA-1), 0 4px 8px -2px var(--blackA-1),
+      0 12px 32px -6px var(--blackA-3), 0 20px 48px -10px var(--blackA-1);
+    --shadow-5:
+      0 10px 32px var(--blackA-5), 0 1px 1px var(--blackA-1), 0 4px 6px var(--blackA-2),
+      0 1px 1px var(--blackA-2), 0 24px 68px var(--blackA-4);
+
+    /* Breakpoints (use custom-media.css where possible) */
+    --breakpoint-max-layout-width: 89rem; /* 1424px - this is a 1440px device minus 16px scrollbar */
+
+    --ease-out-fast: cubic-bezier(0.45, 1.005, 0, 1.005);
+    --ease-in-slow: cubic-bezier(0.375, 0.015, 0.545, 0.455);
+    --header-height: 3rem;
+  }
+
+  @media (--show-side-nav) {
+    :root {
+      --header-height: 4rem;
+    }
+  }
+
+  /* ═══ Dark mode overrides ═══ */
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --gray-s1: hsl(0deg 0% 7.5%);
+      --gray-s2: hsl(0deg 0% 10%);
+      --gray-c1: hsl(0deg 0% 13%);
+      --gray-c2: hsl(0deg 0% 16%);
+      --gray-c3: hsl(0deg 0% 32%);
+      --gray-p1: hsl(0deg 0% 60%);
+      --gray-p2: hsl(0deg 0% 64%);
+      --gray-t1: hsl(0deg 0% 70%);
+      --gray-t2: hsl(0deg 0% 90%);
+
+      --indigo-s1: hsl(223deg 38% 10%);
+      --indigo-s2: hsl(223deg 42% 12%);
+      --indigo-c1: hsl(222deg 50% 16%);
+      --indigo-c2: hsl(221deg 56% 20%);
+      --indigo-c3: hsl(220deg 62% 24%);
+      --indigo-p1: hsl(214deg 94% 60%);
+      --indigo-p2: hsl(207deg 96% 64%);
+      --indigo-t1: hsl(214deg 93% 66%);
+      --indigo-t2: hsl(210deg 100% 86%);
+
+      --poppy-t1: hsl(10deg 96% 63%);
+      --blue-t1: hsl(210deg 98% 66%);
+      --green-t1: hsl(156deg 68% 54%);
+      --orange-t1: hsl(26deg 98% 63%);
+      --pink-t1: hsl(316deg 86% 68%);
+      --grape-t1: hsl(276deg 86% 70%);
+      --lime-t1: hsl(91deg 72% 56%);
+
+      --color-blue: oklch(69% 50% 264deg);
+      --color-red: oklch(80% 55% 31deg);
+
+      /* Functional colors */
+      --color-content: black;
+      --color-background: black;
+      --color-border: var(--whiteA-5);
+      --color-popup: var(--gray-s1);
+      --color-gridline: var(--gray-c1);
+      --color-selection: hsl(0deg 0% 18%);
+      --color-line-highlight: hsl(205deg 45% 12%);
+      --color-line-highlight-strong: hsl(205deg 55% 16%);
+      --color-line-highlight-strong-mark: hsl(205deg 65% 20%);
+
+      /* Syntax highlighting */
+      --color-green: oklch(75% 25% 150deg);
+      --color-navy: oklch(85% 25% 264deg);
+      --color-violet: oklch(80% 60% 280deg);
+
+      /* Shadow */
+      --shadow-1: transparent;
+      --shadow-2: transparent;
+      --shadow-3: transparent;
+      --shadow-4: transparent;
+      --shadow-5: transparent;
+    }
+  }
+
+  /* ═══ Disable docs-specific variables in demos ═══ */
+  /* Keep this in sync with the :root block above. */
+
+  [data-demo] {
+    --gray-s1: initial;
+    --gray-s2: initial;
+    --gray-c1: initial;
+    --gray-c2: initial;
+    --gray-c3: initial;
+    --gray-p1: initial;
+    --gray-p2: initial;
+    --gray-t1: initial;
+    --gray-t2: initial;
+
+    --indigo-s1: initial;
+    --indigo-s2: initial;
+    --indigo-c1: initial;
+    --indigo-c2: initial;
+    --indigo-c3: initial;
+    --indigo-p1: initial;
+    --indigo-p2: initial;
+    --indigo-t1: initial;
+    --indigo-t2: initial;
+
+    --blackA-1: initial;
+    --blackA-2: initial;
+    --blackA-3: initial;
+    --blackA-4: initial;
+    --blackA-5: initial;
+    --blackA-6: initial;
+
+    --whiteA-1: initial;
+    --whiteA-2: initial;
+    --whiteA-3: initial;
+    --whiteA-4: initial;
+    --whiteA-5: initial;
+    --whiteA-6: initial;
+
+    --poppy-t1: initial;
+    --blue-t1: initial;
+    --green-t1: initial;
+    --orange-t1: initial;
+    --pink-t1: initial;
+    --grape-t1: initial;
+    --lime-t1: initial;
+
+    --radius-2: initial;
+    --radius-3: initial;
+    --radius-4: initial;
+    --radius-6: initial;
+    --radius-8: initial;
+    --radius-12: initial;
+    --radius-16: initial;
+    --radius-pill: initial;
+    --radius-circle: initial;
+
+    --space-4: initial;
+    --space-8: initial;
+    --space-12: initial;
+    --space-16: initial;
+    --space-20: initial;
+    --space-24: initial;
+    --space-28: initial;
+    --space-32: initial;
+    --space-40: initial;
+    --space-48: initial;
+
+    --color-content: initial;
+    --color-background: initial;
+    --color-foreground: initial;
+    --color-border: initial;
+    --color-popup: initial;
+    --color-gridline: initial;
+    --color-highlight: initial;
+    --color-line-highlight: initial;
+    --color-line-highlight-strong: initial;
+    --color-line-highlight-strong-mark: initial;
+
+    --color-gray: initial;
+    --color-navy: initial;
+    --color-green: initial;
+    --color-violet: initial;
+
+    --shadow-1: initial;
+    --shadow-2: initial;
+    --shadow-3: initial;
+    --shadow-4: initial;
+    --shadow-5: initial;
+
+    --font-size-13: initial;
+    --font-size-14: initial;
+    --font-size-15: initial;
+    --font-size-16: initial;
+    --font-size-18: initial;
+    --font-size-21: initial;
+    --font-size-24: initial;
+    --font-size-34: initial;
+    --font-size-42: initial;
+
+    --ease-out-fast: initial;
+    --ease-in-slow: initial;
+    --header-height: initial;
+
+    --breakpoint-max-layout-width: initial;
+  }
+}
+
+/* ═══ Global rules ═══ */
+
+@layer all {
+  html {
+    color-scheme: light dark;
+    word-break: break-word;
+  }
+
+  body {
+    font-synthesis: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Stable scrollbar */
+    overflow-y: scroll;
+    /* Die Grotesk OpenType features */
+    font-feature-settings:
+      'ss02' 1,
+      'zero' 1;
+  }
+
+  ::selection {
+    background-color: var(--color-selection);
+  }
+
+  /* Debugging red text? You just forgot to set or inherit color in your demo. */
+  :where([data-demo]) {
+    color: red;
+  }
+  /* Controls usually have #000 text that needs to be explicitly overridden; only Tailwind reset handles it */
+  :where([data-demo]:not([data-demo='tailwind'])) :where(button, input, textarea) {
+    color: red;
+  }
+}

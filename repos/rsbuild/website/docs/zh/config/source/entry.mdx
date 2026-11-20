@@ -1,0 +1,168 @@
+---
+description: 'source.entry 的值是一个对象，key 是入口名称，value 是入口模块的路径，或是一个 描述对象。'
+---
+
+# source.entry
+
+- **类型：**
+
+```ts
+type Entry = Record<string, string | string[] | (Rspack.EntryDescription & { html?: boolean })>;
+```
+
+- **默认值：**
+
+```ts
+const defaultEntry = {
+  // Rsbuild 默认也支持其他后缀名，如 ts、tsx、jsx、mts、cts、mjs、cjs
+  index: './src/index.js',
+};
+```
+
+用于设置构建的入口模块。
+
+`source.entry` 的值是一个对象，key 是入口名称，value 是入口模块的路径，或是一个 [描述对象](#description-object)。
+
+当 value 为路径时，它可以为绝对路径或相对路径，相对路径会基于 [root](/config/root) 进行解析。
+
+## HTML 生成 \{#html-generation}
+
+Rsbuild 会为 `source.entry` 中的每一个入口注册 [html-rspack-plugin](https://github.com/rstackjs/html-rspack-plugin)，并生成对应的 HTML 文件。
+
+- **示例：**
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    entry: {
+      foo: './src/pages/foo/index.ts',
+      bar: './src/pages/bar/index.ts',
+    },
+  },
+};
+```
+
+生成的目录结构如下：
+
+```
+.
+├── foo.html
+├── bar.html
+└── static
+    ├── css
+    │   ├── foo.css
+    │   └── bar.css
+    └── js
+        ├── foo.js
+        └── bar.js
+```
+
+如果你不需要生成 HTML 文件：
+
+- 将入口描述对象中的 [html](/config/source/entry#html-property) 属性设置为 `false` 来禁用单个入口的 HTML 生成。
+- 将 [tools.htmlPlugin](/config/tools/html-plugin) 设置为 `false` 来禁用所有入口的 HTML 生成。
+
+## 描述对象 \{#description-object}
+
+`source.entry` 同样支持 Rspack 的 entry 描述对象写法，比如：
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    entry: {
+      foo: {
+        import: './src/foo.js',
+        runtime: 'foo',
+      },
+      bar: {
+        import: './src/bar.js',
+        runtime: 'bar',
+      },
+    },
+  },
+};
+```
+
+### `html` 属性 \{#html-property}
+
+Rsbuild 为描述对象添加了 `html` 属性，用于控制是否生成 HTML 文件。
+
+例如，`bar` 入口不生成 HTML 文件：
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    entry: {
+      foo: './src/foo.js',
+      bar: {
+        import: './src/bar.js',
+        html: false,
+      },
+    },
+  },
+};
+```
+
+在上述例子中，构建时会生成 `foo.html` 文件，而 `bar.html` 文件不会生成。
+
+> 关于描述对象的完整用法，请参考 [Rspack - 入口描述对象](https://rspack.rs/zh/config/entry#%E5%85%A5%E5%8F%A3%E6%8F%8F%E8%BF%B0%E5%AF%B9%E8%B1%A1)。
+
+## 基于 environment 设置
+
+当你面向多个 [environments](/config/environments) 构建时，可以为每个 environment 设置不同的 entry：
+
+比如为 `web` 和 `node` 环境设置不同的 entry：
+
+```ts title="rsbuild.config.ts"
+export default {
+  environments: {
+    web: {
+      source: {
+        entry: {
+          index: './src/index.client.js',
+        },
+      },
+      output: {
+        target: 'web',
+      },
+    },
+    node: {
+      source: {
+        entry: {
+          index: './src/index.server.js',
+        },
+      },
+      output: {
+        target: 'node',
+      },
+    },
+  },
+};
+```
+
+## 异步设置
+
+如果你需要异步设置 entry，例如使用 [glob](https://npmjs.com/package/glob) 来扫描目录，可以在 `rsbuild.config.ts` 中导出一个异步函数：
+
+```ts title="rsbuild.config.ts"
+import path from 'node:path';
+import { glob } from 'glob';
+import { defineConfig } from '@rsbuild/core';
+
+export default defineConfig(async () => {
+  const entryFiles = await glob('./src/**/main.{ts,tsx,js,jsx}');
+
+  const entry = Object.fromEntries(
+    entryFiles.map((file) => {
+      const entryName = path.basename(path.dirname(file));
+      return [entryName, `./${file}`];
+    }),
+  );
+
+  return {
+    source: {
+      entry: entry,
+    },
+  };
+});
+```

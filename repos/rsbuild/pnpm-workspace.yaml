@@ -1,0 +1,199 @@
+packages:
+  - website
+  - e2e/**
+  - scripts/**
+  - packages/**
+  - examples/**
+  - '!**/compiled/**'
+  - '!**/dist/**'
+  - '!**/dist-*/**'
+  - '!**/create-rsbuild/template-*/**'
+  - '!**/test-temp-*/**'
+  - '!**/_node_modules/**'
+
+catalogMode: prefer
+
+cleanupUnusedCatalogs: true
+
+catalog:
+  '@babel/core': '^7.29.7'
+  '@babel/plugin-proposal-decorators': '^7.29.7'
+  '@babel/plugin-transform-class-properties': '^7.29.7'
+  '@babel/preset-typescript': '^7.29.7'
+  '@hono/node-server': '^2.0.8'
+  '@jridgewell/remapping': '^2.3.5'
+  '@jridgewell/trace-mapping': '^0.3.31'
+  '@module-federation/enhanced': '2.7.0'
+  '@module-federation/rsbuild-plugin': '2.7.0'
+  '@module-federation/runtime-tools': '2.7.0'
+  '@playwright/test': '1.61.1'
+  '@prefresh/core': '^1.5.10'
+  '@prefresh/utils': '^1.2.1'
+  '@rsbuild/core-v1': 'npm:@rsbuild/core@^1.7.5'
+  '@rsbuild/plugin-check-syntax': '^2.0.0'
+  '@rsbuild/plugin-rem': '^1.0.6'
+  '@rsbuild/plugin-type-check': '^1.5.0'
+  '@rslib/core': '0.23.2'
+  '@rslint/core': '^0.6.5'
+  '@rspack/core': '~2.1.4'
+  '@rspack/plugin-preact-refresh': '^2.0.1'
+  '@rspack/plugin-react-refresh': '^2.0.2'
+  '@rspress/core': '^2.0.17'
+  '@rspress/plugin-algolia': '^2.0.17'
+  '@rspress/plugin-client-redirects': '^2.0.17'
+  '@rspress/plugin-rss': '^2.0.17'
+  '@rspress/plugin-sitemap': '^2.0.17'
+  '@rstack-dev/doc-ui': '1.14.5'
+  '@rstackjs/load-config': '^0.1.2'
+  '@rstackjs/test-utils': '^0.2.0'
+  '@rstest/adapter-rslib': '^0.11.1'
+  '@rstest/core': '^0.11.1'
+  '@shikijs/transformers': '^4.3.1'
+  '@svgr/core': '8.1.0'
+  '@svgr/plugin-jsx': '8.1.0'
+  '@svgr/plugin-svgo': '8.1.0'
+  '@swc/helpers': '^0.5.23'
+  '@swc/plugin-prefresh': '^12.15.0'
+  '@swc/plugin-remove-console': '^12.15.0'
+  '@tailwindcss/postcss': '^4.3.2'
+  '@tailwindcss/webpack': '^4.3.2'
+  '@types/babel__core': '^7.20.5'
+  '@types/cors': '^2.8.19'
+  '@types/fs-extra': '^11.0.4'
+  '@types/less': '^3.0.8'
+  '@types/node': '^24.13.3'
+  '@types/on-finished': '2.3.5'
+  '@types/range-parser': '^1.2.7'
+  '@types/react': '^19.2.17'
+  '@types/react-dom': '^19.2.3'
+  '@types/sass-loader': '^8.0.10'
+  '@types/ws': '^8.18.1'
+  'babel-loader': '10.1.1'
+  'babel-preset-solid': '^1.9.12'
+  'browserslist-load-config': '^1.0.3'
+  'cac': '^7.0.0'
+  'chokidar': '^5.0.0'
+  'connect-next': '4.0.3'
+  'core-js': '^3.49.0'
+  'cors': '^2.8.6'
+  'create-rstack': '2.1.3'
+  'cross-env': '^10.1.0'
+  'cspell-ban-words': '^0.0.4'
+  'css-loader': '7.1.4'
+  'deepmerge': '^4.3.1'
+  'dotenv-expand': '^13.0.0'
+  'fast-glob': '^3.3.3'
+  'fresh-import': '^0.2.1'
+  'fs-extra': '^11.3.6'
+  'heading-case': '^1.1.3'
+  'hono': '^4.12.29'
+  'html-loader': '^5.1.0'
+  'html-rspack-plugin': '6.1.9'
+  'http-proxy-middleware': '4.2.0'
+  'jiti': '^2.7.0'
+  'launch-editor-middleware': '^2.14.1'
+  'less': '^4.6.7'
+  'less-loader': '^12.3.3'
+  'lit': '^3.3.3'
+  'loader-utils': '^3.3.1'
+  'memfs': '^4.64.0'
+  'mrmime': '^2.0.1'
+  'nano-staged': '^1.0.2'
+  'on-finished': '2.4.1'
+  'open': '^11.0.0'
+  'oxfmt': '^0.58.0'
+  'path-serializer': '0.6.0'
+  'playwright': '1.61.1'
+  'postcss': '^8.5.17'
+  'postcss-load-config': '6.0.1'
+  'postcss-loader': '8.2.1'
+  'preact': '^10.29.7'
+  'prebundle': '1.6.5'
+  'range-parser': '^1.3.0'
+  'react': '^19.2.7'
+  'react-dom': '^19.2.7'
+  'react-refresh': '^0.18.0'
+  'reduce-configs': '^2.0.1'
+  'resolve-url-loader': '^5.0.0'
+  'rsbuild-plugin-arethetypeswrong': '0.3.1'
+  'rsbuild-plugin-google-analytics': '^1.0.6'
+  'rsbuild-plugin-open-graph': '^1.1.3'
+  'rslog': '^2.2.0'
+  'rspack-chain': '^2.1.1'
+  'rspack-manifest-plugin': '5.2.2'
+  'rspack-merge': '1.0.1'
+  'rspack-vue-loader': '^17.5.1'
+  'rspress-plugin-font-open-sans': '^1.0.4'
+  'sass': '^1.101.0'
+  'sass-embedded': '^1.100.0'
+  'sass-loader': '^16.0.8'
+  'simple-git-hooks': '^2.13.1'
+  'sirv': '^3.0.2'
+  'solid-js': '^1.9.14'
+  'solid-refresh': '^0.6.3'
+  'stacktrace-parser': '^0.1.11'
+  'style-loader': '^4.0.0'
+  'svelte': '^5.56.4'
+  'svelte-loader': '3.2.4'
+  'svelte-preprocess': '6.0.5'
+  'svgo': '^3.3.4'
+  'tailwindcss': '^4.3.2'
+  'tinyglobby': '^0.2.17'
+  'typescript': '^6.0.3'
+  'vue': '^3.5.39'
+  'ws': '^8.21.0'
+
+catalogs:
+  loader-utils-2:
+    'loader-utils': '^2.0.4'
+
+allowBuilds:
+  '@parcel/watcher': false
+  core-js: false
+  simple-git-hooks: false
+  svelte-preprocess: false
+
+dedupePeers: true
+
+autoInstallPeers: false
+
+peerDependencyRules:
+  ignoreMissing:
+    - webpack
+    - '@algolia/client-search'
+    - algoliasearch
+    - search-insights
+
+engineStrict: true
+
+hoistPattern: []
+
+# Reduce the risk of installing compromised packages
+minimumReleaseAge: 1440
+minimumReleaseAgeExclude:
+  - '@rspack/*'
+  - 'rspack-chain'
+  - '@rsbuild/*'
+  - '@rslib/*'
+  - '@rspress/*'
+  - '@rstest/*'
+  - '@rslint/*'
+  - '@tailwindcss/*'
+  - 'rslog'
+  - 'tailwindcss'
+  - 'reduce-configs'
+  - '@rstack-dev/*'
+  - '@rstackjs/*'
+  - 'rsbuild-plugin-*'
+  - '@swc/*'
+  - 'heading-case'
+
+patchedDependencies:
+  css-loader@7.1.4: patches/css-loader@7.1.4.patch
+  dotenv-expand@13.0.0: patches/dotenv-expand@13.0.0.patch
+  postcss-loader@8.2.1: patches/postcss-loader@8.2.1.patch
+
+# Prevent un-reviewed build scripts
+strictDepBuilds: true
+
+strictPeerDependencies: false

@@ -1,0 +1,12 @@
+<view tt:if="{{ spec }}" class="container">
+  <vchart
+    id="{{ spec.type }}"
+    canvas-id="chart"
+    spec="{{ spec }}"
+    styles="{{ styles }}"
+    events="{{ events }}"
+    options="{{ options }}"
+    bind:chartinit="onChartInit"
+    bind:chartready="onChartReady"
+  />
+</view>

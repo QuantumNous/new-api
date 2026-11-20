@@ -1,0 +1,92 @@
+{
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "defaultBase": "main",
+  "nxCloudId": "6442f7de8226a6291646a813",
+  "useInferencePlugins": false,
+  "parallel": 5,
+  "tui": {
+    "enabled": false
+  },
+  "namedInputs": {
+    "sharedGlobals": [
+      "{workspaceRoot}/.nvmrc",
+      "{workspaceRoot}/package.json",
+      "{workspaceRoot}/tsconfig.json"
+    ],
+    "default": [
+      "sharedGlobals",
+      "{projectRoot}/**/*",
+      "!{projectRoot}/**/*.md"
+    ],
+    "production": [
+      "default",
+      "!{projectRoot}/tests/**/*",
+      "!{projectRoot}/eslint.config.js"
+    ]
+  },
+  "targetDefaults": {
+    "test:docs": {
+      "cache": true,
+      "inputs": ["{workspaceRoot}/docs/**/*"]
+    },
+    "test:eslint": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": ["default", "^production", "{workspaceRoot}/eslint.config.js"]
+    },
+    "test:unit": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": ["default", "^production"],
+      "outputs": ["{projectRoot}/coverage"]
+    },
+    "test:e2e": {
+      "cache": true,
+      "dependsOn": ["^build", "test:e2e--*"],
+      "inputs": ["default", "^production"]
+    },
+    "test:e2e:nitro": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": ["default", "^production"]
+    },
+    "test:e2e:basepath": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": ["default", "^production"]
+    },
+    "test:e2e:preview": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": ["default", "^production"]
+    },
+    "test:types": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": ["default", "^production"]
+    },
+    "test:types:ssr": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": ["default", "^production"]
+    },
+    "build": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": ["production", "^production"],
+      "outputs": ["{projectRoot}/build", "{projectRoot}/dist"]
+    },
+    "test:build": {
+      "cache": true,
+      "dependsOn": ["build"],
+      "inputs": ["production"]
+    }
+  },
+  "plugins": [
+    {
+      "name": "Playwright Sharding Plugin",
+      "plugin": "./scripts/nx/playwright-plugin.ts"
+    }
+  ],
+  "analytics": true
+}

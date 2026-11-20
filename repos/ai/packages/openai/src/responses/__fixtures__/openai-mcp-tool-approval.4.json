@@ -1,0 +1,182 @@
+{
+    "id": "resp_04f6b17429cf2b02006949a68dcefc81969600243221f290a7",
+    "object": "response",
+    "created_at": 1766434446,
+    "status": "completed",
+    "background": false,
+    "billing": {
+      "payer": "developer"
+    },
+    "completed_at": 1766434452,
+    "error": null,
+    "incomplete_details": null,
+    "instructions": null,
+    "max_output_tokens": null,
+    "max_tool_calls": null,
+    "model": "gpt-5-mini-2025-08-07",
+    "output": [
+      {
+        "id": "mcpl_04f6b17429cf2b02006949a68ebc288196ad7b23d6c452775a",
+        "type": "mcp_list_tools",
+        "server_label": "zip1",
+        "tools": [
+          {
+            "annotations": {
+              "read_only": false
+            },
+            "description": "Create a shortened URL using zip1.io with optional custom alias, password protection, and max clicks limit",
+            "input_schema": {
+              "properties": {
+                "alias": {
+                  "description": "Custom alias for the short URL (optional, alphanumeric and hyphens only)",
+                  "type": "string"
+                },
+                "description": {
+                  "description": "Description for the short URL (optional, max 100 characters)",
+                  "type": "string"
+                },
+                "max_clicks": {
+                  "description": "Maximum number of clicks allowed before the link expires (optional)",
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "password": {
+                  "description": "Password to protect the short URL (optional)",
+                  "type": "string"
+                },
+                "url": {
+                  "description": "The long URL to shorten (must include http:// or https://)",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "url"
+              ],
+              "type": "object"
+            },
+            "name": "create_short_url"
+          },
+          {
+            "annotations": {
+              "read_only": false
+            },
+            "description": "Get detailed statistics and analytics for a shortened URL including click counts, countries, and recent activity",
+            "input_schema": {
+              "properties": {
+                "short_code": {
+                  "description": "The short code or custom alias of the URL to get stats for",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "short_code"
+              ],
+              "type": "object"
+            },
+            "name": "get_url_stats"
+          },
+          {
+            "annotations": {
+              "read_only": false
+            },
+            "description": "Check if a URL is valid and can be shortened by zip1.io",
+            "input_schema": {
+              "properties": {
+                "url": {
+                  "description": "The URL to validate",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "url"
+              ],
+              "type": "object"
+            },
+            "name": "validate_url"
+          },
+          {
+            "annotations": {
+              "read_only": false
+            },
+            "description": "Generate a random 6-character alphanumeric short code suggestion (the actual code will be generated when creating the URL)",
+            "input_schema": {
+              "properties": {},
+              "type": "object"
+            },
+            "name": "generate_short_code"
+          }
+        ]
+      },
+      {
+        "id": "mcp_04f6b17429cf2b02006949a6908fc4819686c02f71f7faecc6",
+        "type": "mcp_call",
+        "status": "completed",
+        "approval_request_id": "mcpr_04f6b17429cf2b02006949a68bf5808196b6f2008a315c9aa4",
+        "arguments": "{\"alias\":\"\",\"description\":\"\",\"max_clicks\":100,\"password\":\"\",\"url\":\"https://ai-sdk.dev/\"}",
+        "error": null,
+        "name": "create_short_url",
+        "output": "✅ Short URL created: https://zip1.io/oMAchr\n🔤 Generated code: oMAchr\n🔢 Max clicks: 100\n🔗 Original URL: https://ai-sdk.dev/\n\n📊 View stats: https://zip1.io/stats/oMAchr",
+        "server_label": "zip1"
+      },
+      {
+        "id": "msg_04f6b17429cf2b02006949a6930b308196a3ad4f35aa6e0b1b",
+        "type": "message",
+        "status": "completed",
+        "content": [
+          {
+            "type": "output_text",
+            "annotations": [],
+            "logprobs": [],
+            "text": "Done — I created a short link for you.\n\nShort URL: https://zip1.io/oMAchr\nOriginal URL: https://ai-sdk.dev/\nMax clicks: 100\nStats page: https://zip1.io/stats/oMAchr\n\nWould you like a custom alias, password protection, or a description added to this short link?"
+          }
+        ],
+        "role": "assistant"
+      }
+    ],
+    "parallel_tool_calls": true,
+    "previous_response_id": null,
+    "prompt_cache_key": null,
+    "prompt_cache_retention": null,
+    "reasoning": {
+      "effort": "medium",
+      "summary": null
+    },
+    "safety_identifier": null,
+    "service_tier": "default",
+    "store": true,
+    "temperature": 1,
+    "text": {
+      "format": {
+        "type": "text"
+      },
+      "verbosity": "medium"
+    },
+    "tool_choice": "auto",
+    "tools": [
+      {
+        "type": "mcp",
+        "allowed_tools": null,
+        "headers": null,
+        "require_approval": "always",
+        "server_description": "Link shortener",
+        "server_label": "zip1",
+        "server_url": "https://zip1.io/mcp"
+      }
+    ],
+    "top_logprobs": 0,
+    "top_p": 1,
+    "truncation": "disabled",
+    "usage": {
+      "input_tokens": 765,
+      "input_tokens_details": {
+        "cached_tokens": 0
+      },
+      "output_tokens": 74,
+      "output_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "total_tokens": 839
+    },
+    "user": null,
+    "metadata": {}
+}

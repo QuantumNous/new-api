@@ -1,0 +1,399 @@
+.Page {
+  padding: 1.5rem;
+}
+
+.Title {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+  color: var(--color-gray-900);
+}
+
+.Description {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--color-gray-600);
+}
+
+.SwitchLabel {
+  margin-top: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  color: var(--color-gray-900);
+}
+
+.SwitchRoot {
+  position: relative;
+  display: flex;
+  width: 2.25rem;
+  height: 1.25rem;
+  border-radius: 9999px;
+  background: var(--color-gray-200);
+  padding: 1px;
+  outline: 1px solid var(--color-gray-300);
+  outline-offset: -1px;
+  transition: background-color 150ms;
+}
+
+.SwitchRoot:focus-visible {
+  outline: 2px solid var(--color-blue);
+}
+
+.SwitchRoot[data-checked] {
+  background: var(--color-gray-900);
+  outline-color: var(--color-gray-900);
+}
+
+.SwitchThumb {
+  height: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 9999px;
+  background: white;
+  transition: transform 150ms;
+}
+
+.SwitchThumb[data-checked] {
+  transform: translateX(1rem);
+}
+
+.Sections {
+  margin-top: 1.5rem;
+}
+
+.Sections > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 2.5rem;
+}
+
+.Section {
+  margin: 0;
+}
+
+.SectionTitle {
+  margin-bottom: 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-gray-900);
+}
+
+.Row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.Button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.5rem;
+  border: 1px solid var(--color-gray-200);
+  border-radius: 0.375rem;
+  background: var(--color-gray-50);
+  padding: 0 0.875rem;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--color-gray-900);
+}
+
+.Button:hover,
+.Button:active,
+.Button[data-popup-open] {
+  background: var(--color-gray-100);
+}
+
+.Button:focus-visible {
+  outline: 2px solid var(--color-blue);
+  outline-offset: -1px;
+}
+
+.PopoverPopupColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transform-origin: var(--transform-origin);
+  border-radius: 0.5rem;
+  background: canvas;
+  padding: 1rem;
+  color: var(--color-gray-900);
+  outline: 1px solid var(--color-gray-200);
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
+  transition:
+    transform 150ms,
+    scale 150ms,
+    opacity 150ms;
+}
+
+.PopoverPopupRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  transform-origin: var(--transform-origin);
+  border-radius: 0.5rem;
+  background: canvas;
+  padding: 1rem;
+  color: var(--color-gray-900);
+  outline: 1px solid var(--color-gray-200);
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
+  transition:
+    transform 150ms,
+    scale 150ms,
+    opacity 150ms;
+}
+
+.PopoverPopupColumn[data-starting-style],
+.PopoverPopupColumn[data-ending-style],
+.PopoverPopupRow[data-starting-style],
+.PopoverPopupRow[data-ending-style] {
+  scale: 0.9;
+  opacity: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .PopoverPopupColumn,
+  .PopoverPopupRow {
+    box-shadow: none;
+    outline-color: var(--color-gray-300);
+    outline-offset: -1px;
+  }
+}
+
+.MenuPositioner {
+  outline: none;
+}
+
+.MenuPopup {
+  transform-origin: var(--transform-origin);
+  border-radius: 0.375rem;
+  background: canvas;
+  padding: 0.25rem 0;
+  color: var(--color-gray-900);
+  outline: 1px solid var(--color-gray-200);
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
+  transition:
+    transform 150ms,
+    scale 150ms,
+    opacity 150ms;
+}
+
+.MenuPopup[data-starting-style],
+.MenuPopup[data-ending-style] {
+  scale: 0.9;
+  opacity: 0;
+}
+
+.MenuArrow[data-side='bottom'] {
+  top: -8px;
+}
+
+.MenuArrow[data-side='left'] {
+  right: -13px;
+  rotate: 90deg;
+}
+
+.MenuArrow[data-side='right'] {
+  left: -13px;
+  rotate: -90deg;
+}
+
+.MenuArrow[data-side='top'] {
+  bottom: -8px;
+  rotate: 180deg;
+}
+
+.MenuItem {
+  position: relative;
+  z-index: 0;
+  display: flex;
+  cursor: default;
+  padding: 0.5rem 2rem 0.5rem 1rem;
+  font-size: 0.875rem;
+  line-height: 1rem;
+  -webkit-user-select: none;
+  user-select: none;
+  outline: none;
+}
+
+.MenuItem[data-highlighted] {
+  color: var(--color-gray-50);
+}
+
+.MenuItem[data-highlighted]::before {
+  content: '';
+  position: absolute;
+  inset: 0 0.25rem;
+  z-index: -1;
+  border-radius: 0.25rem;
+  background: var(--color-gray-900);
+}
+
+.MenuSeparator {
+  margin: 0.375rem 1rem;
+  height: 1px;
+  background: var(--color-gray-200);
+}
+
+.ComboboxField {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  color: var(--color-gray-900);
+}
+
+.ComboboxInputWrap {
+  position: relative;
+}
+
+.ComboboxInput {
+  height: 2.5rem;
+  width: 16rem;
+  border: 1px solid var(--color-gray-200);
+  border-radius: 0.375rem;
+  background: canvas;
+  padding-left: 0.875rem;
+  padding-right: 2rem;
+  font-size: 1rem;
+  color: var(--color-gray-900);
+}
+
+.ComboboxInput:focus {
+  outline: 2px solid var(--color-blue);
+  outline-offset: -1px;
+}
+
+.ComboboxActions {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0;
+  display: flex;
+  height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-gray-600);
+}
+
+.ComboboxTriggerButton {
+  display: flex;
+  height: 2.5rem;
+  width: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.25rem;
+  background: transparent;
+  padding: 0;
+}
+
+.ComboboxIcon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.ComboboxPopup {
+  width: var(--anchor-width);
+  max-width: var(--available-width);
+  max-height: min(var(--available-height), 23rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-padding: 0.5rem;
+  transform-origin: var(--transform-origin);
+  border-radius: 0.375rem;
+  background: canvas;
+  padding: 0.5rem 0;
+  color: var(--color-gray-900);
+  outline: 1px solid var(--color-gray-200);
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
+  transition:
+    transform 150ms,
+    scale 150ms,
+    opacity 150ms;
+}
+
+.ComboboxPopup[data-starting-style],
+.ComboboxPopup[data-ending-style] {
+  scale: 0.95;
+  opacity: 0;
+}
+
+.ComboboxEmpty {
+  padding: 0.5rem 1rem;
+  font-size: 0.925rem;
+  line-height: 1rem;
+  color: var(--color-gray-600);
+}
+
+.ComboboxEmpty:empty {
+  margin: 0;
+  padding: 0;
+}
+
+.ComboboxItem {
+  position: relative;
+  z-index: 0;
+  display: flex;
+  cursor: default;
+  padding: 0.5rem 2rem 0.5rem 1rem;
+  font-size: 1rem;
+  line-height: 1rem;
+  -webkit-user-select: none;
+  user-select: none;
+  outline: none;
+}
+
+.ComboboxItem[data-highlighted] {
+  color: var(--color-gray-50);
+}
+
+.ComboboxItem[data-highlighted]::before {
+  content: '';
+  position: absolute;
+  inset: 0 0.5rem;
+  z-index: -1;
+  border-radius: 0.25rem;
+  background: var(--color-gray-900);
+}
+
+.InnerTitle {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.InnerDescription {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  color: var(--color-gray-600);
+}
+
+.ArrowFill {
+  fill: canvas;
+}
+
+.ArrowStrokeLight {
+  fill: var(--color-gray-200);
+}
+
+.ArrowStrokeDark {
+  fill: transparent;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ArrowStrokeDark {
+    fill: var(--color-gray-300);
+  }
+}

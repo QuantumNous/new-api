@@ -1,0 +1,64 @@
+---
+description: 'Learn how to build a Solid application using Rsbuild.'
+---
+
+# Solid
+
+Learn how to build a Solid application using Rsbuild.
+
+## Create a Solid application
+
+Create a Solid application with [create-rsbuild](/guide/start/quick-start#create-an-rsbuild-application):
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs
+  command={{
+    npm: 'npm create rsbuild@latest',
+    yarn: 'yarn create rsbuild',
+    pnpm: 'pnpm create rsbuild@latest',
+    bun: 'bun create rsbuild@latest',
+  }}
+/>
+
+Then select `Solid` when prompted to "Select framework".
+
+## Full-stack frameworks
+
+The following full-stack Solid frameworks are built on Rsbuild and reuse Rsbuild's plugin ecosystem.
+
+### TanStack Start
+
+[TanStack Start](https://tanstack.com/start/latest) is a full-stack framework powered by TanStack Router. It provides full-document SSR, streaming, Server Functions, client/server builds, and more.
+
+- [Documentation](https://tanstack.com/start/latest)
+- [Example project](https://github.com/rstackjs/rstack-examples/tree/main/rsbuild/tanstack-start-solid)
+
+You can initialize the TanStack Start example project with:
+
+```bash
+npx giget gh:rstackjs/rstack-examples/rsbuild/tanstack-start-solid tanstack-start
+cd tanstack-start
+pnpm i
+```
+
+## Use Solid in an existing project
+
+To compile Solid components, you need to register the Rsbuild [Solid plugin](/plugins/list/plugin-solid). The plugin will automatically add the necessary configuration for Solid builds.
+
+For example, register the plugin in Rsbuild config:
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginBabel } from '@rsbuild/plugin-babel';
+import { pluginSolid } from '@rsbuild/plugin-solid';
+
+export default defineConfig({
+  plugins: [
+    pluginBabel({
+      include: /\.(?:jsx|tsx)$/,
+    }),
+    pluginSolid(),
+  ],
+});
+```

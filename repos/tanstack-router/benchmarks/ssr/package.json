@@ -1,0 +1,210 @@
+{
+  "name": "@benchmarks/ssr",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@tanstack/react-router": "workspace:^",
+    "@tanstack/react-start": "workspace:^",
+    "@tanstack/solid-router": "workspace:^",
+    "@tanstack/solid-start": "workspace:^",
+    "@tanstack/vue-router": "workspace:^",
+    "@tanstack/vue-start": "workspace:^",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "solid-js": "^1.9.10",
+    "vue": "^3.5.16"
+  },
+  "devDependencies": {
+    "@codspeed/vitest-plugin": "^5.5.0",
+    "@vitejs/plugin-react": "^6.0.1",
+    "@vitejs/plugin-vue-jsx": "^5.1.5",
+    "seroval": "^1.5.4",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14",
+    "vite-plugin-solid": "^2.11.11",
+    "vitest": "^4.1.4"
+  },
+  "nx": {
+    "targets": {
+      "build:react": {
+        "executor": "nx:noop",
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "@benchmarks/ssr-react",
+              "@benchmarks/ssr-assets-react",
+              "@benchmarks/ssr-before-load-react",
+              "@benchmarks/ssr-control-flow-react",
+              "@benchmarks/ssr-global-middleware-react",
+              "@benchmarks/ssr-head-react",
+              "@benchmarks/ssr-loaders-react",
+              "@benchmarks/ssr-rewrites-react",
+              "@benchmarks/ssr-serialization-react",
+              "@benchmarks/ssr-selective-ssr-react",
+              "@benchmarks/ssr-server-fn-transport-react",
+              "@benchmarks/ssr-server-fns-react",
+              "@benchmarks/ssr-server-routes-react",
+              "@benchmarks/ssr-server-routes-middleware-react",
+              "@benchmarks/ssr-streaming-react"
+            ],
+            "target": "build:ssr"
+          }
+        ]
+      },
+      "build:solid": {
+        "executor": "nx:noop",
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "@benchmarks/ssr-solid",
+              "@benchmarks/ssr-assets-solid",
+              "@benchmarks/ssr-before-load-solid",
+              "@benchmarks/ssr-control-flow-solid",
+              "@benchmarks/ssr-global-middleware-solid",
+              "@benchmarks/ssr-head-solid",
+              "@benchmarks/ssr-loaders-solid",
+              "@benchmarks/ssr-rewrites-solid",
+              "@benchmarks/ssr-serialization-solid",
+              "@benchmarks/ssr-selective-ssr-solid",
+              "@benchmarks/ssr-server-fn-transport-solid",
+              "@benchmarks/ssr-server-fns-solid",
+              "@benchmarks/ssr-server-routes-solid",
+              "@benchmarks/ssr-server-routes-middleware-solid",
+              "@benchmarks/ssr-streaming-solid"
+            ],
+            "target": "build:ssr"
+          }
+        ]
+      },
+      "build:vue": {
+        "executor": "nx:noop",
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "@benchmarks/ssr-vue",
+              "@benchmarks/ssr-assets-vue",
+              "@benchmarks/ssr-before-load-vue",
+              "@benchmarks/ssr-control-flow-vue",
+              "@benchmarks/ssr-global-middleware-vue",
+              "@benchmarks/ssr-head-vue",
+              "@benchmarks/ssr-loaders-vue",
+              "@benchmarks/ssr-rewrites-vue",
+              "@benchmarks/ssr-serialization-vue",
+              "@benchmarks/ssr-selective-ssr-vue",
+              "@benchmarks/ssr-server-fn-transport-vue",
+              "@benchmarks/ssr-server-fns-vue",
+              "@benchmarks/ssr-server-routes-vue",
+              "@benchmarks/ssr-server-routes-middleware-vue",
+              "@benchmarks/ssr-streaming-vue"
+            ],
+            "target": "build:ssr"
+          }
+        ]
+      },
+      "test:perf": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "dependsOn": [
+          "build:react",
+          "build:solid",
+          "build:vue"
+        ],
+        "options": {
+          "command": "NODE_ENV=production vitest bench",
+          "cwd": "benchmarks/ssr"
+        }
+      },
+      "test:perf:react": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "dependsOn": [
+          "build:react"
+        ],
+        "options": {
+          "command": "NODE_ENV=production vitest bench --config ./vitest.react.config.ts",
+          "cwd": "benchmarks/ssr"
+        }
+      },
+      "test:perf:solid": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "dependsOn": [
+          "build:solid"
+        ],
+        "options": {
+          "command": "NODE_ENV=production vitest bench --config ./vitest.solid.config.ts",
+          "cwd": "benchmarks/ssr"
+        }
+      },
+      "test:perf:vue": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "dependsOn": [
+          "build:vue"
+        ],
+        "options": {
+          "command": "NODE_ENV=production vitest bench --config ./vitest.vue.config.ts",
+          "cwd": "benchmarks/ssr"
+        }
+      },
+      "test:types": {
+        "executor": "nx:noop",
+        "dependsOn": [
+          {
+            "projects": [
+              "@benchmarks/ssr-react",
+              "@benchmarks/ssr-assets-react",
+              "@benchmarks/ssr-before-load-react",
+              "@benchmarks/ssr-control-flow-react",
+              "@benchmarks/ssr-global-middleware-react",
+              "@benchmarks/ssr-head-react",
+              "@benchmarks/ssr-loaders-react",
+              "@benchmarks/ssr-rewrites-react",
+              "@benchmarks/ssr-serialization-react",
+              "@benchmarks/ssr-selective-ssr-react",
+              "@benchmarks/ssr-server-fn-transport-react",
+              "@benchmarks/ssr-server-fns-react",
+              "@benchmarks/ssr-server-routes-react",
+              "@benchmarks/ssr-server-routes-middleware-react",
+              "@benchmarks/ssr-streaming-react",
+              "@benchmarks/ssr-solid",
+              "@benchmarks/ssr-assets-solid",
+              "@benchmarks/ssr-before-load-solid",
+              "@benchmarks/ssr-control-flow-solid",
+              "@benchmarks/ssr-global-middleware-solid",
+              "@benchmarks/ssr-head-solid",
+              "@benchmarks/ssr-loaders-solid",
+              "@benchmarks/ssr-rewrites-solid",
+              "@benchmarks/ssr-serialization-solid",
+              "@benchmarks/ssr-selective-ssr-solid",
+              "@benchmarks/ssr-server-fn-transport-solid",
+              "@benchmarks/ssr-server-fns-solid",
+              "@benchmarks/ssr-server-routes-solid",
+              "@benchmarks/ssr-server-routes-middleware-solid",
+              "@benchmarks/ssr-streaming-solid",
+              "@benchmarks/ssr-vue",
+              "@benchmarks/ssr-assets-vue",
+              "@benchmarks/ssr-before-load-vue",
+              "@benchmarks/ssr-control-flow-vue",
+              "@benchmarks/ssr-global-middleware-vue",
+              "@benchmarks/ssr-head-vue",
+              "@benchmarks/ssr-loaders-vue",
+              "@benchmarks/ssr-rewrites-vue",
+              "@benchmarks/ssr-serialization-vue",
+              "@benchmarks/ssr-selective-ssr-vue",
+              "@benchmarks/ssr-server-fn-transport-vue",
+              "@benchmarks/ssr-server-fns-vue",
+              "@benchmarks/ssr-server-routes-vue",
+              "@benchmarks/ssr-server-routes-middleware-vue",
+              "@benchmarks/ssr-streaming-vue"
+            ],
+            "target": "test:types:ssr"
+          }
+        ]
+      }
+    }
+  }
+}

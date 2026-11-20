@@ -1,0 +1,83 @@
+.Page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding-bottom: 30vh;
+  max-width: 650px;
+
+  h2 {
+    margin-bottom: 0.75rem;
+  }
+}
+
+.Container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 32px;
+}
+
+.Button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.DialogSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 1rem 0;
+  font-size: 0.95rem;
+  line-height: 1.5rem;
+  color: var(--color-gray-700);
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.DialogSection + .DialogSection {
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-gray-200);
+}
+
+.Actions {
+  margin-top: 1.5rem;
+}
+
+.Form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.Label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-weight: 500;
+  color: var(--color-gray-900);
+}
+
+.Input {
+  width: 100%;
+  height: 2.5rem;
+  padding: 0 0.75rem;
+  border-radius: 0.375rem;
+  border: 1px solid var(--color-gray-200);
+  background-color: var(--color-gray-50);
+  font: inherit;
+  color: inherit;
+  transition:
+    border-color 150ms ease,
+    outline 150ms ease;
+
+  &:focus-visible {
+    outline: 2px solid var(--color-blue);
+    outline-offset: 1px;
+  }
+}

@@ -1,0 +1,168 @@
+---
+description: 'source.entry is an object where the key is the entry name and the value is the path of the entry module or a description object.'
+---
+
+# source.entry
+
+- **Type:**
+
+```ts
+type Entry = Record<string, string | string[] | (Rspack.EntryDescription & { html?: boolean })>;
+```
+
+- **Default:**
+
+```ts
+const defaultEntry = {
+  // Rsbuild also supports other suffixes by default, such as ts, tsx, jsx, mts, cts, mjs, cjs
+  index: './src/index.js',
+};
+```
+
+Set the entry modules for building.
+
+`source.entry` is an object where the key is the entry name and the value is the path of the entry module or a [description object](#description-object).
+
+If the value is a path, it can be an absolute path or a relative path. Relative paths will be resolved based on [root](/config/root).
+
+## HTML generation
+
+Rsbuild will register [html-rspack-plugin](https://github.com/rstackjs/html-rspack-plugin) for each entry in `source.entry` and generate the corresponding HTML files.
+
+- **Example:**
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    entry: {
+      foo: './src/pages/foo/index.ts', // generate foo.html
+      bar: './src/pages/bar/index.ts', // generate bar.html
+    },
+  },
+};
+```
+
+The generated directory structure is as follows:
+
+```
+.
+├── foo.html
+├── bar.html
+└── static
+    ├── css
+    │   ├── foo.css
+    │   └── bar.css
+    └── js
+        ├── foo.js
+        └── bar.js
+```
+
+If you do not need to generate HTML files:
+
+- Set the [html](/config/source/entry#html-property) property to `false` in the entry description object to disable the HTML generation for a single entry.
+- Set [tools.htmlPlugin](/config/tools/html-plugin) to `false` to disable the HTML generation for all entries.
+
+## Description object
+
+`source.entry` also supports Rspack's entry description object. For example:
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    entry: {
+      foo: {
+        import: './src/foo.js',
+        runtime: 'foo',
+      },
+      bar: {
+        import: './src/bar.js',
+        runtime: 'bar',
+      },
+    },
+  },
+};
+```
+
+### `html` property
+
+Rsbuild has added an `html` property to the description object that controls whether an HTML file is generated.
+
+For example, the `bar` entry does not generate an HTML file:
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    entry: {
+      foo: './src/foo.js',
+      bar: {
+        import: './src/bar.js',
+        html: false,
+      },
+    },
+  },
+};
+```
+
+In the above example, `foo.html` will be generated, while `bar.html` will not be generated.
+
+> For detailed usage of the description object, refer to [Rspack - Entry description object](https://rspack.rs/config/entry#entry-description-object).
+
+## Set by environment
+
+When you build for multiple [environments](/config/environments), you can set different entry for each environment:
+
+For example, set different entry for `web` and `node` environments:
+
+```ts title="rsbuild.config.ts"
+export default {
+  environments: {
+    web: {
+      source: {
+        entry: {
+          index: './src/index.client.js',
+        },
+      },
+      output: {
+        target: 'web',
+      },
+    },
+    node: {
+      source: {
+        entry: {
+          index: './src/index.server.js',
+        },
+      },
+      output: {
+        target: 'node',
+      },
+    },
+  },
+};
+```
+
+## Asynchronous setting
+
+To set entry asynchronously, for example, use [glob](https://npmjs.com/package/glob) to scan the directory, you can export an async function in `rsbuild.config.ts`:
+
+```ts title="rsbuild.config.ts"
+import path from 'node:path';
+import { glob } from 'glob';
+import { defineConfig } from '@rsbuild/core';
+
+export default defineConfig(async () => {
+  const entryFiles = await glob('./src/**/main.{ts,tsx,js,jsx}');
+
+  const entry = Object.fromEntries(
+    entryFiles.map((file) => {
+      const entryName = path.basename(path.dirname(file));
+      return [entryName, `./${file}`];
+    }),
+  );
+
+  return {
+    source: {
+      entry: entry,
+    },
+  };
+});
+```

@@ -1,0 +1,162 @@
+# Checkbox Group
+
+<Subtitle>Provides shared state to a series of checkboxes.</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled React checkbox group component that provides a shared state for a series of checkboxes."
+/>
+
+import { DemoCheckboxGroupHero } from './demos/hero';
+
+<DemoCheckboxGroupHero />
+
+## Usage guidelines
+
+- **Form controls must have an accessible name**: It can be created using `<label>` elements, or the `Field` and `Fieldset` components. See [Labeling a checkbox group](#labeling-a-checkbox-group) and the [forms guide](/react/handbook/forms).
+
+## Anatomy
+
+Checkbox Group is composed together with [Checkbox](/react/components/checkbox). Import the components and place them together:
+
+```jsx title="Anatomy"
+import { Checkbox } from '@base-ui/react/checkbox';
+import { CheckboxGroup } from '@base-ui/react/checkbox-group';
+
+<CheckboxGroup>
+  <Checkbox.Root />
+</CheckboxGroup>;
+```
+
+## Examples
+
+### Labeling a checkbox group
+
+Label the group with `aria-labelledby` and a sibling label element:
+
+```tsx title="Using aria-labelledby to label a checkbox group"
+<div id="protocols-label">Allowed network protocols</div>
+<CheckboxGroup aria-labelledby="protocols-label">{/* ... */}</CheckboxGroup>
+```
+
+An enclosing `<label>` is the simplest labeling pattern for each checkbox:
+
+```tsx title="Using an enclosing label to label a checkbox"
+// @highlight
+<label>
+  <Checkbox.Root value="http" />
+  HTTP
+  {/* @highlight */}
+</label>
+```
+
+### Rendering as a native button
+
+By default, `<Checkbox.Root>` renders a `<span>` element to support enclosing labels. Prefer rendering each checkbox as a native button when using sibling labels (`htmlFor`/`id`).
+
+```tsx title="Sibling label pattern with a native button"
+<div id="protocols-label">Allowed network protocols</div>
+<CheckboxGroup aria-labelledby="protocols-label">
+  <div>
+    <label htmlFor="protocol-http">HTTP</label>
+    {/* @highlight-text "nativeButton" "render={<button />}" */}
+    <Checkbox.Root id="protocol-http" value="http" nativeButton render={<button />}>
+      <Checkbox.Indicator />
+    </Checkbox.Root>
+  </div>
+</CheckboxGroup>
+```
+
+Native buttons with wrapping labels are supported by using the `render` callback to avoid invalid HTML, so the hidden input is placed outside the label:
+
+```tsx title="Render callback"
+<div id="protocols-label">Allowed network protocols</div>
+<CheckboxGroup aria-labelledby="protocols-label">
+  <Checkbox.Root
+    value="http"
+    nativeButton
+    // @highlight-start
+    render={(buttonProps) => (
+      <label>
+        <button {...buttonProps} />
+        HTTP
+      </label>
+    )}
+    {/* @highlight-end */}
+  />
+</CheckboxGroup>
+```
+
+### Form integration
+
+Use [Field](/react/components/field) and [Fieldset](/react/components/fieldset) for group labeling and form integration:
+
+```tsx title="Using Checkbox Group in a form"
+<Form>
+  {/* @highlight */}
+  <Field.Root name="allowedNetworkProtocols">
+    <Fieldset.Root render={<CheckboxGroup />}>
+      <Fieldset.Legend>Allowed network protocols</Fieldset.Legend>
+      <Field.Item>
+        <Field.Label>
+          <Checkbox.Root value="http" />
+          HTTP
+        </Field.Label>
+      </Field.Item>
+      <Field.Item>
+        <Field.Label>
+          <Checkbox.Root value="https" />
+          HTTPS
+        </Field.Label>
+      </Field.Item>
+      <Field.Item>
+        <Field.Label>
+          <Checkbox.Root value="ssh" />
+          SSH
+        </Field.Label>
+      </Field.Item>
+    </Fieldset.Root>
+  </Field.Root>
+</Form>
+```
+
+### Parent checkbox
+
+A checkbox that controls other checkboxes within a `<CheckboxGroup>` can be created:
+
+1. Make `<CheckboxGroup>` a controlled component
+2. Pass an array of all the child checkbox values to the `allValues` prop on the `<CheckboxGroup>` component
+3. Add the `parent` boolean prop to the parent `<Checkbox.Root>`
+
+The group controls the parent checkbox's [indeterminate](/react/components/checkbox#CheckboxRoot-indeterminate) state when some, but not all, child checkboxes are checked.
+
+import { DemoCheckboxGroupParent } from './demos/parent';
+
+<DemoCheckboxGroupParent />
+
+### Nested parent checkbox
+
+import { DemoCheckboxGroupNested } from './demos/nested';
+
+<DemoCheckboxGroupNested />
+
+## API reference
+
+import { TypesCheckboxGroup } from './types';
+
+<TypesCheckboxGroup />
+
+export const metadata = {
+  keywords: [
+    'React Checkbox Group',
+    'Checkbox Group Component',
+    'Grouped Checkboxes',
+    'Multiple Selection',
+    'Checkbox List',
+    'Multi-Select Checkboxes',
+    'Parent Child Checkbox',
+    'Accessible Checkbox Group',
+    'Form Fieldset Control',
+    'Headless React Components',
+    'Base UI',
+  ],
+};

@@ -1,0 +1,224 @@
+{
+  "name": "@benchmarks/client-nav",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:react": "NODE_ENV=production vite build --config ./react/vite.config.ts",
+    "build:solid": "NODE_ENV=production vite build --config ./solid/vite.config.ts",
+    "build:vue": "NODE_ENV=production vite build --config ./vue/vite.config.ts",
+    "test:flame:react": "NODE_ENV=production flame run --md-format=detailed --delay=none --node-options=\"--stack-size=65500\" ./react/speed.flame.ts",
+    "test:flame:solid": "NODE_ENV=production flame run --md-format=detailed --delay=none --node-options=\"--stack-size=65500\" ./solid/speed.flame.ts",
+    "test:flame:vue": "NODE_ENV=production flame run --md-format=detailed --delay=none --node-options=\"--stack-size=65500\" ./vue/speed.flame.ts",
+    "test:perf": "NODE_ENV=production vitest bench --config ./vitest.config.ts",
+    "test:perf:react": "NODE_ENV=production vitest bench --config ./vitest.react.config.ts",
+    "test:perf:solid": "NODE_ENV=production vitest bench --config ./vitest.solid.config.ts",
+    "test:perf:vue": "NODE_ENV=production vitest bench --config ./vitest.vue.config.ts",
+    "test:types": "pnpm run test:types:react && pnpm run test:types:solid && pnpm run test:types:vue",
+    "test:types:react": "tsc -p ./react/tsconfig.json --noEmit",
+    "test:types:solid": "tsc -p ./solid/tsconfig.json --noEmit",
+    "test:types:vue": "tsc -p ./vue/tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "workspace:^",
+    "@tanstack/router-core": "workspace:^",
+    "@tanstack/solid-router": "workspace:^",
+    "@tanstack/vue-router": "workspace:^",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "solid-js": "^1.9.10",
+    "vue": "^3.5.16"
+  },
+  "devDependencies": {
+    "@platformatic/flame": "^1.6.0",
+    "@codspeed/vitest-plugin": "^5.5.0",
+    "@tanstack/router-plugin": "workspace:^",
+    "@testing-library/react": "^16.2.0",
+    "@vitejs/plugin-react": "^6.0.1",
+    "@vitejs/plugin-vue": "^6.0.5",
+    "@vitejs/plugin-vue-jsx": "^5.1.5",
+    "@types/jsdom": "28.0.0",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14",
+    "vite-plugin-solid": "^2.11.11",
+    "vitest": "^4.1.4"
+  },
+  "nx": {
+    "targets": {
+      "build:react": {
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "@tanstack/react-router"
+            ],
+            "target": "build"
+          },
+          {
+            "projects": [
+              "@benchmarks/client-nav-async-pipeline-react",
+              "@benchmarks/client-nav-control-flow-react",
+              "@benchmarks/client-nav-head-react",
+              "@benchmarks/client-nav-history-react",
+              "@benchmarks/client-nav-links-react",
+              "@benchmarks/client-nav-loaders-react",
+              "@benchmarks/client-nav-mount-react",
+              "@benchmarks/client-nav-nested-params-react",
+              "@benchmarks/client-nav-preload-react",
+              "@benchmarks/client-nav-rewrites-react",
+              "@benchmarks/client-nav-route-tree-scale-react",
+              "@benchmarks/client-nav-search-params-react"
+            ],
+            "target": "build:client"
+          }
+        ]
+      },
+      "build:solid": {
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "@tanstack/solid-router"
+            ],
+            "target": "build"
+          },
+          {
+            "projects": [
+              "@benchmarks/client-nav-async-pipeline-solid",
+              "@benchmarks/client-nav-control-flow-solid",
+              "@benchmarks/client-nav-head-solid",
+              "@benchmarks/client-nav-history-solid",
+              "@benchmarks/client-nav-links-solid",
+              "@benchmarks/client-nav-loaders-solid",
+              "@benchmarks/client-nav-mount-solid",
+              "@benchmarks/client-nav-nested-params-solid",
+              "@benchmarks/client-nav-preload-solid",
+              "@benchmarks/client-nav-rewrites-solid",
+              "@benchmarks/client-nav-route-tree-scale-solid",
+              "@benchmarks/client-nav-search-params-solid"
+            ],
+            "target": "build:client"
+          }
+        ]
+      },
+      "build:vue": {
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "@tanstack/vue-router"
+            ],
+            "target": "build"
+          },
+          {
+            "projects": [
+              "@benchmarks/client-nav-async-pipeline-vue",
+              "@benchmarks/client-nav-control-flow-vue",
+              "@benchmarks/client-nav-head-vue",
+              "@benchmarks/client-nav-history-vue",
+              "@benchmarks/client-nav-links-vue",
+              "@benchmarks/client-nav-loaders-vue",
+              "@benchmarks/client-nav-mount-vue",
+              "@benchmarks/client-nav-nested-params-vue",
+              "@benchmarks/client-nav-preload-vue",
+              "@benchmarks/client-nav-rewrites-vue",
+              "@benchmarks/client-nav-route-tree-scale-vue",
+              "@benchmarks/client-nav-search-params-vue"
+            ],
+            "target": "build:client"
+          }
+        ]
+      },
+      "test:perf": {
+        "cache": false,
+        "dependsOn": [
+          "build:react",
+          "build:solid",
+          "build:vue"
+        ]
+      },
+      "test:flame:react": {
+        "cache": false,
+        "dependsOn": [
+          "build:react"
+        ]
+      },
+      "test:flame:solid": {
+        "cache": false,
+        "dependsOn": [
+          "build:solid"
+        ]
+      },
+      "test:flame:vue": {
+        "cache": false,
+        "dependsOn": [
+          "build:vue"
+        ]
+      },
+      "test:perf:react": {
+        "cache": false,
+        "dependsOn": [
+          "build:react"
+        ]
+      },
+      "test:perf:solid": {
+        "cache": false,
+        "dependsOn": [
+          "build:solid"
+        ]
+      },
+      "test:perf:vue": {
+        "cache": false,
+        "dependsOn": [
+          "build:vue"
+        ]
+      },
+      "test:types": {
+        "cache": false,
+        "dependsOn": [
+          "^build",
+          {
+            "projects": [
+              "@benchmarks/client-nav-async-pipeline-react",
+              "@benchmarks/client-nav-async-pipeline-solid",
+              "@benchmarks/client-nav-async-pipeline-vue",
+              "@benchmarks/client-nav-control-flow-react",
+              "@benchmarks/client-nav-control-flow-solid",
+              "@benchmarks/client-nav-control-flow-vue",
+              "@benchmarks/client-nav-head-react",
+              "@benchmarks/client-nav-head-solid",
+              "@benchmarks/client-nav-head-vue",
+              "@benchmarks/client-nav-history-react",
+              "@benchmarks/client-nav-history-solid",
+              "@benchmarks/client-nav-history-vue",
+              "@benchmarks/client-nav-links-react",
+              "@benchmarks/client-nav-links-solid",
+              "@benchmarks/client-nav-links-vue",
+              "@benchmarks/client-nav-loaders-react",
+              "@benchmarks/client-nav-loaders-solid",
+              "@benchmarks/client-nav-loaders-vue",
+              "@benchmarks/client-nav-mount-react",
+              "@benchmarks/client-nav-mount-solid",
+              "@benchmarks/client-nav-mount-vue",
+              "@benchmarks/client-nav-nested-params-react",
+              "@benchmarks/client-nav-nested-params-solid",
+              "@benchmarks/client-nav-nested-params-vue",
+              "@benchmarks/client-nav-preload-react",
+              "@benchmarks/client-nav-preload-solid",
+              "@benchmarks/client-nav-preload-vue",
+              "@benchmarks/client-nav-rewrites-react",
+              "@benchmarks/client-nav-route-tree-scale-react",
+              "@benchmarks/client-nav-rewrites-solid",
+              "@benchmarks/client-nav-route-tree-scale-solid",
+              "@benchmarks/client-nav-rewrites-vue",
+              "@benchmarks/client-nav-route-tree-scale-vue",
+              "@benchmarks/client-nav-search-params-react",
+              "@benchmarks/client-nav-search-params-solid",
+              "@benchmarks/client-nav-search-params-vue"
+            ],
+            "target": "test:types:client"
+          }
+        ]
+      }
+    }
+  }
+}

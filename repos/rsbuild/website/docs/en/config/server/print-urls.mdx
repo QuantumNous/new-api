@@ -1,0 +1,190 @@
+---
+description: 'Controls whether and how server URLs are printed when the server starts.'
+---
+
+# server.printUrls
+
+- **Type:**
+
+```ts
+type Routes = Array<{
+  entryName: string;
+  pathname: string;
+}>;
+
+type PrintUrlsOptions = {
+  maxRoutes?: number;
+};
+
+type PrintUrls =
+  | boolean
+  | PrintUrlsOptions
+  | ((params: {
+      urls: string[];
+      port: number;
+      routes: Routes;
+      protocol: string;
+    }) => (string | { url: string; label?: string })[] | void);
+```
+
+- **Default:** `true`
+
+Controls whether and how server URLs are printed when the server starts.
+
+By default, when you start the dev server or preview server, Rsbuild will print the following logs:
+
+```
+  ➜  Local:    http://localhost:3000
+  ➜  Network:  use --host to expose
+```
+
+## Limit entry URLs
+
+Rsbuild prints up to 10 entry URLs by default. If the number of entries exceeds this limit, Rsbuild prints the remaining count:
+
+```
+  ... 5 more entries, press u + enter to show all
+```
+
+You can configure `maxRoutes` to change this limit:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    printUrls: {
+      maxRoutes: 20,
+    },
+  },
+};
+```
+
+Setting `maxRoutes` to `0` prints only the server URL without entry routes.
+
+The `maxRoutes` option only applies to the built-in URL output. If `server.printUrls` is a function, Rsbuild keeps the existing custom logging behavior.
+
+## Custom logging
+
+`server.printUrls` can be set to a function, with parameters including `port`, `protocol`, `urls` and `routes`.
+
+### Modify URL
+
+If the `printUrls` function returns a URLs array, Rsbuild prints these URLs to the terminal in the default format:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    printUrls({ urls }) {
+      return urls.map((url) => `${url}/base/`);
+    },
+  },
+};
+```
+
+Output:
+
+```
+  ➜  Local:    http://localhost:3000/base/
+  ➜  Network:  use --host to expose
+```
+
+You may also return an array containing both strings and objects. Each object may include an optional `label` that overrides the default `Local:` or `Network:` label; if omitted, the default label is used:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    printUrls({ urls }) {
+      return urls.concat({ url: 'https://example.com/', label: 'Custom:' });
+    },
+  },
+};
+```
+
+Output:
+
+```
+  ➜  Local:    http://localhost:3000/
+  ➜  Custom:   https://example.com/
+  ➜  Network:  use --host to expose
+```
+
+### Fully customizable
+
+If the `printUrls` function does not return a value, Rsbuild will not print the server's URL addresses. You can customize the log content based on the parameters and output it to the terminal yourself.
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    printUrls({ urls, port, protocol }) {
+      console.log(urls); // ['http://localhost:3000', 'http://192.168.0.1:3000']
+      console.log(port); // 3000
+      console.log(protocol); // 'http' or 'https'
+    },
+  },
+};
+```
+
+### MPA output
+
+If the current project contains multiple pages, you can generate a separate URL for each page based on the `routes` parameter.
+
+For example, when the project contains two pages, `index` and `detail`, the content of the `routes` would be:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    printUrls({ routes }) {
+      /**
+       * [
+       *   { entryName: 'index', pathname: '/' },
+       *   { entryName: 'detail', pathname: '/detail' }
+       * ]
+       */
+      console.log(routes);
+    },
+  },
+};
+```
+
+## Disable output
+
+Setting `server.printUrls` to `false` will prevent Rsbuild from printing the server URLs.
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    printUrls: false,
+  },
+};
+```
+
+### HTML disabled
+
+If [tools.htmlPlugin](/config/tools/html-plugin) is set to `false`, Rsbuild will not generate HTML files.
+
+In this case, if there is at least one environment with `output.target: 'web'`, Rsbuild will print the URL corresponding to `server.base` by default. Otherwise, Rsbuild will not print the server URLs.
+
+You can still customize the printed URLs using the `server.printUrls` function, which has a higher priority.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    htmlPlugin: false,
+  },
+  server: {
+    printUrls: ({ port }) => [`http://localhost:${port}`],
+  },
+};
+```
+
+Output:
+
+```
+  ➜  Local:    http://localhost:3000
+```
+
+## Version history
+
+| Version | Changes                    |
+| ------- | -------------------------- |
+| v2.0.16 | Support for `maxRoutes`    |
+| v1.5.17 | Support for custom `label` |

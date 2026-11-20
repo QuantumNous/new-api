@@ -1,0 +1,88 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`doStream > should set .modelId for model-router request 1`] = `
+[
+  {
+    "type": "stream-start",
+    "warnings": [],
+  },
+  {
+    "id": "chatcmpl-CYPS1lijGoK8gd9lYzY3r9Sx50nbt",
+    "modelId": "gpt-5-nano-2025-08-07",
+    "timestamp": 2025-11-05T04:30:21.000Z,
+    "type": "response-metadata",
+  },
+  {
+    "id": "0",
+    "type": "text-start",
+  },
+  {
+    "delta": "",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "Capital",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " of",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Denmark",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ".",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "id": "0",
+    "type": "text-end",
+  },
+  {
+    "finishReason": {
+      "raw": "stop",
+      "unified": "stop",
+    },
+    "providerMetadata": {
+      "openai": {
+        "acceptedPredictionTokens": 0,
+        "rejectedPredictionTokens": 0,
+      },
+    },
+    "type": "finish",
+    "usage": {
+      "inputTokens": {
+        "cacheRead": 0,
+        "cacheWrite": undefined,
+        "noCache": 15,
+        "total": 15,
+      },
+      "outputTokens": {
+        "reasoning": 64,
+        "text": 14,
+        "total": 78,
+      },
+      "raw": {
+        "completion_tokens": 78,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "reasoning_tokens": 64,
+          "rejected_prediction_tokens": 0,
+        },
+        "prompt_tokens": 15,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+        },
+        "total_tokens": 93,
+      },
+    },
+  },
+]
+`;

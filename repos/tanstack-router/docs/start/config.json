@@ -1,0 +1,470 @@
+{
+  "$schema": "https://raw.githubusercontent.com/TanStack/tanstack.com/main/tanstack-docs-config.schema.json",
+  "docSearch": {
+    "appId": "FQ0DQ6MA3C",
+    "apiKey": "8264730bab8a9b7fa6a0c85761d7a3fe",
+    "indexName": "tanstack"
+  },
+  "sections": [
+    {
+      "label": "Getting Started",
+      "children": [],
+      "frameworks": [
+        {
+          "label": "react",
+          "children": [
+            {
+              "label": "Overview",
+              "to": "framework/react/overview"
+            },
+            {
+              "label": "Getting Started",
+              "to": "framework/react/getting-started"
+            },
+            {
+              "label": "Build from Scratch",
+              "to": "framework/react/build-from-scratch"
+            },
+            {
+              "label": "Comparison",
+              "to": "framework/react/comparison"
+            },
+            {
+              "label": "Start vs Next.js",
+              "to": "framework/react/start-vs-nextjs"
+            },
+            {
+              "label": "Migrate from Next.js",
+              "to": "framework/react/migrate-from-next-js"
+            }
+          ]
+        },
+        {
+          "label": "solid",
+          "children": [
+            {
+              "label": "Overview",
+              "to": "framework/solid/overview"
+            },
+            {
+              "label": "Getting Started",
+              "to": "framework/solid/getting-started"
+            },
+            {
+              "label": "Build from Scratch",
+              "to": "framework/solid/build-from-scratch"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "Guides",
+      "children": [],
+      "frameworks": [
+        {
+          "label": "react",
+          "children": [
+            {
+              "label": "Routing",
+              "to": "framework/react/guide/routing"
+            },
+            {
+              "label": "Execution Model",
+              "to": "framework/react/guide/execution-model"
+            },
+            {
+              "label": "Code Execution Patterns",
+              "to": "framework/react/guide/code-execution-patterns"
+            },
+            {
+              "label": "Import Protection",
+              "to": "framework/react/guide/import-protection"
+            },
+            {
+              "label": "Environment Variables",
+              "to": "framework/react/guide/environment-variables"
+            },
+            {
+              "label": "Server Functions",
+              "to": "framework/react/guide/server-functions"
+            },
+            {
+              "label": "Server Components",
+              "to": "framework/react/guide/server-components"
+            },
+            {
+              "label": "Static Server Functions",
+              "to": "framework/react/guide/static-server-functions"
+            },
+            {
+              "label": "Environment Functions",
+              "to": "framework/react/guide/environment-functions"
+            },
+            {
+              "label": "Middleware",
+              "to": "framework/react/guide/middleware"
+            },
+            {
+              "label": "Error Boundaries",
+              "to": "framework/react/guide/error-boundaries"
+            },
+            {
+              "label": "Server Routes",
+              "to": "framework/react/guide/server-routes"
+            },
+            {
+              "label": "Hydration Errors",
+              "to": "framework/react/guide/hydration-errors"
+            },
+            {
+              "label": "Deferred Hydration",
+              "to": "framework/react/guide/deferred-hydration"
+            },
+            {
+              "label": "Selective SSR",
+              "to": "framework/react/guide/selective-ssr"
+            },
+            {
+              "label": "SPA Mode",
+              "to": "framework/react/guide/spa-mode"
+            },
+            {
+              "label": "Static Prerendering",
+              "to": "framework/react/guide/static-prerendering"
+            },
+            {
+              "label": "Incremental Static Regeneration (ISR)",
+              "to": "framework/react/guide/isr"
+            },
+            {
+              "label": "Server Entry Point",
+              "to": "framework/react/guide/server-entry-point"
+            },
+            {
+              "label": "Early Hints",
+              "to": "framework/react/guide/early-hints"
+            },
+            {
+              "label": "CDN Asset URLs",
+              "to": "framework/react/guide/cdn-asset-urls"
+            },
+            {
+              "label": "CSS Styling",
+              "to": "framework/react/guide/css-styling"
+            },
+            {
+              "label": "Client Entry Point",
+              "to": "framework/react/guide/client-entry-point"
+            },
+            {
+              "label": "Hosting",
+              "to": "framework/react/guide/hosting"
+            },
+            {
+              "label": "Authentication Overview",
+              "to": "framework/react/guide/authentication-overview"
+            },
+            {
+              "label": "Authentication Server Primitives",
+              "to": "framework/react/guide/authentication-server-primitives"
+            },
+            {
+              "label": "Authentication",
+              "to": "framework/react/guide/authentication"
+            },
+            {
+              "label": "Databases",
+              "to": "framework/react/guide/databases"
+            },
+            {
+              "label": "Observability",
+              "to": "framework/react/guide/observability"
+            },
+            {
+              "label": "Path Aliases",
+              "to": "framework/react/guide/path-aliases"
+            },
+            {
+              "label": "Tailwind CSS Integration",
+              "to": "framework/react/guide/tailwind-integration"
+            },
+            {
+              "label": "Rendering Markdown",
+              "to": "framework/react/guide/rendering-markdown"
+            },
+            {
+              "label": "SEO",
+              "to": "framework/react/guide/seo"
+            },
+            {
+              "label": "Generative Engine Optimization (GEO)",
+              "to": "framework/react/guide/geo"
+            }
+          ]
+        },
+        {
+          "label": "solid",
+          "children": [
+            {
+              "label": "Routing",
+              "to": "framework/solid/guide/routing"
+            },
+            {
+              "label": "Execution Model",
+              "to": "framework/solid/guide/execution-model"
+            },
+            {
+              "label": "Code Execution Patterns",
+              "to": "framework/solid/guide/code-execution-patterns"
+            },
+            {
+              "label": "Import Protection",
+              "to": "framework/solid/guide/import-protection"
+            },
+            {
+              "label": "Environment Variables",
+              "to": "framework/solid/guide/environment-variables"
+            },
+            {
+              "label": "Server Functions",
+              "to": "framework/solid/guide/server-functions"
+            },
+            {
+              "label": "Static Server Functions",
+              "to": "framework/solid/guide/static-server-functions"
+            },
+            {
+              "label": "Environment Functions",
+              "to": "framework/solid/guide/environment-functions"
+            },
+            {
+              "label": "Middleware",
+              "to": "framework/solid/guide/middleware"
+            },
+            {
+              "label": "Error Boundaries",
+              "to": "framework/solid/guide/error-boundaries"
+            },
+            {
+              "label": "Server Routes",
+              "to": "framework/solid/guide/server-routes"
+            },
+            {
+              "label": "Hydration Errors",
+              "to": "framework/solid/guide/hydration-errors"
+            },
+            {
+              "label": "Deferred Hydration",
+              "to": "framework/solid/guide/deferred-hydration"
+            },
+            {
+              "label": "Selective SSR",
+              "to": "framework/solid/guide/selective-ssr"
+            },
+            {
+              "label": "SPA Mode",
+              "to": "framework/solid/guide/spa-mode"
+            },
+            {
+              "label": "Static Prerendering",
+              "to": "framework/solid/guide/static-prerendering"
+            },
+            {
+              "label": "Server Entry Point",
+              "to": "framework/solid/guide/server-entry-point"
+            },
+            {
+              "label": "Early Hints",
+              "to": "framework/solid/guide/early-hints"
+            },
+            {
+              "label": "CSS Styling",
+              "to": "framework/solid/guide/css-styling"
+            },
+            {
+              "label": "Client Entry Point",
+              "to": "framework/solid/guide/client-entry-point"
+            },
+            {
+              "label": "Hosting",
+              "to": "framework/solid/guide/hosting"
+            },
+            {
+              "label": "Authentication Overview",
+              "to": "framework/solid/guide/authentication-overview"
+            },
+            {
+              "label": "Authentication Server Primitives",
+              "to": "framework/solid/guide/authentication-server-primitives"
+            },
+            {
+              "label": "Authentication",
+              "to": "framework/solid/guide/authentication"
+            },
+            {
+              "label": "Databases",
+              "to": "framework/solid/guide/databases"
+            },
+            {
+              "label": "Observability",
+              "to": "framework/solid/guide/observability"
+            },
+            {
+              "label": "Path Aliases",
+              "to": "framework/solid/guide/path-aliases"
+            },
+            {
+              "label": "Tailwind CSS Integration",
+              "to": "framework/solid/guide/tailwind-integration"
+            },
+            {
+              "label": "SEO",
+              "to": "framework/solid/guide/seo"
+            },
+            {
+              "label": "Generative Engine Optimization (GEO)",
+              "to": "framework/solid/guide/geo"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "Examples",
+      "children": [],
+      "frameworks": [
+        {
+          "label": "react",
+          "children": [
+            {
+              "label": "Basic",
+              "to": "framework/react/examples/start-basic"
+            },
+            {
+              "label": "Basic + React Query",
+              "to": "framework/react/examples/start-basic-react-query"
+            },
+            {
+              "label": "Basic + Clerk Auth",
+              "to": "framework/react/examples/start-clerk-basic"
+            },
+            {
+              "label": "Basic + DIY Auth",
+              "to": "framework/react/examples/start-basic-auth"
+            },
+            {
+              "label": "Basic + Supabase Auth",
+              "to": "framework/react/examples/start-supabase-basic"
+            },
+            {
+              "label": "Trellaux + Convex",
+              "to": "framework/react/examples/start-convex-trellaux"
+            },
+            {
+              "label": "Trellaux",
+              "to": "framework/react/examples/start-trellaux"
+            },
+            {
+              "label": "WorkOS",
+              "to": "framework/react/examples/start-workos"
+            },
+            {
+              "label": "Material UI",
+              "to": "framework/react/examples/start-material-ui"
+            },
+            {
+              "label": "Basic + Auth.js",
+              "to": "framework/react/examples/start-basic-authjs"
+            },
+            {
+              "label": "Basic + Static rendering",
+              "to": "framework/react/examples/start-basic-static"
+            },
+            {
+              "label": "Cloudflare Vite Plugin",
+              "to": "framework/react/examples/start-basic-cloudflare"
+            }
+          ]
+        },
+        {
+          "label": "solid",
+          "children": [
+            {
+              "label": "Basic",
+              "to": "framework/solid/examples/start-basic"
+            },
+            {
+              "label": "Basic + Solid Query",
+              "to": "framework/solid/examples/start-basic-solid-query"
+            },
+            {
+              "label": "Basic + DIY Auth",
+              "to": "framework/solid/examples/start-basic-auth"
+            },
+            {
+              "label": "Basic + Supabase Auth",
+              "to": "framework/solid/examples/start-supabase-basic"
+            },
+            {
+              "label": "Basic + Convex + Better Auth",
+              "to": "framework/solid/examples/start-convex-better-auth"
+            },
+            {
+              "label": "Basic + Auth.js",
+              "to": "framework/solid/examples/start-basic-authjs"
+            },
+            {
+              "label": "Basic + Static rendering",
+              "to": "framework/solid/examples/start-basic-static"
+            },
+            {
+              "label": "Cloudflare Vite Plugin",
+              "to": "framework/solid/examples/start-basic-cloudflare"
+            },
+            {
+              "label": "Netlify Vite Plugin",
+              "to": "framework/solid/examples/start-basic-netlify"
+            },
+            {
+              "label": "Nitro Vite Plugin",
+              "to": "framework/solid/examples/start-basic-nitro"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "Tutorials",
+      "children": [],
+      "frameworks": [
+        {
+          "label": "react",
+          "children": [
+            {
+              "label": "Reading and Writing a File",
+              "to": "framework/react/tutorial/reading-writing-file"
+            },
+            {
+              "label": "Fetching Data from External API",
+              "to": "framework/react/tutorial/fetching-external-api"
+            }
+          ]
+        },
+        {
+          "label": "solid",
+          "children": [
+            {
+              "label": "Reading and Writing a File",
+              "to": "framework/solid/tutorial/reading-writing-file"
+            },
+            {
+              "label": "Fetching Data from External API",
+              "to": "framework/solid/tutorial/fetching-external-api"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+node_modules
+dist
+port*.txt
+test-results
+playwright-report

@@ -1,0 +1,115 @@
+.Wrapper {
+  --duration: 300ms;
+
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2rem;
+  width: 100%;
+}
+
+.Section {
+  width: 100%;
+}
+
+.Root {
+  font-family: system-ui, sans-serif;
+  border-radius: 0.3rem;
+  height: 30rem;
+  display: inline-flex;
+  flex-direction: column;
+
+  writing-mode: vertical-lr;
+
+  &:dir(rtl) {
+    writing-mode: vertical-rl;
+  }
+}
+
+.Item {
+  position: relative;
+  color: var(--color-gray-800);
+  display: flex;
+  flex-direction: column;
+
+  &:has([data-value='one']) {
+    background-color: var(--color-gray-100);
+  }
+  &:has([data-value='two']) {
+    background-color: var(--color-gray-200);
+  }
+  &:has([data-value='three']) {
+    background-color: var(--color-gray-300);
+  }
+
+  &:not(:first-of-type) {
+    margin-inline-start: 1px;
+  }
+
+  &:first-of-type {
+    border-start-start-radius: 0.25rem;
+    border-start-end-radius: 0.25rem;
+  }
+
+  &:last-of-type {
+    border-end-start-radius: 0.25rem;
+    border-end-end-radius: 0.25rem;
+  }
+}
+
+.Header {
+  margin: 0;
+  width: 4rem;
+}
+
+.Trigger {
+  appearance: none;
+  background-color: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  padding: 1rem;
+  position: relative;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-flow: column nowrap;
+  align-items: center;
+}
+
+.Trigger:focus-visible {
+  outline: 2px solid var(--color-blue);
+}
+
+.Label {
+  font-size: 1rem;
+  line-height: 1.5;
+  margin-bottom: 1rem;
+}
+
+.Trigger[data-panel-open] svg {
+  transform: rotate(180deg);
+}
+
+.Panel {
+  box-sizing: border-box;
+  overflow: hidden;
+
+  width: var(--accordion-panel-width);
+  transition: all var(--duration) ease-out;
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    width: 0;
+    opacity: 0;
+  }
+}
+
+.Content {
+  padding: 1.5rem 1rem 1.5rem 2.75rem;
+  cursor: text;
+
+  & > p {
+    margin-block-end: 1rem;
+  }
+}

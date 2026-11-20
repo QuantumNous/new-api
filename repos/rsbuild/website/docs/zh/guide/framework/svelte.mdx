@@ -1,0 +1,39 @@
+---
+description: '本文介绍如何基于 Rsbuild 构建 Svelte 应用。'
+---
+
+# Svelte
+
+本文介绍如何基于 Rsbuild 构建 Svelte 应用。
+
+## 创建 Svelte 应用
+
+使用 [create-rsbuild](/guide/start/quick-start#create-an-rsbuild-application) 创建基于 Rsbuild 的 Svelte 应用：
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs
+  command={{
+    npm: 'npm create rsbuild@latest',
+    yarn: 'yarn create rsbuild',
+    pnpm: 'pnpm create rsbuild@latest',
+    bun: 'bun create rsbuild@latest',
+  }}
+/>
+
+然后在 `Select framework` 时选择 `Svelte` 即可。
+
+## 在已有项目中使用 Svelte
+
+要编译 Svelte 组件（`.svelte` 文件），需注册 Rsbuild 的 [Svelte 插件](/plugins/list/plugin-svelte)，插件会自动添加 Svelte 构建所需的配置。
+
+例如，在 Rsbuild 配置中注册：
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginSvelte } from '@rsbuild/plugin-svelte';
+
+export default defineConfig({
+  plugins: [pluginSvelte()],
+});
+```

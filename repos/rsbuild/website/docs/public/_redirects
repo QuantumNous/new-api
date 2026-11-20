@@ -1,0 +1,4 @@
+# Redirect rsbuild.dev to rsbuild.rs
+https://rsbuild.dev/* https://rsbuild.rs/:splat 301
+
+/* /404.html 404

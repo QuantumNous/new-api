@@ -1,0 +1,299 @@
+/* Syntax highlighting theme using prettylights with global color variables.
+ * Based on prettylights classes with extensions for Base UI docs.
+ * See styles.css for global theme color definitions. */
+@layer theme {
+  :root {
+    /* Prettylights syntax colors mapped to global theme */
+    --color-prettylights-syntax-comment: var(--color-gray);
+    --color-prettylights-syntax-constant: var(--color-blue);
+    --color-prettylights-syntax-constant-other-reference-link: var(--color-navy);
+    --color-prettylights-syntax-entity: var(--color-violet);
+    --color-prettylights-syntax-entity-tag: var(--color-green);
+    --color-prettylights-syntax-keyword: var(--color-red);
+    --color-prettylights-syntax-string: var(--color-navy);
+    --color-prettylights-syntax-string-regexp: var(--color-green);
+    --color-prettylights-syntax-variable: var(--color-red);
+    --color-prettylights-syntax-storage-modifier-import: var(--color-navy);
+    --color-prettylights-syntax-brackethighlighter-angle: var(--color-gray);
+    --color-prettylights-syntax-brackethighlighter-unmatched: var(--color-red);
+    --color-prettylights-syntax-sublimelinter-gutter-mark: var(--color-gray);
+
+    /* Invalid/error states */
+    --color-prettylights-syntax-invalid-illegal-bg: var(--color-red);
+    --color-prettylights-syntax-invalid-illegal-text: var(--color-content);
+    --color-prettylights-syntax-carriage-return-bg: var(--color-red);
+    --color-prettylights-syntax-carriage-return-text: var(--color-content);
+
+    /* Markup/markdown (unused in code demos but included for completeness) */
+    --color-prettylights-syntax-markup-heading: var(--color-blue);
+    --color-prettylights-syntax-markup-bold: var(--color-foreground);
+    --color-prettylights-syntax-markup-italic: var(--color-foreground);
+    --color-prettylights-syntax-markup-list: var(--color-red);
+    --color-prettylights-syntax-markup-changed-bg: transparent;
+    --color-prettylights-syntax-markup-changed-text: var(--color-red);
+    --color-prettylights-syntax-markup-deleted-bg: transparent;
+    --color-prettylights-syntax-markup-deleted-text: var(--color-red);
+    --color-prettylights-syntax-markup-inserted-bg: transparent;
+    --color-prettylights-syntax-markup-inserted-text: var(--color-green);
+    --color-prettylights-syntax-markup-ignored-bg: transparent;
+    --color-prettylights-syntax-markup-ignored-text: var(--color-gray);
+    --color-prettylights-syntax-meta-diff-range: var(--color-violet);
+
+    /* Docs-infra extensions for concepts not in prettylights */
+    --color-docs-infra-syntax-number: var(--color-blue);
+    --color-docs-infra-syntax-boolean: var(--color-blue);
+    --color-docs-infra-syntax-nullish: var(--color-gray);
+    --color-docs-infra-syntax-attr-key: var(--color-violet);
+    --color-docs-infra-syntax-attr-value: var(--color-navy);
+    --color-docs-infra-syntax-attr-equals: var(--color-red);
+    --color-docs-infra-syntax-data-attr: var(--color-blue);
+    --color-docs-infra-syntax-css-property: var(--color-foreground);
+    --color-docs-infra-syntax-css-value: var(--color-blue);
+    --color-docs-infra-syntax-this: var(--color-red);
+    --color-docs-infra-syntax-builtin-type: var(--color-blue);
+    --color-docs-infra-syntax-jsx: var(--color-blue);
+    --color-docs-infra-syntax-html-tag: var(--color-green);
+    --color-docs-infra-syntax-jsx-tag: var(--color-blue);
+  }
+}
+
+@layer components {
+  .pl-c {
+    color: var(--color-prettylights-syntax-comment);
+  }
+
+  .pl-c1,
+  .pl-s .pl-v {
+    color: var(--color-prettylights-syntax-constant);
+  }
+
+  .pl-e,
+  .pl-en {
+    color: var(--color-prettylights-syntax-entity);
+  }
+
+  .pl-smi,
+  .pl-s .pl-s1 {
+    color: var(--color-prettylights-syntax-storage-modifier-import);
+  }
+
+  .pl-ent {
+    color: var(--color-prettylights-syntax-entity-tag);
+  }
+
+  .pl-k {
+    color: var(--color-prettylights-syntax-keyword);
+  }
+
+  .pl-s,
+  .pl-pds,
+  .pl-s .pl-pse .pl-s1,
+  .pl-sr,
+  .pl-sr .pl-cce,
+  .pl-sr .pl-sre,
+  .pl-sr .pl-sra {
+    color: var(--color-prettylights-syntax-string);
+  }
+
+  .pl-v,
+  .pl-smw {
+    color: var(--color-prettylights-syntax-variable);
+  }
+
+  .pl-bu {
+    color: var(--color-prettylights-syntax-brackethighlighter-unmatched);
+  }
+
+  .pl-ii {
+    color: var(--color-prettylights-syntax-invalid-illegal-text);
+    background-color: var(--color-prettylights-syntax-invalid-illegal-bg);
+  }
+
+  .pl-c2 {
+    color: var(--color-prettylights-syntax-carriage-return-text);
+    background-color: var(--color-prettylights-syntax-carriage-return-bg);
+  }
+
+  .pl-sr .pl-cce {
+    font-weight: bold;
+    color: var(--color-prettylights-syntax-string-regexp);
+  }
+
+  .pl-ml {
+    color: var(--color-prettylights-syntax-markup-list);
+  }
+
+  .pl-mh,
+  .pl-mh .pl-en,
+  .pl-ms {
+    font-weight: bold;
+    color: var(--color-prettylights-syntax-markup-heading);
+  }
+
+  .pl-mi {
+    font-style: italic;
+    color: var(--color-prettylights-syntax-markup-italic);
+  }
+
+  .pl-mb {
+    font-weight: bold;
+    color: var(--color-prettylights-syntax-markup-bold);
+  }
+
+  .pl-md {
+    color: var(--color-prettylights-syntax-markup-deleted-text);
+    background-color: var(--color-prettylights-syntax-markup-deleted-bg);
+  }
+
+  .pl-mi1 {
+    color: var(--color-prettylights-syntax-markup-inserted-text);
+    background-color: var(--color-prettylights-syntax-markup-inserted-bg);
+  }
+
+  .pl-mc {
+    color: var(--color-prettylights-syntax-markup-changed-text);
+    background-color: var(--color-prettylights-syntax-markup-changed-bg);
+  }
+
+  .pl-mi2 {
+    color: var(--color-prettylights-syntax-markup-ignored-text);
+    background-color: var(--color-prettylights-syntax-markup-ignored-bg);
+  }
+
+  .pl-mdr {
+    font-weight: bold;
+    color: var(--color-prettylights-syntax-meta-diff-range);
+  }
+
+  .pl-ba {
+    color: var(--color-prettylights-syntax-brackethighlighter-angle);
+  }
+
+  .pl-sg {
+    color: var(--color-prettylights-syntax-sublimelinter-gutter-mark);
+  }
+
+  .pl-corl {
+    text-decoration: underline;
+    color: var(--color-prettylights-syntax-constant-other-reference-link);
+  }
+
+  /* Docs-infra extensions (.di-* classes) */
+
+  .di-num {
+    color: var(--color-docs-infra-syntax-number);
+  }
+
+  .di-bool {
+    color: var(--color-docs-infra-syntax-boolean);
+  }
+
+  /* Nullish values (null, undefined) */
+  .di-n {
+    color: var(--color-docs-infra-syntax-nullish);
+  }
+
+  .di-ak {
+    color: var(--color-docs-infra-syntax-attr-key);
+  }
+
+  .di-av {
+    color: var(--color-docs-infra-syntax-attr-value);
+  }
+
+  .di-ae {
+    color: var(--color-docs-infra-syntax-attr-equals);
+  }
+
+  .di-da {
+    color: var(--color-docs-infra-syntax-data-attr);
+  }
+
+  .di-cp {
+    color: var(--color-docs-infra-syntax-css-property);
+  }
+
+  .di-cv {
+    color: var(--color-docs-infra-syntax-css-value);
+  }
+
+  .di-this {
+    color: var(--color-docs-infra-syntax-this);
+  }
+
+  .di-bt {
+    color: var(--color-docs-infra-syntax-builtin-type);
+  }
+
+  .di-jsx {
+    color: var(--color-docs-infra-syntax-jsx);
+  }
+
+  .di-ht {
+    color: var(--color-docs-infra-syntax-html-tag);
+  }
+
+  .di-jt {
+    color: var(--color-docs-infra-syntax-jsx-tag);
+  }
+
+  /* Special handling for CSS language */
+  .language-css {
+    --color-prettylights-syntax-variable: var(--color-navy);
+  }
+
+  /* Inline code and highlighted characters - collapse most colors to blue */
+  .MdCode[data-inline] {
+    --color-prettylights-syntax-comment: var(--color-blue);
+    --color-prettylights-syntax-constant: var(--color-blue);
+    --color-prettylights-syntax-entity: var(--color-blue);
+    --color-prettylights-syntax-keyword: var(--color-blue);
+    --color-prettylights-syntax-string: var(--color-blue);
+    --color-prettylights-syntax-variable: var(--color-blue);
+    --color-prettylights-syntax-storage-modifier-import: var(--color-blue);
+    --color-docs-infra-syntax-nullish: var(--color-blue);
+  }
+
+  /* stylelint-disable-next-line selector-pseudo-class-disallowed-list */
+  .MdCode[data-inline]:not(:has(> .di-ht)) {
+    display: inline-block;
+    background-color: var(--color-line-highlight);
+    padding: 0.05em 0.2em;
+  }
+
+  /* Frame highlighting */
+  pre .frame[data-frame-type='highlighted'],
+  pre .frame[data-frame-type='highlighted-unfocused'] {
+    background-color: var(--color-line-highlight);
+  }
+
+  /* Line highlighting */
+  pre .line[data-hl] {
+    background-color: var(--color-line-highlight);
+  }
+
+  pre .line[data-hl='strong'] {
+    background-color: var(--color-line-highlight-strong);
+  }
+
+  /* Mark (text) highlighting */
+  pre mark {
+    display: inline-flex;
+    background-color: var(--color-line-highlight);
+    color: var(--color-blue);
+  }
+
+  pre mark > * {
+    color: var(--color-blue);
+  }
+
+  /* Stronger emphasis for highlighted words inside already highlighted lines */
+  pre mark[data-hl] {
+    background-color: var(--color-line-highlight-strong);
+  }
+
+  /* Inside a strong highlighted line, mark steps up further */
+  pre mark[data-hl='strong'] {
+    background-color: var(--color-line-highlight-strong-mark);
+  }
+}

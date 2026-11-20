@@ -1,0 +1,156 @@
+# Context Menu
+
+<Subtitle>A menu that appears at the pointer on right click or long press.</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled React context menu component that appears at the pointer on right click or long press."
+/>
+
+import { DemoContextMenuHero } from './demos/hero';
+
+<DemoContextMenuHero />
+
+## Anatomy
+
+Import the components and place them together:
+
+```jsx title="Anatomy"
+import { ContextMenu } from '@base-ui/react/context-menu';
+
+<ContextMenu.Root>
+  <ContextMenu.Trigger />
+  <ContextMenu.Portal>
+    <ContextMenu.Backdrop />
+    <ContextMenu.Positioner>
+      <ContextMenu.Popup>
+        <ContextMenu.Arrow />
+        <ContextMenu.Item />
+        <ContextMenu.LinkItem />
+        <ContextMenu.Separator />
+
+        <ContextMenu.SubmenuRoot>
+          <ContextMenu.SubmenuTrigger />
+        </ContextMenu.SubmenuRoot>
+
+        <ContextMenu.Group>
+          <ContextMenu.GroupLabel />
+        </ContextMenu.Group>
+
+        <ContextMenu.RadioGroup>
+          <ContextMenu.RadioItem>
+            <ContextMenu.RadioItemIndicator />
+          </ContextMenu.RadioItem>
+        </ContextMenu.RadioGroup>
+
+        <ContextMenu.CheckboxItem>
+          <ContextMenu.CheckboxItemIndicator />
+        </ContextMenu.CheckboxItem>
+      </ContextMenu.Popup>
+    </ContextMenu.Positioner>
+  </ContextMenu.Portal>
+</ContextMenu.Root>;
+```
+
+## Examples
+
+[Menu](/react/components/menu#examples) displays additional demos, many of which apply to the context menu as well.
+
+### Nested menu
+
+To create a submenu, create a `<ContextMenu.SubmenuRoot>` inside the parent context menu. Use the `<ContextMenu.SubmenuTrigger>` part for the menu item that opens the nested menu.
+
+import { DemoContextMenuSubmenu } from './demos/submenu';
+
+<DemoContextMenuSubmenu />
+
+## API reference
+
+import { TypesContextMenu } from './types';
+
+### Root
+
+<TypesContextMenu.Root />
+
+### Trigger
+
+<TypesContextMenu.Trigger />
+
+### Portal
+
+<TypesContextMenu.Portal />
+
+### Positioner
+
+<TypesContextMenu.Positioner />
+
+### Popup
+
+<TypesContextMenu.Popup />
+
+### Arrow
+
+<TypesContextMenu.Arrow />
+
+### Item
+
+<TypesContextMenu.Item />
+
+### LinkItem
+
+<TypesContextMenu.LinkItem />
+
+### SubmenuRoot
+
+<TypesContextMenu.SubmenuRoot />
+
+### SubmenuTrigger
+
+<TypesContextMenu.SubmenuTrigger />
+
+### Group
+
+<TypesContextMenu.Group />
+
+### GroupLabel
+
+<TypesContextMenu.GroupLabel />
+
+### RadioGroup
+
+<TypesContextMenu.RadioGroup />
+
+### RadioItem
+
+<TypesContextMenu.RadioItem />
+
+### RadioItemIndicator
+
+<TypesContextMenu.RadioItemIndicator />
+
+### CheckboxItem
+
+<TypesContextMenu.CheckboxItem />
+
+### CheckboxItemIndicator
+
+<TypesContextMenu.CheckboxItemIndicator />
+
+### Separator
+
+<TypesContextMenu.Separator />
+
+export const metadata = {
+  keywords: [
+    'React Context Menu',
+    'Context Menu Component',
+    'Right Click Menu',
+    'Secondary Click Menu',
+    'Pointer Menu',
+    'Touch Hold Menu',
+    'Long Press Menu',
+    'Nested Menu React',
+    'Accessible Context Menu',
+    'Headless React Components',
+    'Base UI',
+  ],
+};

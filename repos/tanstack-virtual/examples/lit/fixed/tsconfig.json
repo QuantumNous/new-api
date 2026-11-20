@@ -1,0 +1,14 @@
+{
+  "composite": true,
+  "compilerOptions": {
+    "outDir": "./build/types",
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "types": ["node"]
+  },
+  "files": ["src/main.ts"],
+  "include": ["src"]
+}

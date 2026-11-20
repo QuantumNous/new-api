@@ -1,0 +1,68 @@
+{
+  "monologues": [
+    {
+      "speaker": 0,
+      "elements": [
+        {
+          "type": "text",
+          "value": "Hello",
+          "ts": 0.075,
+          "end_ts": 0.425,
+          "confidence": 0.96
+        },
+        {
+          "type": "punct",
+          "value": " "
+        },
+        {
+          "type": "text",
+          "value": "from",
+          "ts": 0.425,
+          "end_ts": 0.665,
+          "confidence": 0.98
+        },
+        {
+          "type": "punct",
+          "value": " "
+        },
+        {
+          "type": "text",
+          "value": "the",
+          "ts": 0.665,
+          "end_ts": 0.785,
+          "confidence": 0.98
+        },
+        {
+          "type": "punct",
+          "value": " "
+        },
+        {
+          "type": "text",
+          "value": "Sal",
+          "ts": 0.945,
+          "end_ts": 1.105,
+          "confidence": 0.64
+        },
+        {
+          "type": "punct",
+          "value": ","
+        },
+        {
+          "type": "punct",
+          "value": " "
+        },
+        {
+          "type": "text",
+          "value": "A-I-S-D-K",
+          "ts": 1.185,
+          "end_ts": 2.145,
+          "confidence": 0.96
+        },
+        {
+          "type": "punct",
+          "value": "."
+        }
+      ]
+    }
+  ]
+}

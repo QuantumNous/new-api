@@ -1,0 +1,16 @@
+.layout {
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background: rgb(255, 251, 235);
+  border: 2px solid rgb(245, 158, 11);
+}
+
+.heading {
+  color: rgb(180, 83, 9);
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.body {
+  color: rgb(146, 64, 14);
+}

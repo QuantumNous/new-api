@@ -1,0 +1,32 @@
+{
+  "name": "@example/next-agent",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "workspace:*",
+    "@ai-sdk/react": "workspace:*",
+    "@vercel/blob": "^0.26.0",
+    "ai": "workspace:*",
+    "next": "^15.5.18",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "9.0.1",
+    "resumable-stream": "^2.2.12",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.19",
+    "@types/react": "^18.3.28",
+    "@types/react-dom": "^18.3.7",
+    "autoprefixer": "^10.5.0",
+    "postcss": "^8.5.14",
+    "tailwindcss": "^3.4.19",
+    "typescript": "5.8.3"
+  }
+}

@@ -1,0 +1,112 @@
+---
+title: AI SDK Providers
+description: Learn how to use AI SDK providers.
+---
+
+# AI SDK Providers
+
+The AI SDK comes with several providers that you can use to interact with different language models:
+
+<OfficialModelCards />
+
+There are also [community providers](./community-providers) that have been created using the [Language Model Specification](./community-providers/custom-providers).
+
+<CommunityModelCards />
+
+## Provider support
+
+Not all providers support all AI SDK features. Here's a quick comparison of the capabilities of popular models:
+
+| Provider                                                   | Model                                               | Image Input | Object Generation | Tool Usage | Tool Streaming |
+| ---------------------------------------------------------- | --------------------------------------------------- | ----------- | ----------------- | ---------- | -------------- |
+| [xAI Grok](/providers/ai-sdk-providers/xai)                | `grok-4.5`                                          | <Check />   | <Check />         | <Check />  | <Check />      |
+| [xAI Grok](/providers/ai-sdk-providers/xai)                | `grok-4-fast-reasoning`                             | <Check />   | <Check />         | <Check />  | <Check />      |
+| [xAI Grok](/providers/ai-sdk-providers/xai)                | `grok-4`                                            | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [xAI Grok](/providers/ai-sdk-providers/xai)                | `grok-3`                                            | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [xAI Grok](/providers/ai-sdk-providers/xai)                | `grok-3-mini`                                       | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [Vercel](/providers/ai-sdk-providers/vercel)               | `v0-1.0-md`                                         | <Check />   | <Check />         | <Check />  | <Check />      |
+| [OpenAI](/providers/ai-sdk-providers/openai)               | `gpt-5.6`                                           | <Check />   | <Check />         | <Check />  | <Check />      |
+| [OpenAI](/providers/ai-sdk-providers/openai)               | `gpt-5.6-luna`                                      | <Check />   | <Check />         | <Check />  | <Check />      |
+| [OpenAI](/providers/ai-sdk-providers/openai)               | `gpt-5.6-sol`                                       | <Check />   | <Check />         | <Check />  | <Check />      |
+| [OpenAI](/providers/ai-sdk-providers/openai)               | `gpt-5.6-terra`                                     | <Check />   | <Check />         | <Check />  | <Check />      |
+| [OpenAI](/providers/ai-sdk-providers/openai)               | `gpt-5.5`                                           | <Check />   | <Check />         | <Check />  | <Check />      |
+| [OpenAI](/providers/ai-sdk-providers/openai)               | `gpt-5.4-mini`                                      | <Check />   | <Check />         | <Check />  | <Check />      |
+| [OpenAI](/providers/ai-sdk-providers/openai)               | `gpt-5.4-nano`                                      | <Check />   | <Check />         | <Check />  | <Check />      |
+| [OpenAI](/providers/ai-sdk-providers/openai)               | `gpt-5.2-pro`                                       | <Check />   | <Check />         | <Check />  | <Check />      |
+| [OpenAI](/providers/ai-sdk-providers/openai)               | `gpt-5.2`                                           | <Check />   | <Check />         | <Check />  | <Check />      |
+| [OpenAI](/providers/ai-sdk-providers/openai)               | `gpt-5.1`                                           | <Check />   | <Check />         | <Check />  | <Check />      |
+| [OpenAI](/providers/ai-sdk-providers/openai)               | `gpt-5.1-codex`                                     | <Check />   | <Check />         | <Check />  | <Check />      |
+| [OpenAI](/providers/ai-sdk-providers/openai)               | `gpt-5`                                             | <Check />   | <Check />         | <Check />  | <Check />      |
+| [OpenAI](/providers/ai-sdk-providers/openai)               | `gpt-5-mini`                                        | <Check />   | <Check />         | <Check />  | <Check />      |
+| [OpenAI](/providers/ai-sdk-providers/openai)               | `gpt-4.1`                                           | <Check />   | <Check />         | <Check />  | <Check />      |
+| [OpenAI](/providers/ai-sdk-providers/openai)               | `gpt-4.1-mini`                                      | <Check />   | <Check />         | <Check />  | <Check />      |
+| [OpenAI](/providers/ai-sdk-providers/openai)               | `gpt-4o`                                            | <Check />   | <Check />         | <Check />  | <Check />      |
+| [OpenAI](/providers/ai-sdk-providers/openai)               | `gpt-4o-mini`                                       | <Check />   | <Check />         | <Check />  | <Check />      |
+| [Anthropic](/providers/ai-sdk-providers/anthropic)         | `claude-sonnet-5`                                   | <Check />   | <Check />         | <Check />  | <Check />      |
+| [Anthropic](/providers/ai-sdk-providers/anthropic)         | `claude-fable-5`                                    | <Check />   | <Check />         | <Check />  | <Check />      |
+| [Anthropic](/providers/ai-sdk-providers/anthropic)         | `claude-opus-4-8`                                   | <Check />   | <Check />         | <Check />  | <Check />      |
+| [Anthropic](/providers/ai-sdk-providers/anthropic)         | `claude-opus-4-7`                                   | <Check />   | <Check />         | <Check />  | <Check />      |
+| [Anthropic](/providers/ai-sdk-providers/anthropic)         | `claude-opus-4-6`                                   | <Check />   | <Check />         | <Check />  | <Check />      |
+| [Anthropic](/providers/ai-sdk-providers/anthropic)         | `claude-sonnet-4-6`                                 | <Check />   | <Check />         | <Check />  | <Check />      |
+| [Anthropic](/providers/ai-sdk-providers/anthropic)         | `claude-opus-4-5`                                   | <Check />   | <Check />         | <Check />  | <Check />      |
+| [Anthropic](/providers/ai-sdk-providers/anthropic)         | `claude-sonnet-4-5`                                 | <Check />   | <Check />         | <Check />  | <Check />      |
+| [Anthropic](/providers/ai-sdk-providers/anthropic)         | `claude-haiku-4-5`                                  | <Check />   | <Check />         | <Check />  | <Check />      |
+| [Anthropic](/providers/ai-sdk-providers/anthropic)         | `claude-opus-4-1`                                   | <Check />   | <Check />         | <Check />  | <Check />      |
+| [Anthropic](/providers/ai-sdk-providers/anthropic)         | `claude-sonnet-4-0`                                 | <Check />   | <Check />         | <Check />  | <Check />      |
+| [Google](/providers/ai-sdk-providers/google)               | `gemini-3.1-pro-preview`                            | <Check />   | <Check />         | <Check />  | <Check />      |
+| [Google](/providers/ai-sdk-providers/google)               | `gemini-3-pro-preview`                              | <Check />   | <Check />         | <Check />  | <Check />      |
+| [Google](/providers/ai-sdk-providers/google)               | `gemini-2.5-pro`                                    | <Check />   | <Check />         | <Check />  | <Check />      |
+| [Google](/providers/ai-sdk-providers/google)               | `gemini-2.5-flash`                                  | <Check />   | <Check />         | <Check />  | <Check />      |
+| [Google Vertex](/providers/ai-sdk-providers/google-vertex) | `gemini-3.1-pro-preview`                            | <Check />   | <Check />         | <Check />  | <Check />      |
+| [Google Vertex](/providers/ai-sdk-providers/google-vertex) | `gemini-3-pro-preview`                              | <Check />   | <Check />         | <Check />  | <Check />      |
+| [Google Vertex](/providers/ai-sdk-providers/google-vertex) | `gemini-2.5-pro`                                    | <Check />   | <Check />         | <Check />  | <Check />      |
+| [Google Vertex](/providers/ai-sdk-providers/google-vertex) | `gemini-2.5-flash`                                  | <Check />   | <Check />         | <Check />  | <Check />      |
+| [Mistral](/providers/ai-sdk-providers/mistral)             | `pixtral-large-latest`                              | <Check />   | <Check />         | <Check />  | <Check />      |
+| [Mistral](/providers/ai-sdk-providers/mistral)             | `mistral-large-latest`                              | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [Mistral](/providers/ai-sdk-providers/mistral)             | `magistral-medium-2506`                             | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [Mistral](/providers/ai-sdk-providers/mistral)             | `magistral-small-2506`                              | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [Mistral](/providers/ai-sdk-providers/mistral)             | `mistral-small-latest`                              | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [Mistral](/providers/ai-sdk-providers/mistral)             | `ministral-8b-latest`                               | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [Cohere](/providers/ai-sdk-providers/cohere)               | `command-a-03-2025`                                 | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [Cohere](/providers/ai-sdk-providers/cohere)               | `command-a-reasoning-08-2025`                       | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [Cohere](/providers/ai-sdk-providers/cohere)               | `command-r-plus`                                    | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [Cohere](/providers/ai-sdk-providers/cohere)               | `command-r`                                         | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [DeepSeek](/providers/ai-sdk-providers/deepseek)           | `deepseek-chat`                                     | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [DeepSeek](/providers/ai-sdk-providers/deepseek)           | `deepseek-reasoner`                                 | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [Moonshot AI](/providers/ai-sdk-providers/moonshotai)      | `kimi-k2.5`                                         | <Check />   | <Check />         | <Check />  | <Check />      |
+| [Moonshot AI](/providers/ai-sdk-providers/moonshotai)      | `kimi-k3`                                           | <Check />   | <Check />         | <Check />  | <Check />      |
+| [Moonshot AI](/providers/ai-sdk-providers/moonshotai)      | `kimi-k2-thinking`                                  | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [Groq](/providers/ai-sdk-providers/groq)                   | `meta-llama/llama-4-scout-17b-16e-instruct`         | <Check />   | <Check />         | <Check />  | <Check />      |
+| [Groq](/providers/ai-sdk-providers/groq)                   | `llama-3.3-70b-versatile`                           | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [Groq](/providers/ai-sdk-providers/groq)                   | `deepseek-r1-distill-llama-70b`                     | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [Groq](/providers/ai-sdk-providers/groq)                   | `qwen-qwq-32b`                                      | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [Groq](/providers/ai-sdk-providers/groq)                   | `openai/gpt-oss-120b`                               | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [Together AI](/providers/ai-sdk-providers/togetherai)      | `meta-llama/Meta-Llama-3.3-70B-Instruct-Turbo`      | <Cross />   | <Cross />         | <Cross />  | <Cross />      |
+| [Together AI](/providers/ai-sdk-providers/togetherai)      | `Qwen/Qwen2.5-72B-Instruct-Turbo`                   | <Cross />   | <Cross />         | <Cross />  | <Cross />      |
+| [Together AI](/providers/ai-sdk-providers/togetherai)      | `deepseek-ai/DeepSeek-V3`                           | <Cross />   | <Cross />         | <Cross />  | <Cross />      |
+| [Together AI](/providers/ai-sdk-providers/togetherai)      | `mistralai/Mixtral-8x22B-Instruct-v0.1`             | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [Fireworks](/providers/ai-sdk-providers/fireworks)         | `accounts/fireworks/models/deepseek-r1`             | <Cross />   | <Cross />         | <Cross />  | <Cross />      |
+| [Fireworks](/providers/ai-sdk-providers/fireworks)         | `accounts/fireworks/models/deepseek-v3`             | <Cross />   | <Check />         | <Check />  | <Cross />      |
+| [Fireworks](/providers/ai-sdk-providers/fireworks)         | `accounts/fireworks/models/llama-v3p3-70b-instruct` | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [Fireworks](/providers/ai-sdk-providers/fireworks)         | `accounts/fireworks/models/qwen2-vl-72b-instruct`   | <Check />   | <Cross />         | <Cross />  | <Cross />      |
+| [Alibaba](/providers/ai-sdk-providers/alibaba)             | `qwen3-max`                                         | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [Alibaba](/providers/ai-sdk-providers/alibaba)             | `qwen-plus`                                         | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [DeepInfra](/providers/ai-sdk-providers/deepinfra)         | `meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8` | <Check />   | <Cross />         | <Cross />  | <Cross />      |
+| [DeepInfra](/providers/ai-sdk-providers/deepinfra)         | `meta-llama/Llama-4-Scout-17B-16E-Instruct`         | <Check />   | <Cross />         | <Cross />  | <Cross />      |
+| [DeepInfra](/providers/ai-sdk-providers/deepinfra)         | `meta-llama/Llama-3.3-70B-Instruct`                 | <Cross />   | <Check />         | <Check />  | <Cross />      |
+| [DeepInfra](/providers/ai-sdk-providers/deepinfra)         | `deepseek-ai/DeepSeek-V3`                           | <Cross />   | <Cross />         | <Cross />  | <Cross />      |
+| [DeepInfra](/providers/ai-sdk-providers/deepinfra)         | `deepseek-ai/DeepSeek-R1`                           | <Cross />   | <Cross />         | <Cross />  | <Cross />      |
+| [DeepInfra](/providers/ai-sdk-providers/deepinfra)         | `Qwen/QwQ-32B`                                      | <Cross />   | <Check />         | <Check />  | <Cross />      |
+| [Cerebras](/providers/ai-sdk-providers/cerebras)           | `llama3.3-70b`                                      | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [Cerebras](/providers/ai-sdk-providers/cerebras)           | `gpt-oss-120b`                                      | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [Cerebras](/providers/ai-sdk-providers/cerebras)           | `qwen-3-32b`                                        | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [Hugging Face](/providers/ai-sdk-providers/huggingface)    | `meta-llama/Llama-3.1-8B-Instruct`                  | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [Hugging Face](/providers/ai-sdk-providers/huggingface)    | `moonshotai/Kimi-K2-Instruct`                       | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [Baseten](/providers/ai-sdk-providers/baseten)             | `Qwen/Qwen3-235B-A22B-Instruct-2507`                | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [Baseten](/providers/ai-sdk-providers/baseten)             | `deepseek-ai/DeepSeek-V3.1`                         | <Cross />   | <Check />         | <Check />  | <Check />      |
+| [Baseten](/providers/ai-sdk-providers/baseten)             | `moonshotai/Kimi-K2-Instruct-0905`                  | <Cross />   | <Check />         | <Check />  | <Check />      |
+
+<Note>
+  This table is not exhaustive. Additional models can be found in the provider
+  documentation pages and on the provider websites.
+</Note>

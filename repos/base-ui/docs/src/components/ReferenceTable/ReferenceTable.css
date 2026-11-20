@@ -1,0 +1,391 @@
+@layer components {
+  .ReferenceHeaderRow {
+    display: grid;
+  }
+
+  .ReferenceHeaderTypeCell {
+    display: none;
+  }
+
+  .ReferenceHeaderDefaultCell {
+    display: none;
+  }
+
+  .ReferenceHeaderIconCell {
+    display: none;
+    width: 2.5rem;
+  }
+
+  .ReferenceTrigger {
+    min-height: min-content;
+    scroll-margin-top: 3rem;
+    padding: 0;
+  }
+
+  .ReferenceNameCell {
+    padding-left: 0.75rem;
+  }
+
+  .ReferenceRequired {
+    top: -0.3em;
+    font-size: inherit;
+    color: var(--poppy-t1);
+  }
+
+  .ReferenceTypeCell {
+    display: none;
+    align-items: baseline;
+    padding-left: 0.75rem;
+    font-size: var(--font-size-14);
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .ReferenceDefaultCell {
+    display: none;
+    padding-left: 0.75rem;
+    white-space: nowrap;
+  }
+
+  .ReferenceIconWrap {
+    display: flex;
+    justify-content: center;
+  }
+
+  .ReferenceIcon {
+    transform: translateY(1px);
+  }
+
+  .ReferenceContent {
+    display: flex;
+    flex-direction: column;
+    color: var(--gray-t1);
+  }
+
+  .ReferenceDescription [role='figure'] {
+    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .ReferenceExampleReset > * {
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+
+  .ReferenceCompactPanel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem;
+    font-size: var(--font-size-14);
+    line-height: 1.25rem;
+    text-wrap: pretty;
+  }
+
+  .ReferenceWideNameColumn {
+    width: 100%;
+  }
+
+  .ReferenceWideDescriptionColumn {
+    width: 66.6667%;
+  }
+
+  .ReferenceReturnTypeColumn {
+    width: 40%;
+  }
+
+  .ReferenceReturnDescriptionColumn {
+    width: 60%;
+  }
+
+  @media (min-width: 32rem) {
+    .ReferenceHeaderRow {
+      grid-template-columns: 12rem 1fr 2.5rem;
+    }
+
+    .ReferenceTrigger {
+      display: grid;
+      grid-template-columns: 12rem 1fr 2.5rem;
+    }
+
+    .ReferenceHeaderTypeCell {
+      display: table-cell;
+    }
+
+    .ReferenceTypeCell {
+      display: flex;
+    }
+
+    .ReferenceWideNameColumn {
+      width: 12rem;
+    }
+
+    .ReferenceContent {
+      display: grid;
+      gap: 0;
+      grid-template-columns: 12rem 1fr 2.5rem;
+    }
+  }
+
+  @media (min-width: 40rem) {
+    .ReferenceHeaderRow {
+      grid-template-columns: 14rem 1fr 2.5rem;
+    }
+
+    .ReferenceTrigger {
+      grid-template-columns: 14rem 1fr 2.5rem;
+    }
+
+    .ReferenceWideNameColumn {
+      width: 14rem;
+    }
+
+    .ReferenceContent {
+      grid-template-columns: 14rem 1fr 2.5rem;
+    }
+  }
+
+  @media (min-width: 48rem) {
+    .ReferenceHeaderDefaultCell {
+      display: table-cell;
+    }
+
+    .ReferenceHeaderIconCell {
+      display: table-cell;
+    }
+
+    .ReferenceDefaultCell {
+      display: block;
+    }
+
+    .ReferenceHeaderRow {
+      grid-template-columns: 5fr 7fr 4.5fr 2.5rem;
+    }
+
+    .ReferenceTrigger {
+      scroll-margin-top: 0;
+      grid-template-columns: 5fr 7fr 4.5fr 2.5rem;
+    }
+
+    [data-hide-default] > .ReferenceHeaderRow {
+      grid-template-columns: 5fr 7fr 2.5rem;
+    }
+
+    [data-hide-default] .ReferenceTrigger {
+      grid-template-columns: 5fr 7fr 2.5rem;
+    }
+
+    .ReferenceWideNameColumn {
+      width: calc(5 / 16.5 * 100%);
+    }
+
+    .ReferenceWideDescriptionColumn {
+      width: calc(11.5 / 16.5 * 100%);
+    }
+
+    .ReferenceContent {
+      grid-template-columns: 5fr 11.5fr 2.5rem;
+    }
+  }
+
+  @media (width < 32rem) {
+    .ReferenceIconWrap {
+      margin-left: auto;
+      margin-right: 0.75rem;
+    }
+
+    .ReferenceContent {
+      padding-top: 0.75rem;
+      padding-bottom: 0.75rem;
+    }
+  }
+
+  /* ---- Methods accordion ---- */
+
+  .MethodsHeaderRow {
+    display: grid;
+  }
+
+  .MethodsTrigger {
+    min-height: min-content;
+    scroll-margin-top: 3rem;
+    padding: 0;
+  }
+
+  @media (min-width: 32rem) {
+    .MethodsHeaderRow {
+      grid-template-columns: 1fr 12rem 2.5rem;
+    }
+
+    .MethodsTrigger {
+      display: grid;
+      grid-template-columns: 1fr 12rem 2.5rem;
+    }
+  }
+
+  @media (min-width: 40rem) {
+    .MethodsHeaderRow {
+      grid-template-columns: 1fr 14rem 2.5rem;
+    }
+
+    .MethodsTrigger {
+      grid-template-columns: 1fr 14rem 2.5rem;
+    }
+  }
+
+  @media (min-width: 48rem) {
+    .MethodsHeaderRow {
+      grid-template-columns: 8fr 4fr 2.5rem;
+    }
+
+    .MethodsTrigger {
+      scroll-margin-top: 0;
+      grid-template-columns: 8fr 4fr 2.5rem;
+    }
+  }
+
+  /* ---- Properties accordion (class) ---- */
+
+  .PropertiesHeaderModifiersCell {
+    display: none;
+  }
+
+  @media (min-width: 48rem) {
+    .PropertiesHeaderModifiersCell {
+      display: table-cell;
+    }
+  }
+
+  .MethodParamList {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .MethodParamList > li + li {
+    margin-top: 0.5rem;
+  }
+
+  .MethodParamRow {
+    display: flex;
+    gap: 0.5rem;
+    align-items: baseline;
+  }
+
+  .MethodParamSep {
+    color: var(--gray-p1);
+  }
+
+  .MethodParamDesc {
+    color: var(--gray-t1);
+    font-size: var(--font-size-14);
+    line-height: 1.25rem;
+    margin-top: 0.25rem;
+    margin-left: 0.125rem;
+  }
+
+  /* ---- Additional types ---- */
+
+  .AdditionalTypeWrapper {
+    display: none;
+    scroll-margin-top: 3rem;
+  }
+
+  .AdditionalTypeWrapper:target,
+  .AdditionalTypeWrapper[data-shown='true'] {
+    display: block;
+  }
+
+  .AdditionalTypeHeading {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .AdditionalTypeBackLink {
+    font-size: var(--font-size-14);
+    line-height: 1.25rem;
+    font-weight: var(--font-weight-400);
+    color: var(--gray-p1);
+  }
+
+  .AdditionalTypeBackLink[data-hidden='true'] {
+    display: none;
+  }
+
+  .AdditionalTypeBackLink:hover {
+    color: var(--gray-t2);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .AdditionalTypeBackLink {
+      color: var(--gray-p2);
+    }
+
+    .AdditionalTypeBackLink:hover {
+      color: var(--gray-c2);
+    }
+  }
+
+  .AdditionalTypeReExport {
+    font-size: var(--font-size-14);
+    line-height: 1.25rem;
+    color: var(--gray-t1);
+  }
+
+  .AdditionalTypeCodeBlock {
+    margin-top: 0;
+    margin-bottom: 0;
+    padding: 0.5rem;
+  }
+
+  @media (min-width: 48rem) {
+    .AdditionalTypeWrapper {
+      scroll-margin-top: 0;
+    }
+  }
+
+  /* ---- Section heading (used in ReferenceTable) ---- */
+
+  .ReferenceSectionHeading {
+    margin-top: 1.25rem;
+    margin-bottom: 0.75rem;
+    font-size: var(--font-size-16);
+    line-height: 1.5rem;
+    font-weight: var(--font-weight-700);
+    color: var(--gray-t2);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .ReferenceSectionHeading {
+      color: white;
+    }
+  }
+
+  .ReferenceSectionSubtext {
+    margin-bottom: 0.5rem;
+    font-size: var(--font-size-14);
+    line-height: 1.25rem;
+    color: var(--gray-t1);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .ReferenceSectionSubtext {
+      color: var(--gray-p2);
+    }
+  }
+
+  .ReferenceBlockSpaced {
+    margin-top: 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .ReferenceBlockSpaced p:last-of-type,
+  .ReferenceBlock p:last-of-type {
+    margin: 0;
+  }
+
+  .ReferenceBlock {
+    margin-bottom: 1.5rem;
+  }
+}

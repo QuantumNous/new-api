@@ -1,0 +1,177 @@
+---
+description: 'Tailwind CSS 是一个以 Utility Class 为基础的 CSS 框架和设计系统，可以快速地为组件添加常用样式，同时支持主题样式的灵活扩展。'
+---
+
+# Tailwind CSS v3
+
+[Tailwind CSS](https://v3.tailwindcss.com/) 是一个以 Utility Class 为基础的 CSS 框架和设计系统，可以快速地为组件添加常用样式，同时支持主题样式的灵活扩展。
+
+你可以通过 PostCSS 插件来在 Rsbuild 中接入 Tailwind CSS。
+
+## 安装 Tailwind CSS
+
+Rsbuild 内置支持 PostCSS，你可以安装 `tailwindcss` 包来接入 Tailwind CSS：
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add tailwindcss@^3 -D" />
+
+## 配置 PostCSS
+
+你可以通过 [PostCSS 配置文件](https://github.com/webpack/postcss-loader#config) 或 [tools.postcss](/config/tools/postcss) 来注册 `tailwindcss` 的 PostCSS 插件。
+
+```js title="postcss.config.cjs"
+module.exports = {
+  plugins: {
+    tailwindcss: {},
+  },
+};
+```
+
+## 配置 Tailwind CSS
+
+在当前项目的根目录创建 `tailwind.config.js` 文件，并添加以下内容：
+
+```js title="tailwind.config.js"
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: ['./src/**/*.{html,js,ts,jsx,tsx}'],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+};
+```
+
+:::tip
+上述配置仅供参考，你可以根据项目需要进行调整，比如非 TypeScript 项目不需要包含 ts 和 tsx 文件。
+:::
+
+需要注意的是，`content` 选项应包含所有用到 Tailwind 类名的源文件的路径。详情可参考 [tailwindcss - Content 配置](https://v3.tailwindcss.com/docs/content-configuration)。
+
+```js title="tailwind.config.js"
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: ['./src/**/*.{html,js,ts,jsx,tsx}', '../../lib1/src/**/*.{js,ts,jsx,tsx}'],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+};
+```
+
+### 其他配置方式
+
+- 你可以在 PostCSS 配置文件中直接传入 Tailwind CSS 的配置：
+
+```js title="postcss.config.cjs"
+module.exports = {
+  plugins: {
+    tailwindcss: {
+      content: ['./src/**/*.{html,js,ts,jsx,tsx}'],
+      // ...other options
+    },
+  },
+};
+```
+
+- 也可以通过 [tools.postcss](/config/tools/postcss) 来设置 Tailwind CSS 的配置：
+
+```js title="rsbuild.config.js"
+import tailwindcss from 'tailwindcss';
+
+export default {
+  tools: {
+    postcss: {
+      postcssOptions: {
+        plugins: [
+          tailwindcss({
+            content: ['./src/**/*.{html,js,ts,jsx,tsx}'],
+            // ...other options
+          }),
+        ],
+      },
+    },
+  },
+};
+```
+
+但我们建议将 Tailwind CSS 的配置放在 `tailwind.config.*` 中，因为其他方式可能会导致 Tailwind CSS 的构建性能劣化，参考 [tailwindcss/issues/14229](https://github.com/tailwindlabs/tailwindcss/issues/14229)。
+
+## 引入 CSS
+
+在 CSS 入口文件中添加 `@tailwind` 指令：
+
+```css title="main.css"
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+```
+
+根据需求不同，你可以选择性地导入 Tailwind CSS 提供的 CSS 样式。请参考 [@tailwind 文档](https://v3.tailwindcss.com/docs/functions-and-directives#tailwind) 来了解 `@tailwind` 指令的详细用法。
+
+## 完成
+
+你已经完成了在 Rsbuild 中接入 Tailwind CSS 的全部步骤！
+
+你可以在任意组件或 HTML 中使用 Tailwind 的 utility classes，比如：
+
+```html
+<h1 class="text-3xl font-bold underline">Hello world!</h1>
+```
+
+更多用法请参考 [Tailwind CSS 文档](https://v3.tailwindcss.com/)。
+
+## VS Code 插件
+
+Tailwind CSS 提供了 [Tailwind CSS IntelliSense](https://github.com/tailwindlabs/tailwindcss-intellisense) 插件，用于在 VS Code 中自动补全 Tailwind CSS 的 class names、CSS functions 和 directives。
+
+你可以在 VS Code 中安装该插件，即可开启自动补全功能。
+
+## 优化构建性能 \{#optimize-build-performance}
+
+在使用 Tailwind CSS 时，如果没有正确地配置 `tailwind.config.js` 中的 `content` 字段，可能会导致构建性能和热更新性能下降。这是因为 Tailwind CSS 内部会基于 `content` 定义的 glob 来匹配文件，扫描的文件数量越多，产生的性能开销越大。
+
+因此，我们建议精确地指定需要扫描的路径，以避免不必要的性能开销。例如，仅包括项目源码中实际包含 Tailwind 类名的 HTML 或 JS 文件，避免包含不相关的文件或目录，尤其是 `node_modules` 目录。
+
+下面是一个扫描 `node_modules` 的错误示例：
+
+```js title="tailwind.config.js"
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: [
+    './src/**/*.{html,js,ts,jsx,tsx}',
+    // 扫描大量文件，导致性能下降
+    './node_modules/**/*.js',
+  ],
+};
+```
+
+有时，你可能会不小心扫描 `node_modules` 目录，例如在 monorepo 中扫描其他包的文件时：
+
+```js title="tailwind.config.js"
+module.exports = {
+  content: [
+    './src/**/*.{html,js,ts,jsx,tsx}',
+    // 错误地包含了 `packages/ui/node_modules` 目录
+    // 正确写法为 '../../packages/ui/src/**/*.{html,js,ts,jsx,tsx}'
+    '../../packages/ui/**/*.{html,js,ts,jsx,tsx}',
+  ],
+};
+```
+
+## 优化样式体积
+
+如果你需要优化 Tailwind CSS 的样式体积，欢迎尝试 [rsbuild-plugin-tailwindcss](https://github.com/rstackjs/rsbuild-plugin-tailwindcss)。
+
+该插件读取了 Rspack 的模块图信息，自动设置准确的 `content` 配置，以生成尽可能少的 Tailwind CSS 样式。
+
+```ts title="rsbuild.config.ts"
+import { pluginTailwindCSS } from 'rsbuild-plugin-tailwindcss';
+
+export default {
+  plugins: [pluginTailwindCSS()],
+};
+```
+
+> 参考 [rsbuild-plugin-tailwindcss](https://github.com/rstackjs/rsbuild-plugin-tailwindcss) 了解更多。

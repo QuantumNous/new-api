@@ -1,0 +1,18 @@
+.Button {
+  background: rgb(226 232 240 / 0.9);
+  border-radius: 0.25rem;
+  padding: 8px 12px;
+  transition-property:
+    color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow,
+    transform, filter, backdrop-filter;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.Button:hover {
+  background: rgb(226 232 240 / 0.5);
+}
+
+.Button[data-open] {
+  background: rgb(226 232 240 / 0.5);
+}

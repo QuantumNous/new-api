@@ -1,0 +1,30 @@
+@media (min-width: 640px) {
+  .copyRight {
+    padding: 2rem;
+  }
+}
+
+.copyRight {
+  bottom: 0;
+  margin-top: 3rem;
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+
+  width: 100%;
+  border-top: 1px solid var(--rp-c-divider-light);
+}
+
+.copyRightInner {
+  margin: 0 auto;
+  width: 100%;
+  text-align: center;
+}
+
+.copyRightText {
+  font-weight: 400;
+  font-size: 0.875rem;
+  color: var(--rp-c-text-2);
+  line-height: 1.8;
+}

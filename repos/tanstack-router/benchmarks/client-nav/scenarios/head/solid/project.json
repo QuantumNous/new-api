@@ -1,0 +1,40 @@
+{
+  "name": "@benchmarks/client-nav-head-solid",
+  "projectType": "application",
+  "targets": {
+    "build:client": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "dependsOn": [
+        {
+          "projects": ["@tanstack/solid-router", "@tanstack/router-plugin"],
+          "target": "build"
+        }
+      ],
+      "options": {
+        "command": "NODE_ENV=production vite build --config {projectRoot}/vite.config.ts"
+      }
+    },
+    "test:types:client": {
+      "executor": "nx:run-commands",
+      "dependsOn": [
+        {
+          "projects": ["@tanstack/solid-router", "@tanstack/router-plugin"],
+          "target": "build"
+        }
+      ],
+      "options": {
+        "command": "tsc -p {projectRoot}/tsconfig.json --noEmit"
+      }
+    },
+    "test:flame": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "dependsOn": ["build:client"],
+      "options": {
+        "command": "NODE_ENV=production flame run --md-format=detailed --delay=none --node-options=\"--stack-size=65500\" ./scenarios/head/solid/speed.flame.ts",
+        "cwd": "benchmarks/client-nav"
+      }
+    }
+  }
+}

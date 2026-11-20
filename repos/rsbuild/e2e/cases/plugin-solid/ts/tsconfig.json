@@ -1,0 +1,8 @@
+{
+  "extends": "@scripts/config/tsconfig",
+  "compilerOptions": {
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js"
+  },
+  "include": ["src"]
+}

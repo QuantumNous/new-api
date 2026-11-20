@@ -1,0 +1,39 @@
+---
+description: 'Define the directory structure of the HTML output files.'
+---
+
+# html.outputStructure
+
+- **Type:** `'flat' | 'nested'`
+- **Default:** `'flat'`
+
+Define the directory structure of the HTML output files.
+
+## Example
+
+By default, the structure of HTML files in the `dist` directory is `flat`:
+
+```bash
+/dist
+ └── [name].html
+```
+
+You can set `html.outputStructure` to `nested`:
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    outputStructure: 'nested',
+  },
+};
+```
+
+After rebuild, the directory structure of the HTML files is:
+
+```bash
+/dist
+ └── [name]
+     └── index.html
+```
+
+> If you want to set the parent path of the HTML files, use the [output.distPath.html](/config/output/dist-path) config.

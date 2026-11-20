@@ -1,0 +1,118 @@
+{
+  "name": "i18next",
+  "version": "26.3.6",
+  "description": "i18next internationalization framework",
+  "main": "./dist/cjs/i18next.js",
+  "module": "./dist/esm/i18next.js",
+  "types": "./index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "import": {
+        "types": "./index.d.mts",
+        "default": "./dist/esm/i18next.js"
+      },
+      "require": {
+        "types": "./index.d.ts",
+        "default": "./dist/cjs/i18next.js"
+      }
+    }
+  },
+  "keywords": [
+    "i18next",
+    "internationalization",
+    "i18n",
+    "translation",
+    "localization",
+    "l10n",
+    "globalization",
+    "gettext"
+  ],
+  "homepage": "https://www.i18next.com",
+  "bugs": "https://github.com/i18next/i18next/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/i18next/i18next.git"
+  },
+  "funding": [
+    {
+      "type": "individual",
+      "url": "https://www.locize.com/i18next"
+    },
+    {
+      "type": "individual",
+      "url": "https://www.i18next.com/how-to/faq#i18next-is-awesome.-how-can-i-support-the-project"
+    },
+    {
+      "type": "individual",
+      "url": "https://www.locize.com"
+    }
+  ],
+  "peerDependencies": {
+    "typescript": "^5 || ^6 || ^7"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@arktype/attest": "^0.56.0",
+    "@babel/core": "^7.29.0",
+    "@babel/plugin-transform-async-generator-functions": "^7.29.0",
+    "@babel/plugin-transform-modules-commonjs": "^7.28.6",
+    "@babel/preset-env": "^7.29.2",
+    "@babel/preset-react": "^7.28.5",
+    "@babel/register": "^7.28.6",
+    "@rollup/plugin-babel": "^7.0.0",
+    "@rollup/plugin-commonjs": "^29.0.2",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-terser": "^1.0.0",
+    "@types/node": "^25.6.0",
+    "@typescript-eslint/eslint-plugin": "^8.57.2",
+    "@typescript-eslint/parser": "^8.58.2",
+    "@vitest/coverage-v8": "4.1.4",
+    "babelify": "^10.0.0",
+    "coveralls": "^3.1.1",
+    "cpy-cli": "^7.0.0",
+    "eslint": "9.39.4",
+    "gh-release": "^7.0.2",
+    "husky": "^9.1.7",
+    "i18next-browser-languagedetector": "^8.2.1",
+    "i18next-fs-backend": "^2.6.3",
+    "i18next-http-backend": "^3.0.4",
+    "i18next-localstorage-cache": "^1.1.1",
+    "i18next-sprintf-postprocessor": "^0.2.2",
+    "lint-staged": "^16.4.0",
+    "neostandard": "^0.13.0",
+    "prettier": "^3.8.3",
+    "rimraf": "^6.1.3",
+    "rollup": "^4.60.2",
+    "sinon": "^19.0.5",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.58.2",
+    "vitest": "4.1.4"
+  },
+  "scripts": {
+    "lint": "eslint src typescript test \"./*.{ts,mts,mjs}\"",
+    "format": "prettier \"{,**/}*.{ts,tsx,mts,js,mjs,json,md}\" --check",
+    "format:fix": "prettier \"{,**/}*.{ts,tsx,mts,js,mjs,json,md}\" --write",
+    "test": "vitest --run",
+    "test:coverage": "vitest --coverage --run",
+    "test:runtime": "vitest --project runtime",
+    "test:compatibility": "vitest --project compatibility",
+    "test:typescript": "vitest --config vitest.workspace.typescript.mts",
+    "test:local": "vitest --config vitest.workspace.local.mts",
+    "build": "rimraf dist && rollup -c && echo '{\"type\":\"module\"}' > dist/esm/package.json && cpy \"./dist/umd/*.js\" ./",
+    "fix_dist_package": "node -e 'console.log(`{\"type\":\"module\",\"version\":\"${process.env.npm_package_version}\"}`)' > dist/esm/package.json",
+    "preversion": "npm run test && npm run build && git push",
+    "postversion": "npm run fix_dist_package && git push && git push --tags && npm run release",
+    "prepare": "husky",
+    "release": "gh-release"
+  },
+  "author": "Jan Mühlemann <jan.muehlemann@gmail.com> (https://github.com/jamuhl)",
+  "license": "MIT",
+  "lint-staged": {
+    "*": "prettier --write --ignore-unknown"
+  }
+}

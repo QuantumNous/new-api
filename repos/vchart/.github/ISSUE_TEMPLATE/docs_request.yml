@@ -1,0 +1,34 @@
+name: Documentation Request
+description: Request for improvements or additions to the documentation
+title: '[Documentation] '
+labels: [docs]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The documentation is an important part of the project, and we welcome any suggestions for improvement. If you find any issues or have any suggestions for the documentation, please feel free to open an issue.
+
+        Please provide as much detail as possible when submitting an issue, including the following information:
+
+        - The title of the documentation page or section you are referring to
+        - A description of the issue or suggestion
+        - Any relevant code snippets or examples
+        - Screenshots or other visual aids if applicable
+
+        We will review your issue as soon as possible and work with you to improve the documentation.
+
+  - type: textarea
+    attributes:
+      label: Documentation Title or Section
+      description: Please enter the title or section of the documentation you are referring to.
+      placeholder: For example, "Getting Started Guide" or "API Reference"
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Issue Description or Suggestion
+      description: Please describe the issue or suggestion you have for the documentation.
+      placeholder: For example, "The installation instructions are not clear" or "I suggest adding a tutorial on how to use the API"
+    validations:
+      required: true

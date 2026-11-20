@@ -1,0 +1,55 @@
+name: AI Provider Models
+
+on:
+  repository_dispatch:
+    types: [ai_provider_models]
+
+permissions:
+  contents: read
+
+jobs:
+  create-issue:
+    name: 'Create Issue for Provider Model Changes'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          app-id: ${{ vars.VERCEL_AI_SDK_GITHUB_APP_CLIENT_ID }}
+          private-key: ${{ secrets.VERCEL_AI_SDK_GITHUB_APP_PRIVATE_KEY_PKCS8 }}
+
+      - name: Create issue
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const { provider, resultType, newModelIDs, obsoleteModelIDs } = context.payload.client_payload;
+
+            const lines = [];
+            lines.push(`**Provider:** \`${provider}\``);
+            lines.push(`**Type:** ${resultType === 'new_provider' ? 'New provider' : 'Model list diff'}`);
+            lines.push('');
+
+            if (newModelIDs.length > 0) {
+              lines.push('### New models');
+              for (const id of newModelIDs) {
+                lines.push(`- \`${id}\``);
+              }
+              lines.push('');
+            }
+
+            if (obsoleteModelIDs.length > 0) {
+              lines.push('### Obsolete models');
+              for (const id of obsoleteModelIDs) {
+                lines.push(`- \`${id}\``);
+              }
+              lines.push('');
+            }
+
+            await github.rest.issues.create({
+              owner: 'vercel',
+              repo: 'ai',
+              title: `🤖 Provider model changes - ${provider}`,
+              body: lines.join('\n'),
+              labels: ['maintenance'],
+            });

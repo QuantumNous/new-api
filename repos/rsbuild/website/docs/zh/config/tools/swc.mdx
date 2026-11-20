@@ -1,0 +1,87 @@
+---
+description: '通过 tools.swc 可以设置 builtin:swc-loader 的选项。'
+---
+
+# tools.swc
+
+- **类型：**
+
+```ts
+type ToolsSwc =
+  | Rspack.SwcLoaderOptions
+  | ((config: Rspack.SwcLoaderOptions) => Rspack.SwcLoaderOptions | undefined);
+```
+
+- **默认值：**
+
+```js
+const defaultOptions = {
+  jsc: {
+    externalHelpers: true,
+    parser: {
+      tsx: false,
+      syntax: 'typescript',
+      decorators: true,
+    },
+  },
+  experimental: {
+    cacheRoot: './node_modules/.cache/.swc',
+    keepImportAttributes: true,
+  },
+  isModule: 'unknown',
+  env: {
+    // 读取项目的 browserslist 配置
+    targets: browserslist,
+  },
+  // ...some other conditional options
+};
+```
+
+通过 `tools.swc` 可以设置 [builtin:swc-loader](https://rspack.rs/zh/guide/features/builtin-swc-loader) 的选项。
+
+> 参考 [配置 SWC](/guide/configuration/swc) 了解更多。
+
+## Object 类型
+
+`tools.swc` 可以配置为一个对象，这个对象将会和内置的 `builtin:swc-loader` 选项进行深层合并。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    swc: {
+      jsc: {
+        externalHelpers: false,
+      },
+    },
+  },
+};
+```
+
+## Function 类型
+
+`tools.swc` 也可以配置为一个函数，这个函数接收一个参数，即内置的 `builtin:swc-loader` 选项，你可以对这个对象进行修改，然后返回一份新的配置。比如：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    swc: (config) => {
+      config.jsc ||= {};
+      config.jsc.externalHelpers = false;
+      return config;
+    },
+  },
+};
+```
+
+:::tip
+`tools.swc` 函数返回的对象会直接作为最终使用的 `builtin:swc-loader` 选项，不会再与内置的 `builtin:swc-loader` 选项进行合并。
+:::
+
+## 处理配置冲突
+
+在 SWC 的配置中，`jsc.target`（指定 ECMAScript 版本，如 `es2015`）与 `env` 不能同时存在。
+
+为了避免冲突，Rsbuild 采取以下处理策略：
+
+- 当 Rsbuild 检测到你在 `tools.swc` 中手动设置了 `jsc.target` 时，会自动移除内置的 `env.targets`。
+- 如果你配置了 [output.polyfill](/config/output/polyfill)，Rsbuild 会强制设置 `env.mode`，此时你无法再设置 `jsc.target`。

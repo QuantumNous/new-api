@@ -1,0 +1,20 @@
+{
+  "name": "@router-solid-mono-simple/post-feature",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build && tsc --noEmit"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@router-solid-mono-simple/router": "workspace:*",
+    "solid-js": "^1.9.10"
+  },
+  "devDependencies": {
+    "vite-plugin-solid": "^2.11.11",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14",
+    "vite-plugin-dts": "^4.5.4"
+  }
+}

@@ -1,0 +1,54 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "runtimeExecutable": "node",
+      "request": "launch",
+      "name": "node",
+      "args": [],
+      "runtimeArgs": ["--experimental-strip-types"],
+      "skipFiles": ["<node_internals>/**"],
+      // "program": "${workspaceFolder}/play.ts",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen"
+
+      // "outFiles": ["${workspaceFolder}/**/*.js"]
+    },
+    {
+      "name": "tsx",
+      "type": "node",
+      "request": "launch",
+      "runtimeArgs": ["--conditions=@zod/source"],
+
+      // Debug current file in VSCode
+      "program": "${file}",
+
+      /*
+       * Path to tsx binary
+       * Assuming locally installed
+       */
+      "runtimeExecutable": "tsx",
+
+      /*
+       * Open terminal when debugging starts (Optional)
+       * Useful to see console.logs
+       */
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+
+      // Files to exclude from debugger (e.g. call stack)
+      "skipFiles": [
+        // Node.js internal core modules
+        "<node_internals>/**",
+
+        // Ignore all dependencies (optional)
+        "${workspaceFolder}/node_modules/**"
+      ]
+    }
+  ]
+}

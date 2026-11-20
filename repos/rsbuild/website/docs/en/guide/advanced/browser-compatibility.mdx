@@ -1,0 +1,243 @@
+---
+description: 'Browser compatibility guide covering key concepts, configuration, and practical usage in Rsbuild.'
+---
+
+# Browser compatibility
+
+Rsbuild supports [modern browsers](/guide/advanced/browserslist#default-values) by default and provides syntax and API downgrade capabilities to ensure compatibility with legacy browsers that support ES5 (such as IE11).
+
+This chapter explains how to use Rsbuild's features to handle browser compatibility issues.
+
+## Set browserslist
+
+Before addressing compatibility issues, decide which browsers your project needs to support and add the corresponding browserslist config.
+
+- If you haven't set browserslist yet, please read the [Browserslist](/guide/advanced/browserslist) chapter first.
+
+- If you have set a browserslist, Rsbuild automatically compiles code to match that scope, downgrades JavaScript and CSS syntax, and injects required polyfills. In most cases, you can safely use modern ECMAScript features without worrying about compatibility.
+
+After setting the browserslist, if you still encounter compatibility issues, continue reading to find solutions.
+
+:::tip What is polyfill
+A polyfill is code that provides newer features to older browsers that don't support them natively. It fills gaps in older implementations of web standards, letting developers use modern features without worrying about whether they'll work in legacy browsers. For example, if a browser doesn't support the `Array.prototype.flat()` method, a polyfill can add that functionality so code using `Array.prototype.flat()` still runs. Polyfills are commonly used to keep web applications working across a wide range of browsers, including older ones.
+:::
+
+## Background knowledge
+
+Before you tackle compatibility issues, review the following background so you can address them effectively.
+
+### Syntax downgrade and API downgrade
+
+When you use higher-version syntax and APIs in your project, you need to downgrade two parts to make the compiled code run reliably in older browsers: syntax and APIs.
+
+**Rsbuild downgrades syntax through transpilation and downgrades APIs through polyfill injection.**
+
+> Syntax and APIs are not tightly coupled. Browser vendors ship syntax or APIs at different times based on specifications and their own priorities, so browsers released in the same period may not support the same syntax or APIs. In practice, syntax and APIs are handled separately.
+
+### Syntax transpilation
+
+**Syntax is a set of rules for how a programming language organizes code**. Code that doesn't follow these rules cannot be correctly recognized by the programming language's engine and therefore cannot run. In JavaScript, the following are examples of syntax rules:
+
+- In `const foo = 1`, `const` means to declare an immutable constant.
+- In `foo?.bar?.baz`, `?.` indicates optional chaining of access properties.
+- In `async function () {}`, `async` means to declare an asynchronous function.
+
+Because different browser parsers support different syntax, and older engines support even less, certain syntax can trigger errors when older browsers try to parse the AST.
+
+For example, the following code will cause an error in IE or an older version of Node.js:
+
+```js
+const foo = {};
+foo?.bar();
+```
+
+When this code runs in an older version of Node.js, the following error message appears:
+
+```bash
+SyntaxError: Unexpected token.
+   at Object.exports.runInThisContext (vm.js:73:16)
+   at Object.<anonymous> ([eval]-wrapper:6:22)
+   at Module._compile (module.js:460:26)
+   at evalScript (node.js:431:25)
+   at startup (node.js:90:7)
+   at node.js:814:3
+```
+
+The error makes it clear that this is a syntax issue, meaning older versions of the engine do not support this syntax.
+
+**Syntax cannot be supported by polyfills or shims**. To run syntax that's not originally supported in an older browser, you need to transpile the code into syntax the older engine can support.
+
+Transpile the above code into the following to run in older engines:
+
+```js
+var foo = {};
+foo === null || foo === void 0 ? void 0 : foo.bar();
+```
+
+After transpilation, the syntax of the code has changed, and syntax the older engine cannot understand has been replaced with syntax it can understand, **but the meaning of the code itself hasn't changed**.
+
+If the engine encounters unrecognized syntax when converting to AST, it will report a syntax error and abort execution. In this case, if your project doesn't use capabilities like SSR or SSG, the page will be blank and unusable.
+
+If the code is successfully converted to AST, the engine will convert it into executable code and run it normally.
+
+### API polyfill
+
+JavaScript is an interpreted scripting language, unlike compiled languages like Rust. Rust checks function calls during compilation, but JavaScript doesn't know whether a function exists until it runs that line of code, so some errors only appear at runtime.
+
+For example:
+
+```js
+var str = 'Hello world!';
+console.log(str.notExistedMethod());
+```
+
+The above code uses valid syntax and can be converted to an AST during the first stage of engine runtime, but when it actually runs, the method `notExistedMethod` does not exist on `String.prototype`, so an error is reported:
+
+```bash
+Uncaught TypeError: str.notExistedMethod is not a function
+   at <anonymous>:2:17
+```
+
+With ECMAScript iterations, new methods are added to built-in objects. For example, `String.prototype.replaceAll` was introduced in ES2021. The `replaceAll` method doesn't exist in `String.prototype` of most browser engines before 2021, so the following code works in the latest Chrome but not in earlier versions:
+
+```js
+'abc'.replaceAll('abc', 'xyz');
+```
+
+To address the lack of `replaceAll` in older browsers, we can extend the `String.prototype` object and add the `replaceAll` method to it. For example:
+
+```js
+// The implementation of this polyfill does not necessarily conform to the standard, it is only used as an example.
+if (!String.prototype.replaceAll) {
+  String.prototype.replaceAll = function (str, newStr) {
+    // If a regex pattern
+    if (Object.prototype.toString.call(str).toLowerCase() === '[object regexp]') {
+      return this.replace(str, newStr);
+    }
+    // If a string
+    return this.replace(new RegExp(str, 'g'), newStr);
+  };
+}
+```
+
+> This technique of providing implementations for legacy environments to align new APIs is called polyfill.
+
+## Compilation scope
+
+By default, Rsbuild uses [SWC](/guide/configuration/swc) to compile all JavaScript and TypeScript modules, excluding JavaScript modules in the `node_modules` directory.
+
+This approach is designed to avoid impacting build performance when downgrading all third-party dependencies while also preventing potential issues from redundantly downgrading pre-compiled third-party dependencies.
+
+### Source code
+
+The source code of the current project will be downgraded by default, so you don't need to add additional config, just make sure that the browserslist config is set correctly.
+
+### Third-party dependencies
+
+When you find that a third-party dependency causes compatibility issues, you can add this dependency to Rsbuild's [source.include](/config/source/include) config. This makes Rsbuild perform extra compilation for that dependency.
+
+Taking the npm package `query-string` as an example, you can add the following config:
+
+```ts title="rsbuild.config.ts"
+import path from 'node:path';
+
+export default {
+  source: {
+    include: [/node_modules[\\/]query-string[\\/]/],
+  },
+};
+```
+
+See [source.include](/config/source/include) for detailed usage.
+
+## Polyfills
+
+Rsbuild compiles JavaScript code using SWC and supports injecting polyfills such as [core-js](https://github.com/zloirock/core-js) and [@swc/helpers](https://npmjs.com/package/@swc/helpers).
+
+In different usage scenarios, you may need different polyfill solutions. Rsbuild provides [output.polyfill](/config/output/polyfill) config to switch between different polyfill modes.
+
+### Default behavior
+
+Rsbuild does not inject any polyfills by default:
+
+```ts
+export default {
+  output: {
+    polyfill: 'off',
+  },
+};
+```
+
+### Usage mode
+
+When you enable usage mode, Rsbuild will analyze the source code in the project and determine which polyfills need to be injected.
+
+For example, the code uses the `Map` object:
+
+```js
+var b = new Map();
+```
+
+After compilation, only the polyfills for `Map` will be injected into this file:
+
+```js
+import 'core-js/modules/es.map';
+var b = new Map();
+```
+
+The advantage of this method is smaller injected polyfill size, which is suitable for projects with higher requirements on bundle size. The disadvantage is that polyfills may not be fully injected because third-party dependencies won't be compiled and downgraded by default, so the polyfills required by third-party dependencies won't be analyzed. If you need to analyze a third-party dependency, you also need to add it to [source.include](/config/source/include) config.
+
+The config of usage mode is:
+
+```ts
+export default {
+  output: {
+    polyfill: 'usage',
+  },
+};
+```
+
+### Entry mode
+
+When using entry mode, Rsbuild will analyze which `core-js` methods need to be injected according to the browserslist set for the current project and inject them into the entry file of each page. Polyfills injected this way are more comprehensive, eliminating concerns about polyfill issues in project source code and third-party dependencies. However, because some unused polyfill code is included, the bundle size may increase.
+
+The config of entry mode is:
+
+```ts
+export default {
+  output: {
+    polyfill: 'entry',
+  },
+};
+```
+
+### UA polyfill
+
+Cloudflare provides a [polyfill service](https://cdnjs.cloudflare.com/polyfill/) that automatically generates polyfill bundles based on the user's browser User-Agent.
+
+You can use the [html.tags](/config/html/tags) config of Rsbuild to inject scripts. For example, to inject a `<script>` tag at the beginning of the `<head>` tag:
+
+```ts
+export default {
+  html: {
+    tags: [
+      {
+        tag: 'script',
+        attrs: {
+          defer: true,
+          src: 'https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=default',
+        },
+        append: false,
+      },
+    ],
+  },
+};
+```
+
+### Missing polyfills
+
+It should be noted that core-js cannot provide polyfills for all JavaScript APIs. Some APIs cannot be fully simulated through polyfills due to the complexity of their underlying implementation or performance considerations.
+
+The most typical example is the `Proxy` object. Since `Proxy` requires engine-level support to implement object operation interception, its behavior cannot be fully simulated through pure JavaScript code, so core-js doesn't provide a polyfill for `Proxy`.
+
+See [core-js - Missing polyfills](https://github.com/zloirock/core-js#missing-polyfills) to understand which APIs core-js cannot provide polyfills for.

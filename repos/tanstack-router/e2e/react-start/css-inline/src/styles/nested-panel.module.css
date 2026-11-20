@@ -1,0 +1,11 @@
+.panel {
+  background: rgb(219, 234, 254);
+  border: 2px dashed rgb(37, 99, 235);
+  border-radius: 10px;
+  margin-top: 16px;
+  padding: 12px;
+}
+
+.label {
+  color: rgb(30, 64, 175);
+}

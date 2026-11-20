@@ -1,0 +1,184 @@
+{
+  "padding": {
+    "key": "padding",
+    "oneDesc": "布局 padding的配置"
+  },
+  "percent": {
+    "key": "percent",
+    "oneDesc": "是否对数据进行百分比处理"
+  },
+  "name": {
+    "key": "name",
+    "oneDesc": "系列名称"
+  },
+  "id": {
+    "key": "id",
+    "oneDesc": "用户自定义的 series id"
+  },
+  "animation": {
+    "key": "animation",
+    "oneDesc": "是否开启系列动画"
+  },
+  "stack": {
+    "key": "stack",
+    "oneDesc": "是否对数据进行堆叠处理"
+  },
+  "animationEnter": {
+    "key": "animationEnter",
+    "oneDesc": "数据更新 - 新增数据动画"
+  },
+  "animationUpdate": {
+    "key": "animationUpdate",
+    "oneDesc": "数据更新 - 数据更新动画"
+  },
+  "animationExit": {
+    "key": "animationExit",
+    "oneDesc": "数据更新 - 数据删除动画"
+  },
+  "dataIndex": {
+    "key": "dataIndex",
+    "oneDesc": "系列关联的数据索引"
+  },
+  "random": {
+    "key": "random",
+    "oneDesc": "是否开始随机摆放方向(顺时针｜逆时针), 主要用于spec测试"
+  },
+  "valueField": {
+    "key": "valueField",
+    "oneDesc": "权重字段"
+  },
+  "animationState": {
+    "key": "animationState",
+    "oneDesc": "状态切换动画"
+  },
+  "support3d": {
+    "key": "support3d",
+    "oneDesc": "是否支持3d视角"
+  },
+  "regionIndex": {
+    "key": "regionIndex",
+    "oneDesc": "系列关联的region索引"
+  },
+  "regionId": {
+    "key": "regionId",
+    "oneDesc": "系列关联的region id"
+  },
+  "totalLabel": {
+    "key": "totalLabel",
+    "oneDesc": "堆叠汇总标签"
+  },
+  "animationAppear": {
+    "key": "animationAppear",
+    "oneDesc": "图表入场动画\n支持配置图表内置不同动画效果"
+  },
+  "animationDisappear": {
+    "key": "animationDisappear",
+    "oneDesc": "图表退场动画"
+  },
+  "animationNormal": {
+    "key": "animationNormal",
+    "oneDesc": "循环动画"
+  },
+  "word": {
+    "key": "word",
+    "oneDesc": "具体一个词的样式配置。同时可以配置同时可以配置选中，hover等交互状态下的背景图元和对应鼠标的样式"
+  },
+  "fillingWord": {
+    "key": "fillingWord",
+    "oneDesc": "不增加formatMethod的原因：形状词云在做布局时，word和fillingWord用的是同一份数据，即text相同，所以fillingWords的format不会生效"
+  },
+  "wordMask": {
+    "key": "wordMask",
+    "oneDesc": "当形状词云的形状为文字类型和几何形状类型的时候，支持绘制形状轮廓"
+  },
+  "dataId": {
+    "key": "dataId",
+    "oneDesc": "系列关联的数据id"
+  },
+  "dataKey": {
+    "key": "dataKey",
+    "oneDesc": "dataKey用于绑定数据与Mark的关系, 该配置在动画中非常重要."
+  },
+  "seriesField": {
+    "key": "seriesField",
+    "oneDesc": "分组字段"
+  },
+  "stackOffsetSilhouette": {
+    "key": "stackOffsetSilhouette",
+    "oneDesc": "是否围绕中心轴偏移轮廓"
+  },
+  "invalidType": {
+    "key": "invalidType",
+    "oneDesc": "null，undefined等非法数据点连接方式。"
+  },
+  "extensionMark": {
+    "key": "extensionMark",
+    "oneDesc": "扩展mark"
+  },
+  "interactions": {
+    "key": "interactions",
+    "oneDesc": "其他需要按需注册的类型交互"
+  },
+  "nameField": {
+    "key": "nameField",
+    "oneDesc": "文本字段"
+  },
+  "fontFamilyField": {
+    "key": "fontFamilyField",
+    "oneDesc": "字体字段"
+  },
+  "fontWeightField": {
+    "key": "fontWeightField",
+    "oneDesc": "字重字段"
+  },
+  "fontStyleField": {
+    "key": "fontStyleField",
+    "oneDesc": "字体样式字段"
+  },
+  "colorHexField": {
+    "key": "colorHexField",
+    "oneDesc": "直接指定 hex 颜色字段"
+  },
+  "colorMode": {
+    "key": "colorMode",
+    "oneDesc": "颜色模式\nTODO: 'linear' 待支持"
+  },
+  "colorList": {
+    "key": "colorList",
+    "oneDesc": "颜色列表"
+  },
+  "rotateAngles": {
+    "key": "rotateAngles",
+    "oneDesc": "可旋转角度 随机取范围"
+  },
+  "fontWeightRange": {
+    "key": "fontWeightRange",
+    "oneDesc": "字重范围"
+  },
+  "fontSizeRange": {
+    "key": "fontSizeRange",
+    "oneDesc": "当valueField存在时，默认值[20,40]; 当valueField不存在时，默认值[10, 10]"
+  },
+  "maskShape": {
+    "key": "maskShape",
+    "oneDesc": "词云形状"
+  },
+  "keepAspect": {
+    "key": "keepAspect",
+    "oneDesc": "TODO: 缩放mask时是否保持比例"
+  },
+  "wordCloudConfig": {
+    "key": "wordCloudConfig",
+    "oneDesc": "词云特殊配置"
+  },
+  "wordCloudShapeConfig": {
+    "key": "wordCloudShapeConfig",
+    "oneDesc": "形状词云特殊配置"
+  },
+  "depth_3d": {
+    "key": "depth_3d"
+  },
+  "postProjection": {
+    "key": "postProjection"
+  }
+}

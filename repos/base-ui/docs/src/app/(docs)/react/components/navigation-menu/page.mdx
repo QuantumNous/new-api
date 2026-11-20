@@ -1,0 +1,185 @@
+# Navigation Menu
+
+<Subtitle>A collection of links and menus for website navigation.</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled React navigation menu component that displays a collection of links and menus for website navigation."
+/>
+
+import { DemoNavigationMenuHero } from './demos/hero';
+
+<DemoNavigationMenuHero />
+
+## Anatomy
+
+Import the component and assemble its parts:
+
+```jsx title="Anatomy"
+import { NavigationMenu } from '@base-ui/react/navigation-menu';
+
+<NavigationMenu.Root>
+  <NavigationMenu.List>
+    <NavigationMenu.Item>
+      <NavigationMenu.Trigger>
+        <NavigationMenu.Icon />
+      </NavigationMenu.Trigger>
+      <NavigationMenu.Content>
+        <NavigationMenu.Link />
+      </NavigationMenu.Content>
+    </NavigationMenu.Item>
+  </NavigationMenu.List>
+
+  <NavigationMenu.Portal>
+    <NavigationMenu.Backdrop />
+    <NavigationMenu.Positioner>
+      <NavigationMenu.Popup>
+        <NavigationMenu.Arrow />
+        <NavigationMenu.Viewport />
+      </NavigationMenu.Popup>
+    </NavigationMenu.Positioner>
+  </NavigationMenu.Portal>
+</NavigationMenu.Root>;
+```
+
+## Examples
+
+### Nested submenus
+
+`<NavigationMenu.Root>` component can be nested within a higher-level `<NavigationMenu.Content>` part to create a multi-level navigation menu.
+
+import { DemoNavigationMenuNested } from './demos/nested';
+
+<DemoNavigationMenuNested />
+
+### Nested inline submenus
+
+For second-level navigation that should stay in the same panel, omit the nested `<NavigationMenu.Portal>` and render only `List` + `Viewport` with a `defaultValue`.
+
+import { DemoNavigationMenuNestedInline } from './demos/nested-inline';
+
+<DemoNavigationMenuNestedInline />
+
+### Custom links
+
+The `<NavigationMenu.Link>` part can be customized to render the link from your framework using the `render` prop to enable client-side routing.
+
+```jsx title="Next.js example"
+// @highlight
+import NextLink from 'next/link';
+import { NavigationMenu } from '@base-ui/react/navigation-menu';
+
+function Link(props: NavigationMenu.Link.Props) {
+  return (
+    <NavigationMenu.Link
+      {/* @highlight */}
+      render={<NextLink href={props.href} />}
+      {...props}
+    />
+  );
+}
+```
+
+### Large menus
+
+When you have large menu content that doesn't fit in the viewport in some cases, you usually have two choices:
+
+1. Compress the navigation menu content
+
+You can change the layout of the navigation menu to render less content or be more compact by reducing the space it takes up.
+If your content is flexible, you can use the `max-height` property on `.Popup` to limit the height of the navigation menu to let it compress itself while preventing overflow.
+
+```css title="Compact layout"
+.Content,
+.Popup {
+  max-height: var(--available-height);
+}
+```
+
+2. Make the navigation menu scrollable
+
+```css title="Scrollable layout"
+.Content,
+.Popup {
+  max-height: var(--available-height);
+}
+
+.Content {
+  overflow-y: auto;
+}
+```
+
+Native scrollbars are visible while transitioning content, so we recommend using the [Scroll Area](/react/components/scroll-area) component instead of native scrollbars to keep them hidden, which also allows the `Arrow` to be centered correctly.
+
+## API reference
+
+import { TypesNavigationMenu } from './types';
+
+### Root
+
+<TypesNavigationMenu.Root />
+
+### List
+
+<TypesNavigationMenu.List />
+
+### Item
+
+<TypesNavigationMenu.Item />
+
+### Trigger
+
+<TypesNavigationMenu.Trigger />
+
+### Icon
+
+<TypesNavigationMenu.Icon />
+
+### Content
+
+<TypesNavigationMenu.Content />
+
+### Link
+
+<TypesNavigationMenu.Link />
+
+### Backdrop
+
+<TypesNavigationMenu.Backdrop />
+
+### Portal
+
+<TypesNavigationMenu.Portal />
+
+### Positioner
+
+<TypesNavigationMenu.Positioner />
+
+### Popup
+
+<TypesNavigationMenu.Popup />
+
+### Viewport
+
+<TypesNavigationMenu.Viewport />
+
+### Arrow
+
+<TypesNavigationMenu.Arrow />
+
+export const metadata = {
+  keywords: [
+    'React Navigation Menu',
+    'Navigation Menu Component',
+    'Mega Menu React',
+    'Dropdown Nav',
+    'Flyout Menu',
+    'Site Navigation',
+    'Navbar',
+    'Header Menu',
+    'Multi Level Navigation',
+    'Custom Link Menu',
+    'Scrollable Navigation Menu',
+    'Headless React Components',
+    'Base UI',
+  ],
+};

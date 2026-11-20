@@ -1,0 +1,147 @@
+---
+description: 'While Rsbuild optimizes build performance by default, performance issues can arise as your project grows.'
+---
+
+# Improve build performance
+
+While Rsbuild optimizes build performance by default, performance issues can arise as your project grows.
+
+This document provides optional optimization strategies to improve build performance.
+
+## Performance profiling
+
+Performance profiling helps identify bottlenecks in your project for targeted optimization.
+
+See the [Build Performance Analysis](/guide/debug/build-profiling) section.
+
+## General optimization
+
+These general optimization methods speed up both development and production builds.
+
+### Upgrade Rsbuild
+
+Upgrading to the latest version of Rsbuild gives you access to the latest performance optimizations. See [Upgrade Rsbuild](/guide/upgrade/upgrade-rsbuild) for more details.
+
+### Enable persistent cache
+
+Rsbuild provides a [performance.buildCache](/config/performance/build-cache) configuration that significantly improves rebuild speed.
+
+### React Compiler
+
+If your project uses React Compiler, enable Rsbuild's built-in Rust version of [React Compiler](/plugins/list/plugin-react#reactcompiler) instead of running React Compiler through Babel to reduce the performance overhead introduced by Babel.
+
+### Reduce module count
+
+Optimizing the number of modules in your application reduces bundle size and improves build performance. See [Bundle Size Optimization](/guide/optimization/optimize-bundle) to learn optimization strategies.
+
+### Parallel processing
+
+Some plugins support processing modules in parallel using worker threads. When enabled, modules are processed across multiple worker threads, reducing pressure on the main thread and improving overall build performance when compiling large numbers of modules.
+
+The following plugins support the `parallel` option:
+
+- [@rsbuild/plugin-babel - parallel](/plugins/list/plugin-babel#parallel): run Babel transformations in parallel.
+- [@rsbuild/plugin-less - parallel](/plugins/list/plugin-less#parallel): compile Less modules in parallel.
+- [@rsbuild/plugin-svgr - parallel](/plugins/list/plugin-svgr#parallel): transform SVG modules into React components in parallel.
+
+### Tool selection
+
+While Rsbuild delivers excellent build performance out of the box, certain JavaScript-based tools can negatively impact performance, particularly in large projects.
+
+- [@rsbuild/plugin-babel](/plugins/list/plugin-babel): This plugin uses Babel. We recommend using the more performant [SWC](/guide/configuration/swc) for code transformation instead.
+- [@rsbuild/plugin-less](/plugins/list/plugin-less): The Less compiler has relatively poor performance. Consider using [@rsbuild/plugin-sass](/plugins/list/plugin-sass) or other performant CSS solutions instead.
+- [@rsbuild/plugin-type-check](https://github.com/rstackjs/rsbuild-plugin-type-check): The default TypeScript-based type-checking approach has relatively poor performance. We recommend enabling experimental [typescript-go support](https://github.com/rstackjs/rsbuild-plugin-type-check#typescript-go-support) to improve type-checking performance.
+- [terser-webpack-plugin](https://www.npmjs.com/package/terser-webpack-plugin) or [minimizer-webpack-plugin](https://www.npmjs.com/package/minimizer-webpack-plugin): You can replace Terser with faster minimizers like Rsbuild's built-in [SWC](/guide/configuration/swc) minifier.
+
+### Optimize Tailwind CSS
+
+When using Tailwind CSS v3, incorrectly configuring the `content` field in `tailwind.config.js` can lead to poor build and HMR performance.
+
+See [Tailwind CSS v3 - Optimize build performance](/guide/styling/tailwindcss-v3#optimize-build-performance) for more details.
+
+## Development optimization
+
+These methods improve performance in development mode.
+
+### Enable lazy compilation
+
+Enabling lazy compilation significantly reduces the number of modules compiled during dev server startup, improving startup time.
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    lazyCompilation: true,
+  },
+};
+```
+
+> See [dev.lazyCompilation](/config/dev/lazy-compilation) for more information.
+
+### Enable native watcher
+
+Enabling Rspack's [native watcher](https://rspack.rs/config/experiments#experimentsnativewatcher) improves HMR performance in development mode.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: {
+      experiments: {
+        nativeWatcher: true,
+      },
+    },
+  },
+};
+```
+
+### Source map format
+
+To provide a good debugging experience, Rsbuild uses the `cheap-module-source-map` format in development mode by default. This is a high-quality source map format that comes with some performance overhead.
+
+You can improve build speed by adjusting the source map format using [output.sourceMap](/config/output/source-map).
+
+For example, to disable source maps:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    sourceMap: {
+      js: false,
+    },
+  },
+};
+```
+
+Or set the source map format to the fastest `eval` format in development mode:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    sourceMap: {
+      js: process.env.NODE_ENV === 'development' ? 'eval' : false,
+    },
+  },
+};
+```
+
+> For detailed differences between different source map formats, see [Rspack - devtool](https://rspack.rs/config/devtool).
+
+### Browserslist for development
+
+This strategy is similar to ["Adjust Browserslist"](/guide/optimization/optimize-bundle#adjust-browserslist), except you can set different browserslist configurations for development and production, reducing compilation overhead in development.
+
+For example, you can add the following config to `.browserslistrc` to target only the latest browsers in development while supporting a broader range in production:
+
+```yaml title=".browserslistrc"
+[production]
+chrome >= 107
+edge >= 107
+firefox >= 104
+safari >= 16
+
+[development]
+last 1 chrome version
+last 1 firefox version
+last 1 safari version
+```
+
+Note that this can lead to differences in build output between development and production modes.

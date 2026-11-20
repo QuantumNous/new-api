@@ -1,0 +1,31 @@
+{
+  "name": "tanstack-router-e2e-solid-basic-file-based",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3000",
+    "dev:e2e": "vite",
+    "build": "vite build && tsc --noEmit",
+    "preview": "vite preview",
+    "start": "vite",
+    "test:e2e": "pnpm run test:e2e:default",
+    "test:e2e:default": "rm -rf port*.txt; playwright test --project=chromium"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@tanstack/router-plugin": "workspace:^",
+    "@tanstack/solid-router": "workspace:^",
+    "@tanstack/solid-router-devtools": "workspace:^",
+    "redaxios": "^0.5.1",
+    "solid-js": "^1.9.10",
+    "tailwindcss": "^4.2.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.1",
+    "@tanstack/router-e2e-utils": "workspace:^",
+    "combinate": "^1.1.11",
+    "vite": "^8.0.14",
+    "vite-plugin-solid": "^2.11.11"
+  }
+}

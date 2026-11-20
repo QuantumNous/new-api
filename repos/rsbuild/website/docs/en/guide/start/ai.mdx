@@ -1,0 +1,101 @@
+---
+description: 'AI guide for Rsbuild covering Agent Skills, llms.txt, Markdown docs, and AGENTS.md context for coding assistants.'
+---
+
+import { PackageManagerTabs } from '@theme';
+
+# AI
+
+To help AI better understand Rsbuild's features, configuration, and best practices so it can provide more accurate assistance during day-to-day development and troubleshooting, Rsbuild provides the following capabilities:
+
+- [Agent Skills](#agent-skills)
+- [llms.txt](#llmstxt)
+- [Markdown docs](#markdown-docs)
+- [AGENTS.md](#agentsmd)
+
+## Agent Skills
+
+Agent Skills are domain-specific knowledge packs that can be installed into Agents, enabling them to give more accurate and professional suggestions or perform actions in specific scenarios.
+
+In the [rstackjs/agent-skills](https://github.com/rstackjs/agent-skills) repository, there are many skills for the Rstack ecosystem. The skills related to Rsbuild include:
+
+- [rsbuild-best-practices](https://github.com/rstackjs/agent-skills#rsbuild-best-practices): Rsbuild best practices.
+- [rsbuild-v2-upgrade](https://github.com/rstackjs/agent-skills#rsbuild-v2-upgrade): Upgrade a Rsbuild 1.x project to v2.
+- [migrate-to-rsbuild](https://github.com/rstackjs/agent-skills#migrate-to-rsbuild): Migrate webpack, Vite, Create React App, or Vue CLI projects to Rsbuild.
+- [storybook-rsbuild](https://github.com/rstackjs/agent-skills#storybook-rsbuild): Set up or migrate Storybook to use the Rsbuild builder.
+
+In coding agents that support skills, you can use the [skills](https://www.npmjs.com/package/skills) package to install a specific skill with the following command:
+
+<PackageManagerTabs command="skills add rstackjs/agent-skills --skill migrate-to-rsbuild" dlx />
+
+After installation, simply use natural language prompts to trigger the skill, for example:
+
+```
+Help me migrate this Vite project to Rsbuild
+```
+
+## llms.txt
+
+[llms.txt](https://llmstxt.org/) is a standard that helps LLMs discover and use project documentation. Rsbuild follows this standard and publishes the following two files:
+
+- [llms.txt](https://rsbuild.rs/llms.txt): A structured index file containing the titles, links, and brief descriptions of all documentation pages.
+
+```
+https://rsbuild.rs/llms.txt
+```
+
+- [llms-full.txt](https://rsbuild.rs/llms-full.txt): A full-content file that concatenates the complete content of every documentation page into a single file.
+
+```
+https://rsbuild.rs/llms-full.txt
+```
+
+You can choose the file that best fits your use case:
+
+- `llms.txt` is smaller and consumes fewer tokens, making it suitable for AI to fetch specific pages on demand.
+- `llms-full.txt` contains the complete documentation content, so AI doesn't need to follow individual links — ideal when you need AI to have a comprehensive understanding of Rsbuild, though it consumes more tokens and is best used with AI tools that support large context windows.
+
+## Markdown docs
+
+Every Rsbuild documentation page has a corresponding `.md` plain-text version that can be provided directly to AI. On any doc page, you can click “Copy Markdown” or “Copy Markdown Link” under the title to get the Markdown content or link.
+
+```
+https://rsbuild.rs/guide/start/index.md
+```
+
+Providing the Markdown link or content allows AI to focus on a specific chapter, which is useful for targeted troubleshooting or looking up a particular topic.
+
+## AGENTS.md
+
+When you create a new project with [create-rsbuild](https://www.npmjs.com/package/create-rsbuild), the generated project includes an `AGENTS.md` file. This file follows the [AGENTS.md](https://agents.md/) specification and provides key project information to Agents.
+
+Example `AGENTS.md` content:
+
+```markdown wrapCode
+# AGENTS.md
+
+You are an expert in JavaScript, Rsbuild, and web application development. You write maintainable, performant, and accessible code.
+
+## Commands
+
+- `npm run dev` - Start the dev server
+- `npm run build` - Build the app for production
+- `npm run preview` - Preview the production build locally
+
+## Docs
+
+- Rsbuild: https://rsbuild.rs/llms.txt
+- Rspack: https://rspack.rs/llms.txt
+```
+
+You can also customize it for your project, adding more details about the project structure, overall architecture, and other relevant information so Agents can better understand your project.
+
+::: tip
+
+If you are using Claude Code, you can create a `CLAUDE.md` file and reference the `AGENTS.md` file in it.
+
+```markdown title="CLAUDE.md"
+@AGENTS.md
+```
+
+:::

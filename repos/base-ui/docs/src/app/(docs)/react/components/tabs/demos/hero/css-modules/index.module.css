@@ -1,0 +1,145 @@
+.Root {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 20rem;
+}
+
+.List {
+  display: flex;
+  position: relative;
+  z-index: 1;
+  gap: 0.25rem;
+  margin-bottom: -1px;
+}
+
+.Tab {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  margin: 0;
+  outline: 0;
+  background: none;
+  color: oklch(43.9% 0 0deg);
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 400;
+  -webkit-user-select: none;
+  user-select: none;
+  white-space: nowrap;
+  word-break: keep-all;
+  padding-inline: 0.5rem;
+  padding-block: 0;
+  height: calc(2rem + 1px);
+
+  @media (prefers-color-scheme: dark) {
+    color: oklch(87% 0 0deg);
+  }
+
+  @media (hover: hover) {
+    &:hover {
+      color: oklch(14.5% 0 0deg);
+
+      @media (prefers-color-scheme: dark) {
+        color: white;
+      }
+    }
+  }
+
+  &[data-active] {
+    color: oklch(14.5% 0 0deg);
+
+    @media (prefers-color-scheme: dark) {
+      color: white;
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid oklch(14.5% 0 0deg);
+    outline-offset: -1px;
+
+    @media (prefers-color-scheme: dark) {
+      outline-color: white;
+    }
+  }
+}
+
+.Indicator {
+  box-sizing: border-box;
+  position: absolute;
+  z-index: -1;
+  left: 0;
+  top: 0;
+  translate: var(--active-tab-left);
+  width: var(--active-tab-width);
+  height: 100%;
+  transition-property: translate, width;
+  transition-duration: 150ms;
+  transition-timing-function: ease-in-out;
+  border-top: 1px solid oklch(14.5% 0 0deg);
+  border-inline: 1px solid oklch(14.5% 0 0deg);
+  background-color: white;
+
+  @media (prefers-color-scheme: dark) {
+    border-top: 1px solid white;
+    border-inline: 1px solid white;
+    background-color: oklch(14.5% 0 0deg);
+  }
+}
+
+.PanelViewport {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  min-height: 8rem;
+  border-inline: 1px solid oklch(14.5% 0 0deg);
+  border-block: 1px solid oklch(14.5% 0 0deg);
+
+  @media (prefers-color-scheme: dark) {
+    border-inline: 1px solid white;
+    border-block: 1px solid white;
+  }
+}
+
+.Panel {
+  box-sizing: border-box;
+  grid-area: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 1rem;
+
+  outline: 0;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  text-align: center;
+  color: oklch(14.5% 0 0deg);
+  background-color: white;
+
+  @media (prefers-color-scheme: dark) {
+    color: white;
+    background-color: oklch(14.5% 0 0deg);
+  }
+
+  &:focus-visible {
+    outline: 2px solid oklch(14.5% 0 0deg);
+    outline-offset: -1px;
+    z-index: 1;
+
+    @media (prefers-color-scheme: dark) {
+      outline-color: white;
+    }
+  }
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.Paragraph {
+  margin: 0;
+}

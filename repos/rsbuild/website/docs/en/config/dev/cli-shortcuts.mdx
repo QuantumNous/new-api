@@ -1,0 +1,129 @@
+---
+description: 'Customize CLI shortcuts by providing a function that receives the default shortcuts array and returns a new one.'
+---
+
+# dev.cliShortcuts
+
+- **Type:**
+
+```ts
+type CliShortcuts =
+  | boolean
+  | {
+      help?: boolean | string;
+      custom?: (shortcuts: CliShortcut[]) => CliShortcut[];
+    };
+```
+
+- **Default:** `true` when using Rsbuild CLI, `false` otherwise.
+- **Version:** `>= 1.0.11`
+
+Whether to enable CLI shortcuts.
+
+## All shortcuts
+
+Press `h + Enter` to show all shortcuts:
+
+```
+  Shortcuts:
+  c + enter  clear console
+  o + enter  open in browser
+  q + enter  quit process
+  r + enter  restart server
+  u + enter  show urls
+```
+
+## Example
+
+- Enable:
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    cliShortcuts: true,
+  },
+};
+```
+
+- Disable:
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    cliShortcuts: false,
+  },
+};
+```
+
+## Custom shortcuts
+
+The `custom` option can be used to customize shortcuts. Its value is a function that receives the default shortcuts array and returns a new shortcuts array.
+
+- Add custom shortcuts:
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    cliShortcuts: {
+      custom: (shortcuts) => {
+        return [
+          ...shortcuts,
+          {
+            key: 's',
+            description: 'say hello',
+            action: () => {
+              console.log('hello world!');
+            },
+          },
+        ];
+      },
+    },
+  },
+};
+```
+
+- Disable some shortcuts:
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    cliShortcuts: {
+      custom: (shortcuts) => {
+        return shortcuts.filter((shortcut) => shortcut.key !== 'o');
+      },
+    },
+  },
+};
+```
+
+## Print help
+
+`help` option can be used to control whether to print the help hint when the server is started, the default help hint is:
+
+```bash
+  ➜ press h + enter to show shortcuts
+```
+
+- Disable the help hint:
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    cliShortcuts: {
+      help: false,
+    },
+  },
+};
+```
+
+- Print a custom help hint:
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    cliShortcuts: {
+      help: 'type "h + enter" to view available commands',
+    },
+  },
+};
+```

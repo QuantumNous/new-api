@@ -1,0 +1,254 @@
+.InsetRoot {
+  border: 1px solid var(--track-border-color);
+  border-radius: 9999px;
+  background: var(--track-bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  .InsetRoot {
+    background: var(--color-gray-200);
+  }
+}
+
+.InsetControl {
+  position: relative;
+  z-index: 10;
+  box-sizing: border-box;
+  border-radius: 9999px;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.InsetTrack {
+  position: relative;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.InsetTrack[data-orientation='horizontal'] {
+  width: var(--h-track-width);
+  height: var(--h-track-height);
+}
+
+.InsetTrack[data-orientation='vertical'] {
+  width: var(--h-track-height);
+  height: var(--h-track-width);
+}
+
+.InsetIndicator {
+  background: var(--indicator-bg);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .InsetIndicator {
+    background: var(--color-gray-950);
+  }
+}
+
+.InsetIndicatorSingle[data-orientation='horizontal'] {
+  border-radius: 9999px 0 0 9999px;
+}
+
+.InsetIndicatorSingle[data-orientation='vertical'] {
+  border-radius: 0 0 9999px 9999px;
+}
+
+.InsetThumb {
+  z-index: 1;
+  width: calc(var(--thumb-radius) * 2);
+  height: calc(var(--thumb-radius) * 2);
+  border-radius: 9999px;
+  background: white;
+  -webkit-user-select: none;
+  user-select: none;
+  box-shadow: 0 0 3px 0 var(--color-gray-500);
+}
+
+.InsetThumb[data-dragging] {
+  box-shadow: 0 0 2px 1px var(--color-gray-500);
+}
+
+.InsetThumb:has(:focus-visible) {
+  outline: 2px solid var(--color-blue);
+}
+
+.DemoRoot {
+  --base-color: var(--color-blue);
+  --dragging-color: color-mix(in srgb, var(--base-color) 85%, white 15%);
+  --indicator-bg: var(--base-color);
+  --thumb-bg: var(--base-color);
+  --thumb-radius: 0.625rem;
+  --track-bg: var(--color-gray-200);
+  --track-height: 0.625rem;
+  --track-border-color: var(--color-gray-400);
+  --track-width: 6.25rem;
+}
+
+.DemoControl {
+  position: relative;
+  box-sizing: border-box;
+  width: var(--track-width);
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.DemoTrack {
+  width: var(--track-width);
+  height: var(--track-height);
+  border-radius: 9999px;
+  background: var(--track-bg);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.DemoIndicator {
+  background: var(--indicator-bg);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.DemoIndicatorSingle {
+  border-radius: 9999px 0 0 9999px;
+}
+
+.DemoIndicator[data-dragging] {
+  background: var(--dragging-color);
+}
+
+.DemoThumb {
+  z-index: 1;
+  width: calc(var(--thumb-radius) * 2);
+  height: calc(var(--thumb-radius) * 2);
+  border-radius: 9999px;
+  background: var(--indicator-bg);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.DemoThumb[data-dragging] {
+  background: var(--dragging-color);
+  box-shadow: 0 0 0 1px var(--dragging-color);
+}
+
+.DemoThumb:has(:focus-visible) {
+  outline: 2px solid var(--base-color);
+  outline-offset: 2px;
+}
+
+.RadixRoot {
+  position: relative;
+  display: flex;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.RadixRoot[data-orientation='horizontal'] {
+  align-items: center;
+  width: 240px;
+  height: 20px;
+}
+
+.RadixRoot[data-orientation='vertical'] {
+  justify-content: center;
+  width: 20px;
+  height: 240px;
+}
+
+.RadixControl {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: inherit;
+  height: inherit;
+}
+
+.RadixTrack {
+  border-radius: 9999px;
+  background: var(--black-a10);
+}
+
+.RadixTrack[data-orientation='horizontal'] {
+  width: inherit;
+  height: 3px;
+}
+
+.RadixTrack[data-orientation='vertical'] {
+  width: 3px;
+  height: inherit;
+}
+
+.RadixIndicator {
+  background: white;
+}
+
+.RadixIndicator[data-orientation='horizontal'] {
+  height: 100%;
+  border-radius: 9999px 0 0 9999px;
+}
+
+.RadixIndicator[data-orientation='vertical'] {
+  width: inherit;
+  border-radius: 0 0 9999px 9999px;
+}
+
+.RadixThumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  background: white;
+  box-shadow: 0 2px 10px var(--black-a7);
+}
+
+.RadixThumb:hover,
+.RadixThumb[data-dragging] {
+  background: var(--violet-3);
+}
+
+.RadixThumb:has(:focus-visible) {
+  outline: none;
+  box-shadow: 0 0 0 5px var(--black-a8);
+}
+
+.HeroRow {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4rem;
+  align-self: flex-start;
+  height: 400px;
+  margin-bottom: 2rem;
+  padding: 0 2rem;
+  background: linear-gradient(330deg, var(--purple-9) 0, var(--indigo-9) 100%);
+}
+
+.InsetGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(min-content, auto));
+  gap: 2rem;
+  align-self: flex-start;
+  margin-bottom: 2rem;
+}
+
+.InsetColumn {
+  display: grid;
+  align-content: center;
+  gap: 2rem;
+}
+
+.Caption {
+  align-self: flex-start;
+  margin-bottom: 1rem;
+}
+
+.DemoGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(min-content, auto));
+  gap: 2rem;
+  align-self: flex-start;
+}
