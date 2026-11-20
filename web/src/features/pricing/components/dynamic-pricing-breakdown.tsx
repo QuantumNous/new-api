@@ -65,6 +65,7 @@ import {
   pricingDisplayFallbackKey,
 } from '../lib/task-price-display'
 import type { BillingUsageSchema, BillingUsageUnit } from '../types'
+import { BillingExpressionDisclosure } from './billing-expression-disclosure'
 
 type DynamicPricingBreakdownProps = {
   modelName?: string
@@ -365,12 +366,7 @@ export function DynamicPricingBreakdown({
             </div>
           </div>
         )}
-        <div className='text-muted-foreground mb-1 text-[10px] font-medium tracking-wider uppercase'>
-          {t('Raw expression')}
-        </div>
-        <code className='text-muted-foreground block text-xs break-all'>
-          {expr}
-        </code>
+        <BillingExpressionDisclosure expression={expr} />
       </section>
     )
   }

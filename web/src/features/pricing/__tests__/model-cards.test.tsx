@@ -577,7 +577,7 @@ describe('model cards', () => {
     expect(screen.getByText(/480p · 5s ≈/)).toBeVisible()
   })
 
-  it('keeps an unrecognized expression visible with the special billing message', () => {
+  it('summarizes an unrecognized expression without displaying its source on cards', () => {
     const expression =
       'u("seconds") > 30 ? tier("long", u("seconds") * 0.3) : tier("short", u("seconds") * 0.4)'
     render(
@@ -591,7 +591,10 @@ describe('model cards', () => {
       />
     )
     expect(screen.getByText('Special billing expression')).toBeVisible()
-    expect(screen.getByText(expression)).toBeVisible()
+    expect(screen.queryByText(expression)).not.toBeInTheDocument()
+    expect(
+      screen.getByText('Prices vary by usage tier and request conditions')
+    ).toBeVisible()
   })
 
   it('keeps browsing and missing metric values available after the metrics request fails', async () => {
