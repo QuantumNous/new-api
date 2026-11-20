@@ -217,10 +217,13 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	}
 
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
+	imageUsage, _ := usage.(*dto.Usage)
 	if newAPIError != nil {
 		// reset status code 重置状态码
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
-		return newAPIError
+		if imageUsage == nil || !types.IsSkipRetryError(newAPIError) {
+			return newAPIError
+		}
 	}
 
 	// The log content shows the settled count: the count the handler derived
@@ -232,11 +235,11 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		imageN = common.QuotaRound(count)
 	}
 
-	if usage.(*dto.Usage).TotalTokens == 0 {
-		usage.(*dto.Usage).TotalTokens = 1
+	if imageUsage.TotalTokens == 0 {
+		imageUsage.TotalTokens = 1
 	}
-	if usage.(*dto.Usage).PromptTokens == 0 {
-		usage.(*dto.Usage).PromptTokens = 1
+	if imageUsage.PromptTokens == 0 {
+		imageUsage.PromptTokens = 1
 	}
 
 	quality := request.Quality
@@ -256,6 +259,6 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		logContent = append(logContent, common.NewMessage("Image count {{count}}", map[string]any{"count": imageN}))
 	}
 
-	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), logContent)
-	return nil
+	service.PostTextConsumeQuota(c, info, imageUsage, logContent)
+	return newAPIError
 }

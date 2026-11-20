@@ -27,6 +27,8 @@ type Adaptor interface {
 	ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error)
 	ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error)
 	DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error)
+	// On image routes, non-nil *dto.Usage with a skip-retry error means the
+	// upstream completed generation: settle usage before returning the error.
 	DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError)
 	GetModelList() []string
 	GetChannelName() string

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
@@ -19,7 +20,9 @@ import (
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/relay"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relaydto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -1666,18 +1669,28 @@ func imageProtocolTestOutcome(info *relaycommon.RelayInfo, status model.TaskStat
 // rendered by the plugin, `created` is host-filled, and response_format
 // b64_json inlines each URL while keeping the URL.
 func TestServeTaskPluginImageProtocolRendersImmediateResultAndInlinesBase64(t *testing.T) {
+	t.Setenv("CRYPTO_SECRET", common.CryptoSecret)
+	oldAddress, oldPublicAddress := system_setting.ServerAddress, system_setting.TaskPublicAddress
+	system_setting.ServerAddress, system_setting.TaskPublicAddress = "https://gateway.example", ""
+	t.Cleanup(func() { system_setting.ServerAddress, system_setting.TaskPublicAddress = oldAddress, oldPublicAddress })
 	for _, tc := range []struct {
 		name, responseFormat string
 		downloadErr          error
 		wantB64              []any
+		proxy                bool
 	}{
-		{"url", "", nil, []any{nil, nil}},
-		{"b64_json", "b64_json", nil, []any{"QUFB", "QUFB"}},
-		{"b64_json download failure keeps the URL", "b64_json", errors.New("blocked"), []any{nil, nil}},
+		{"url", "", nil, []any{nil, nil}, false},
+		{"proxy URL", "", nil, []any{nil, nil}, true},
+		{"proxy with Base64", "b64_json", nil, []any{"QUFB", "QUFB"}, true},
+		{"proxy on Base64 download failure", "b64_json", errors.New("blocked"), []any{nil, nil}, true},
+		{"b64_json", "b64_json", nil, []any{"QUFB", "QUFB"}, false},
+		{"b64_json download failure keeps the URL", "b64_json", errors.New("blocked"), []any{nil, nil}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			pinned := imageProtocolTestEndpoint(t)
 			c, recorder := newImageProtocolTestContext(tc.responseFormat)
+			common.SetContextKey(c, constant.ContextKeyChannelSetting, relaydto.ChannelSettings{ImageURLProxy: tc.proxy})
+			common.SetContextKey(c, constant.ContextKeyChannelId, 42)
 			deps := pluginProtocolTestDeps()
 			downloads := 0
 			deps.downloadImage = func(url string) (string, string, error) {
@@ -1701,7 +1714,17 @@ func TestServeTaskPluginImageProtocolRendersImmediateResultAndInlinesBase64(t *t
 			require.Len(t, data, 2)
 			for index, entry := range data {
 				item := entry.(map[string]any)
-				assert.Equal(t, fmt.Sprintf("https://cdn.example/%d.png", index+1), item["url"])
+				if tc.proxy {
+					link, parseErr := url.Parse(item["url"].(string))
+					require.NoError(t, parseErr)
+					assert.Equal(t, "gateway.example", link.Host)
+					target, tokenErr := service.ReadImageProxyToken(link.Query().Get("token"))
+					require.NoError(t, tokenErr)
+					assert.Equal(t, fmt.Sprintf("https://cdn.example/%d.png", index+1), target.URL)
+					assert.NotContains(t, recorder.Body.String(), "cdn.example")
+				} else {
+					assert.Equal(t, fmt.Sprintf("https://cdn.example/%d.png", index+1), item["url"])
+				}
 				assert.Equal(t, tc.wantB64[index], item["b64_json"])
 			}
 			if tc.responseFormat == "b64_json" {

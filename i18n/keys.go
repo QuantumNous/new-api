@@ -6,6 +6,14 @@ package i18n
 
 // Errors returned to AI clients
 const (
+	MsgImageProxyMethod         = "image_proxy.method"
+	MsgImageProxyInvalid        = "image_proxy.invalid"
+	MsgImageProxyUnavailable    = "image_proxy.unavailable"
+	MsgImageProxyDownloadFailed = "image_proxy.download_failed"
+	MsgImageProxyUnsupported    = "image_proxy.unsupported"
+	MsgImageProxyCreateFailed   = "image_proxy.create_failed"
+	MsgImageProxySecretRequired = "image_proxy.secret_required"
+
 	MsgDatabaseError          = "common.database_error"
 	MsgAuthUserBanned         = "auth.user_banned"
 	MsgTokenGetInfoFailed     = "token.get_info_failed"

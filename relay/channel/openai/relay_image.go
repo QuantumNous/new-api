@@ -41,12 +41,15 @@ func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	}
 
 	info.UpdateImageCount(openaiImageResponseCount(responseBody))
-
-	// 写入新的 response body
-	service.IOCopyBytesGracefully(c, resp, responseBody)
-
 	normalizeOpenAIUsage(&usageResp.Usage)
 	applyUsagePostProcessing(info, &usageResp.Usage, responseBody)
+
+	output, err := service.RewriteImageURLs(c, responseBody)
+	if err != nil {
+		return &usageResp.Usage, types.NewError(err, types.ErrorCodeBadResponseBody, types.ErrOptionWithSkipRetry())
+	}
+	service.IOCopyBytesGracefully(c, resp, output)
+
 	return &usageResp.Usage, nil
 }
 
@@ -141,6 +144,7 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 	usage := &dto.Usage{}
 	var lastStreamData []byte
 	var completedImages int64
+	var rewriteError *types.NewAPIError
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		raw := common.StringToByteSlice(data)
@@ -163,14 +167,22 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 				completedImages++
 			}
 		}
-		if err := writeOpenaiImageStreamChunk(c, raw); err != nil {
+		output, err := service.RewriteImageURLs(c, raw)
+		if err != nil {
+			rewriteError = types.NewError(err, types.ErrorCodeBadResponseBody)
+			sr.Stop(rewriteError)
+			return
+		}
+		if err := writeOpenaiImageStreamChunk(c, output); err != nil {
 			sr.Stop(err)
 		}
 	})
 
-	// StreamScannerHandler consumes the upstream [DONE]; re-emit it so the
-	// client still receives a terminal data: [DONE].
-	if info.StreamStatus != nil && info.StreamStatus.EndReason == relaycommon.StreamEndReasonDone {
+	// Report rewrite failures in-band to preserve settlement for generated images.
+	if rewriteError != nil {
+		_ = helper.ObjectData(c, gin.H{"error": rewriteError.ToOpenAIError(common.UpstreamAddresses(c)...)})
+		helper.Done(c)
+	} else if info.StreamStatus != nil && info.StreamStatus.EndReason == relaycommon.StreamEndReasonDone {
 		helper.Done(c)
 	}
 
@@ -329,7 +341,26 @@ func openaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 				return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 			}
 		}
-		if writeErr := helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: "image_generation.completed"}, payload.String()); writeErr != nil {
+		output := payload.String()
+		if service.ImageURLProxyEnabled(c) {
+			rewritten, err := service.RewriteImageURLs(c, common.StringToByteSlice(output))
+			if err != nil {
+				apiErr := types.NewError(err, types.ErrorCodeBadResponseBody)
+				openaiErr := apiErr.ToOpenAIError(common.UpstreamAddresses(c)...)
+				info.ReceivedResponseCount += emitted
+				if info.StreamStatus == nil {
+					info.StreamStatus = relaycommon.NewStreamStatus()
+				}
+				info.StreamStatus.RecordError(apiErr.Error())
+				info.StreamStatus.MarkFailed(string(apiErr.GetErrorCode()), openaiErr.Type, apiErr.StatusCode)
+				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonHandlerStop, apiErr)
+				_ = helper.ObjectData(c, gin.H{"error": openaiErr})
+				helper.Done(c)
+				return &usageResp.Usage, nil
+			}
+			output = string(rewritten)
+		}
+		if writeErr := helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: "image_generation.completed"}, output); writeErr != nil {
 			if info != nil && info.StreamStatus != nil {
 				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, writeErr)
 			}
