@@ -40,6 +40,7 @@ import { cn } from '@/lib/utils'
 import { PAYMENT_TYPES } from '../constants'
 import {
   formatCurrency,
+  getDefaultPaymentType,
   getDiscountLabel,
   getDiscountRateForPaymentType,
   getMatchedAmountDiscount,
@@ -85,6 +86,7 @@ interface RechargeFormCardProps {
   waffoMinTopup?: number
   onWaffoMethodSelect?: (method: WaffoPayMethod, index: number) => void
   enableWaffoPancakeTopup?: boolean
+  activePaymentType?: string
 }
 
 export function RechargeFormCard({
@@ -115,6 +117,7 @@ export function RechargeFormCard({
   waffoMinTopup,
   onWaffoMethodSelect,
   enableWaffoPancakeTopup,
+  activePaymentType,
 }: RechargeFormCardProps) {
   const { t } = useTranslation()
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
@@ -156,6 +159,10 @@ export function RechargeFormCard({
         (method) => !isStripePayment(method.type)
       )
   )
+  const resolvedPaymentType =
+    activePaymentType ?? getDefaultPaymentType(topupInfo)
+  const isStripeSelected =
+    isStripeOnly || isStripePayment(resolvedPaymentType)
   const redemptionEnabled = topupInfo?.enable_redemption !== false
 
   if (loading) {
@@ -244,7 +251,7 @@ export function RechargeFormCard({
                   <div className='grid grid-cols-2 gap-1.5 sm:gap-3 md:grid-cols-4'>
                     {presetAmounts.map((preset) => {
                       let discount = 1.0
-                      if (isStripeOnly) {
+                      if (isStripeSelected) {
                         discount = getDiscountRateForPaymentType(
                           preset.value,
                           topupInfo?.discount,
