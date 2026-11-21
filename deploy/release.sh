@@ -19,6 +19,9 @@ if ! docker info >/dev/null 2>&1; then
 fi
 compose=("${docker[@]}" compose --project-name sailq --env-file .env -f compose.yaml)
 
+health_url=
+[[ ! -s health-url ]] || read -r health_url < health-url
+
 if [[ $mode == build ]]; then
     build_dir=$(mktemp -d)
     trap 'rm -rf -- "$build_dir"' EXIT
@@ -56,7 +59,7 @@ image_id=$("${docker[@]}" image inspect --format '{{.Id}}' "sailq-new-api:$revis
 # Bring up and check data services before replacing the application.
 RELEASE_SHA=$revision "${compose[@]}" up -d --wait --wait-timeout 120 postgres redis
 if RELEASE_SHA=$revision "${compose[@]}" up -d --no-deps --no-build --pull never --wait --wait-timeout 150 new-api &&
-    { [[ -z ${DEPLOY_HEALTH_URL:-} ]] || curl --fail --silent --show-error --max-time 10 "$health_url" | grep -Eq '"success"[[:space:]]*:[[:space:]]*true'; }; then
+    { [[ -z $health_url ]] || curl --fail --silent --show-error --max-time 10 "$health_url" | grep -Eq '"success"[[:space:]]*:[[:space:]]*true'; }; then
     printf '%s\n' "$revision" > current.tmp
     mv current.tmp current
     log_release deployed
