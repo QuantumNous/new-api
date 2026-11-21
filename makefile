@@ -73,3 +73,11 @@ reset-setup:
 		echo "Start the dev stack with 'make dev-api', or set SQLITE_PATH/DEV_SQLITE_PATH to your local SQLite database."; \
 		exit 1; \
 	fi
+
+DEPLOY_HOST ?= sailq-prod
+VERSION ?=
+export DEPLOY_HOST VERSION
+
+.PHONY: deploy-prod
+deploy-prod:
+	@bash deploy/upload.sh
