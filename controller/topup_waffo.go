@@ -118,7 +118,7 @@ func RequestWaffoAmount(c *gin.Context) {
 		return
 	}
 
-	waffoMinTopup := int64(setting.WaffoMinTopUp)
+	waffoMinTopup := effectiveGatewayMinTopUpAmount(setting.WaffoMinTopUp)
 	if req.Amount < waffoMinTopup {
 		paymentError(c, common.NewMessage("Top-up amount cannot be less than {{min}}", map[string]any{"min": waffoMinTopup}))
 		return
@@ -155,7 +155,7 @@ func RequestWaffoPay(c *gin.Context) {
 		paymentError(c, common.NewMessage("Invalid parameters"))
 		return
 	}
-	waffoMinTopup := int64(setting.WaffoMinTopUp)
+	waffoMinTopup := effectiveGatewayMinTopUpAmount(setting.WaffoMinTopUp)
 	if req.Amount < waffoMinTopup {
 		paymentError(c, common.NewMessage("Top-up amount cannot be less than {{min}}", map[string]any{"min": waffoMinTopup}))
 		return
