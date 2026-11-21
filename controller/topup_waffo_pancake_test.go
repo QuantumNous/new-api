@@ -44,9 +44,9 @@ func TestGetWaffoPancakePayMoney(t *testing.T) {
 
 	setting.WaffoPancakeUnitPrice = 2.5
 	operation_setting.GetPaymentSetting().AmountDiscount = map[int]float64{
+		5:                            0,
 		10:                           0.8,
 		int(common.QuotaPerUnit * 3): 0.5,
-		20:                           0,
 	}
 	require.NoError(t, common.UpdateTopupGroupRatioByJSONString(`{"default":1,"vip":1.2}`))
 
@@ -73,10 +73,10 @@ func TestGetWaffoPancakePayMoney(t *testing.T) {
 		},
 		{
 			name:             "non-positive discount falls back to no discount",
-			amount:           20,
+			amount:           5,
 			group:            "default",
 			quotaDisplayType: operation_setting.QuotaDisplayTypeUSD,
-			expected:         50,
+			expected:         12.5,
 		},
 	}
 

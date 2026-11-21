@@ -37,11 +37,16 @@ import {
 import { formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
+import { PAYMENT_TYPES } from '../constants'
 import {
   formatCurrency,
+  getDefaultPaymentType,
   getDiscountLabel,
+  getDiscountRateForPaymentType,
+  getMatchedAmountDiscount,
   getPaymentIcon,
   getMinTopupAmount,
+  isStripePayment,
   calculatePresetPricing,
 } from '../lib'
 import type {
@@ -81,6 +86,7 @@ interface RechargeFormCardProps {
   waffoMinTopup?: number
   onWaffoMethodSelect?: (method: WaffoPayMethod, index: number) => void
   enableWaffoPancakeTopup?: boolean
+  activePaymentType?: string
 }
 
 export function RechargeFormCard({
@@ -111,6 +117,7 @@ export function RechargeFormCard({
   waffoMinTopup,
   onWaffoMethodSelect,
   enableWaffoPancakeTopup,
+  activePaymentType,
 }: RechargeFormCardProps) {
   const { t } = useTranslation()
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
@@ -141,6 +148,21 @@ export function RechargeFormCard({
   const hasWaffoPaymentMethods =
     Array.isArray(waffoPayMethods) && waffoPayMethods.length > 0
   const minTopup = getMinTopupAmount(topupInfo)
+  const isStripeOnly = Boolean(
+    topupInfo?.enable_stripe_topup &&
+      !topupInfo?.enable_online_topup &&
+      !enableWaffoTopup &&
+      !enableWaffoPancakeTopup &&
+      !topupInfo?.enable_waffo_topup &&
+      !topupInfo?.enable_waffo_pancake_topup &&
+      !(topupInfo?.pay_methods ?? []).some(
+        (method) => !isStripePayment(method.type)
+      )
+  )
+  const resolvedPaymentType =
+    activePaymentType ?? getDefaultPaymentType(topupInfo)
+  const isStripeSelected =
+    isStripeOnly || isStripePayment(resolvedPaymentType)
   const redemptionEnabled = topupInfo?.enable_redemption !== false
 
   if (loading) {
@@ -228,10 +250,21 @@ export function RechargeFormCard({
                   </Label>
                   <div className='grid grid-cols-2 gap-1.5 sm:gap-3 md:grid-cols-4'>
                     {presetAmounts.map((preset) => {
-                      const discount =
-                        preset.discount ||
-                        topupInfo?.discount?.[preset.value] ||
-                        1.0
+                      let discount = 1.0
+                      if (isStripeSelected) {
+                        discount = getDiscountRateForPaymentType(
+                          preset.value,
+                          topupInfo?.discount,
+                          PAYMENT_TYPES.STRIPE
+                        )
+                      } else if (preset.discount && preset.discount < 1) {
+                        discount = preset.discount
+                      } else {
+                        discount = getMatchedAmountDiscount(
+                          preset.value,
+                          topupInfo?.discount
+                        )
+                      }
                       const {
                         displayValue,
                         actualPrice,
