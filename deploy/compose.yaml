@@ -1,0 +1,55 @@
+services:
+  new-api:
+    image: sailq-new-api:${RELEASE_SHA:?Set RELEASE_SHA}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+    command: ["--log-dir", "/app/logs"]
+    environment:
+      SQL_DSN: postgresql://sailq:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/sailq
+      REDIS_CONN_STRING: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD}@redis:6379
+      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      SESSION_COOKIE_TRUSTED_URL: ${SESSION_COOKIE_TRUSTED_URL:-}
+    volumes:
+      - app_data:/data
+      - app_logs:/app/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/status | grep -Eq '\"success\"[[:space:]]*:[[:space:]]*true'"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sailq
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_DB: sailq
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "sailq", "-d", "sailq"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?Set REDIS_PASSWORD}
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?Set REDIS_PASSWORD}"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+volumes:
+  app_data:
+  app_logs:
+  pg_data:

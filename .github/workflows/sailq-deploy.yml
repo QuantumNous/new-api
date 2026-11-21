@@ -1,0 +1,56 @@
+name: Deploy SailQ
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: sailq-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main' && vars.SAILQ_AUTO_DEPLOY == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - name: Check current main revision
+        id: revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          latest=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)
+          [[ "$latest" == "$GITHUB_SHA" ]] || exit 0
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            merged=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" \
+              --jq '[.[] | select(.base.ref == "main" and .merged_at != null)] | length')
+            [[ "$merged" != 0 ]] || exit 0
+          fi
+          echo 'current=true' >> "$GITHUB_OUTPUT"
+      - name: Upload, build and deploy
+        if: steps.revision.outputs.current == 'true'
+        env:
+          DEPLOY_HOST: ${{ vars.SAILQ_DEPLOY_HOST }}
+          DEPLOY_KEY: ${{ secrets.SAILQ_DEPLOY_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.SAILQ_DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_SOURCE: github
+          DEPLOY_RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          : "${DEPLOY_KEY:?Missing deploy key}" "${DEPLOY_KNOWN_HOSTS:?Missing host key}"
+          install -d -m 700 ~/.ssh
+          umask 077
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          trap 'rm -f ~/.ssh/id_ed25519' EXIT
+          unset DEPLOY_KEY DEPLOY_KNOWN_HOSTS
+          bash deploy/upload.sh
