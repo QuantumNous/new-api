@@ -99,6 +99,7 @@ import { ChannelBalanceDetails } from './channel-balance-details'
 import { ChannelRowActionsLayoutContext } from './channel-row-actions-context'
 import { TaskPluginChannelBadge } from './channel-type-badge'
 import { useChannels } from './channels-provider'
+import { CodingPlanStatusBadge } from './coding-plan-status-badge'
 import { DataTableRowActions } from './data-table-row-actions'
 import { DataTableTagRowActions } from './data-table-tag-row-actions'
 import { BalanceQueryDialog } from './dialogs/balance-query-dialog'
@@ -995,13 +996,27 @@ export function useChannelsColumns(
         header: t('Status'),
         meta: { mobileBadge: true },
         cell: ({ row }) => {
-          const isTagRow = isTagAggregateRow(row.original)
           const status = row.getValue('status') as number
-          const channel = row.original as Channel
+          const channel = row.original
+          const tagRow = isTagAggregateRow(channel) ? channel : null
+          const firstPlan = tagRow
+            ? tagRow.children[0]?.coding_plan_status
+            : channel.coding_plan_status
+          const showsPlanStatus =
+            status === 1 &&
+            firstPlan &&
+            firstPlan.state !== 'available' &&
+            (!tagRow ||
+              tagRow.children.every(
+                (child) => child.coding_plan_status?.state === firstPlan.state
+              ))
+          if (showsPlanStatus) {
+            return <CodingPlanStatusBadge status={firstPlan} />
+          }
 
           // Tag row: show aggregated status
-          if (isTagRow) {
-            const childrenCount = (row.original as TagRow).children?.length || 0
+          if (tagRow) {
+            const childrenCount = tagRow.children.length
             const hasEnabled = status === 1
 
             if (hasEnabled) {

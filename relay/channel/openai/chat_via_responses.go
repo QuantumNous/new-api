@@ -36,6 +36,9 @@ func OaiResponsesToChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	if err := common.Unmarshal(body, &responsesResp); err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
+	if rejection := service.CodingPlanStreamRejection(c, string(body)); rejection != nil {
+		return nil, rejection
+	}
 
 	if oaiError := responsesResp.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
@@ -81,6 +84,10 @@ func OaiResponsesToChatBufferedStreamHandler(c *gin.Context, info *relaycommon.R
 				break
 			}
 			continue
+		}
+		if rejection := service.CodingPlanStreamRejection(c, data); rejection != nil {
+			streamErr = rejection
+			break
 		}
 
 		var streamResp dto.ResponsesStreamResponse
@@ -264,6 +271,11 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	}
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+		if rejection := service.CodingPlanStreamRejection(c, data); rejection != nil {
+			streamErr = rejection
+			stopStream(sr, rejection)
+			return
+		}
 		if streamErr != nil {
 			stopStream(sr, streamErr)
 			return

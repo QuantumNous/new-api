@@ -24,6 +24,7 @@ import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
 const channelsSearchSchema = z.object({
+  view: z.enum(['provider-quotas']).optional().catch(undefined),
   page: z.number().optional().catch(1),
   pageSize: z.number().optional().catch(undefined),
   filter: z.string().optional().catch(''),

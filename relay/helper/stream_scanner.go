@@ -221,6 +221,9 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 					func() {
 						writeMutex.Lock()
 						defer writeMutex.Unlock()
+						if service.IsCodingPlanRelay(c) && !c.Writer.Written() {
+							return
+						}
 						err = PingData(c)
 					}()
 					if err != nil {

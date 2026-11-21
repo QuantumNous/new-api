@@ -1,5 +1,7 @@
 package dto
 
+import "time"
+
 type ChannelPinSource string
 
 const (
@@ -36,6 +38,7 @@ type ChannelPin struct {
 type ChannelFilterKind string
 
 const (
+	FilterCodingPlan         ChannelFilterKind = "coding_plan"
 	FilterRequestPath        ChannelFilterKind = "request_path"
 	FilterTaskPluginEndpoint ChannelFilterKind = "task_plugin_endpoint"
 	FilterTaskPluginIdentity ChannelFilterKind = "task_plugin_identity"
@@ -43,11 +46,16 @@ const (
 )
 
 type ChannelFilter struct {
-	Kind                   ChannelFilterKind
-	RequestPath            string
-	TaskPluginKey          string
-	TaskPluginKeys         []string
-	TaskPluginChannelTypes []int
+	CodingPlanRetryAt       *time.Time
+	ExcludedCodingPlanPools []string
+	CodingPlanSeen          *bool
+	CodingPlanOnly          bool
+	ExcludedChannelIDs      []int
+	Kind                    ChannelFilterKind
+	RequestPath             string
+	TaskPluginKey           string
+	TaskPluginKeys          []string
+	TaskPluginChannelTypes  []int
 	// TaskPluginRelayOnly excludes endpoint candidates after an ordinary relay
 	// channel wins selection, so retries keep using the same protocol handler.
 	TaskPluginRelayOnly bool

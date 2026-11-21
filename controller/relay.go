@@ -33,6 +33,11 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+const (
+	codingPlanMinimumAttempts = 3
+	codingPlanRetryBudget     = 30 * time.Second
+)
+
 func relayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
 	var err *types.NewAPIError
 	switch info.RelayMode {
@@ -111,6 +116,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 				writeRelayStreamError(c, relayFormat, newAPIError)
 				return
 			}
+			if service.IsCodingPlanRelay(c) && newAPIError.StatusCode == http.StatusTooManyRequests && !c.Writer.Written() &&
+				c.Writer.Header().Get("Retry-After") == "" {
+				if delay := service.CodingPlanUpstreamRetryAfter(c); delay > 0 {
+					service.SetCodingPlanRetryHeader(c, time.Now().Add(delay))
+				}
+			}
 			if relayFormat != types.RelayFormatOpenAIRealtime {
 				c.Header("Content-Type", "application/json; charset=utf-8")
 			}
@@ -177,8 +188,14 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 	}()
 
+	managedPlan := service.IsCodingPlanRequest(c.Request.URL.Path) &&
+		common.GetContextKeyInt(c, constant.ContextKeyChannelType) == constant.ChannelTypeVolcEngine &&
+		constant.IsVolcenginePlanBaseURL(common.GetContextKeyString(c, constant.ContextKeyChannelBaseUrl))
+	if managedPlan {
+		service.SetCodingPlanAttempt(c, true)
+	}
 	generalSettings := operation_setting.GetGeneralSetting()
-	if relayFormat == types.RelayFormatClaude && relayInfo.IsStream && generalSettings.PingIntervalEnabled {
+	if relayFormat == types.RelayFormatClaude && relayInfo.IsStream && generalSettings.PingIntervalEnabled && !managedPlan {
 		stopKeepAlive := helper.StartStreamKeepAlive(c, time.Duration(generalSettings.PingIntervalSeconds)*time.Second)
 		defer stopKeepAlive()
 	}
@@ -197,19 +214,83 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		RequestPath: c.Request.URL.Path,
 		Retry:       common.GetPointer(0),
 	}
+	if service.IsCodingPlanRequest(retryParam.RequestPath) {
+		retryParam.CodingPlanFilter = &taskdto.ChannelFilter{Kind: taskdto.FilterCodingPlan}
+	}
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
+	statefulResponses := false
+	if request, ok := relayInfo.Request.(*dto.OpenAIResponsesRequest); ok {
+		conversation := strings.TrimSpace(string(request.Conversation))
+		statefulResponses = request.PreviousResponseID != "" || (conversation != "" && conversation != "null")
+	}
 
-	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
+	attemptLimit := common.RetryTimes + 1
+	var keyRetryChannel *model.Channel
+	var retryKey string
+	var retryKeyIndex int
+	var probeState string
+	var rejectedKeys []string
+	for attempt := 0; ; attempt++ {
+		if attempt > 0 {
+			retryParam.IncreaseRetry()
+			if service.IsCodingPlanRelay(c) {
+				service.SetCodingPlanRetryDeadline(c, relayInfo.StartTime.Add(codingPlanRetryBudget))
+			}
+		}
+		if service.IsCodingPlanRelay(c) {
+			if attempt >= attemptLimit || (attempt > 0 && time.Since(relayInfo.StartTime) >= codingPlanRetryBudget) {
+				break
+			}
+		} else if retryParam.GetRetry() > common.RetryTimes {
+			break
+		}
 		relayInfo.StreamStatus = nil
 		relayInfo.PerformanceBusinessRejection = false
 		relayInfo.PerformanceOutputTokens = 0
 		relayInfo.RetryIndex = retryParam.GetRetry()
-		channel, channelErr := getChannel(c, relayInfo, retryParam)
+		channel := keyRetryChannel
+		retryingKey := channel != nil
+		var channelErr *types.NewAPIError
+		if retryingKey {
+			keyRetryChannel = nil
+			common.SetContextKey(c, constant.ContextKeyChannelKey, retryKey)
+			common.SetContextKey(c, constant.ContextKeyChannelMultiKeyIndex, retryKeyIndex)
+			service.RequestPolicy(c).BeginAttempt(channel, relayInfo.UsingGroup)
+		} else {
+			channel, channelErr = getChannel(c, relayInfo, retryParam)
+			rejectedKeys = rejectedKeys[:0]
+			probeState = ""
+		}
 		if channelErr != nil {
+			if channelErr.StatusCode == http.StatusTooManyRequests {
+				service.SetCodingPlanRetryHeader(c, retryParam.CodingPlanRetryAt)
+			}
 			logger.LogError(c, channelErr.Error())
-			newAPIError = channelErr
+			if channelErr.GetErrorCode() != service.CodingPlanUnavailableCode || newAPIError == nil {
+				newAPIError = channelErr
+			}
 			break
+		}
+		pool := channel.CodingPlanPool()
+		planAttempt := pool != "" && retryParam.CodingPlanFilter != nil
+		service.SetCodingPlanAttempt(c, planAttempt)
+		if planAttempt && !retryingKey {
+			var allowed bool
+			probeState, allowed = model.AcquireCodingPlanProbe(c.Request.Context(), pool)
+			if !allowed {
+				newAPIError = types.NewErrorWithStatusCode(errors.New(i18n.T(c, i18n.MsgRelayCodingPlanUnavailable)), service.CodingPlanUnavailableCode, http.StatusTooManyRequests)
+				retryParam.CodingPlanFilter.CodingPlanOnly = true
+				retryParam.CodingPlanFilter.ExcludedCodingPlanPools = append(retryParam.CodingPlanFilter.ExcludedCodingPlanPools, pool)
+				attemptLimit = max(attemptLimit, codingPlanMinimumAttempts)
+				if _, pinned, _ := service.GetChannelConstraints(c).ResolvedPin(); pinned || service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
+					break
+				}
+				// The next attempt must perform selection even if the initial channel
+				// was skipped before the adaptor initialized its metadata.
+				relayInfo.InitChannelMeta(c)
+				continue
+			}
 		}
 		service.AppendUsedChannel(c, channel.Id)
 		if billingErr := service.PrepareTieredBillingForSelectedGroup(c, relayInfo); billingErr != nil {
@@ -245,6 +326,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		finishReply()
 
 		if newAPIError == nil {
+			if planAttempt && (relayInfo.StreamStatus == nil || (relayInfo.StreamStatus.IsNormalEnd() && !relayInfo.StreamStatus.HasErrors() && !relayInfo.StreamStatus.ResponseFailed())) {
+				model.CompleteCodingPlanProbe(c.Request.Context(), pool, probeState)
+			}
 			service.MarkRequestPolicySuccess(c, relayInfo.StreamStatus)
 			relayInfo.LastError = nil
 			return
@@ -253,9 +337,45 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
 		relayInfo.LastError = newAPIError
 
-		decision := service.DecideRelayRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry())
+		quotaRejected := service.IsCodingPlanQuotaRejection(c, newAPIError)
+		if planAttempt {
+			attemptLimit = max(attemptLimit, codingPlanMinimumAttempts)
+			retryParam.CodingPlanFilter.CodingPlanOnly = true
+			if quotaRejected {
+				model.CoolDownCodingPlan(pool, service.CodingPlanUpstreamRetryAfter(c))
+			}
+		}
+		remaining := common.RetryTimes - retryParam.GetRetry()
+		if service.IsCodingPlanRelay(c) {
+			remaining = attemptLimit - attempt - 1
+		}
+		decision := service.DecideRelayRetry(c, newAPIError, remaining)
+		if service.IsCodingPlanRelay(c) && statefulResponses && decision.Action == "retry" {
+			decision = service.PolicyDecision{Action: "stop", Reason: "upstream_response_state", Source: "system"}
+		}
+		upstreamStatus := service.CodingPlanUpstreamStatus(c)
+		key := common.GetContextKeyString(c, constant.ContextKeyChannelKey)
+		if decision.Action == "retry" && planAttempt && !quotaRejected && channel.ChannelInfo.IsMultiKey && remaining > 0 {
+			switch upstreamStatus {
+			case http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests:
+				rejectedKeys = append(rejectedKeys, key)
+				if nextKey, index, keyErr := channel.GetNextEnabledKeyExcluding(rejectedKeys); keyErr == nil {
+					keyRetryChannel = channel
+					retryKey, retryKeyIndex = nextKey, index
+				}
+			}
+		}
 		service.RecordPolicyFailure(c, channel.Id, newAPIError, decision)
-		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError, relayInfo)
+		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, key, channel.GetAutoBan()), newAPIError, relayInfo)
+
+		if keyRetryChannel == nil && service.IsCodingPlanRelay(c) && retryParam.CodingPlanFilter != nil {
+			retryParam.CodingPlanFilter.ExcludedChannelIDs = append(retryParam.CodingPlanFilter.ExcludedChannelIDs, channel.Id)
+		}
+		if keyRetryChannel == nil && planAttempt && !quotaRejected {
+			if upstreamStatus == http.StatusTooManyRequests || upstreamStatus >= 500 || service.CodingPlanDialFailed(c) {
+				channel.CoolDownCodingPlanChannel(service.CodingPlanUpstreamRetryAfter(c))
+			}
+		}
 
 		if decision.Action != "retry" {
 			break
@@ -280,6 +400,13 @@ func writeRelayStreamError(c *gin.Context, format types.RelayFormat, apiError *t
 	upstreamURLs := common.UpstreamAddresses(c)
 	if format == types.RelayFormatClaude {
 		_ = helper.ClaudeData(c, dto.ClaudeResponse{Type: "error", Error: apiError.ToClaudeError(upstreamURLs...)})
+		return
+	}
+	if format == types.RelayFormatOpenAIResponses {
+		openAIError := apiError.ToOpenAIError(upstreamURLs...)
+		if event, err := common.Marshal(gin.H{"type": "error", "code": openAIError.Code, "message": openAIError.Message}); err == nil {
+			_ = helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: "error"}, string(event))
+		}
 		return
 	}
 	_ = helper.ObjectData(c, gin.H{"error": apiError.ToOpenAIError(upstreamURLs...)})
@@ -327,6 +454,16 @@ var upgrader = websocket.Upgrader{
 
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
 	if info.ChannelMeta == nil {
+		if retryParam.CodingPlanFilter != nil &&
+			common.GetContextKeyInt(c, constant.ContextKeyChannelType) == constant.ChannelTypeVolcEngine &&
+			constant.IsVolcenginePlanBaseURL(common.GetContextKeyString(c, constant.ContextKeyChannelBaseUrl)) {
+			channel, err := model.CacheGetChannel(common.GetContextKeyInt(c, constant.ContextKeyChannelId))
+			if err != nil {
+				return nil, types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+			}
+			service.RequestPolicy(c).BeginAttempt(channel, info.UsingGroup)
+			return channel, nil
+		}
 		autoBan := c.GetBool("auto_ban")
 		autoBanInt := 1
 		if !autoBan {
@@ -344,6 +481,9 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
 	if err != nil {
 		return nil, types.NewError(errors.New(i18n.T(c, i18n.MsgRelayRetryGetChannelFailed, map[string]any{"Group": selectGroup, "Model": info.OriginModelName, "Error": err.Error()})), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+	}
+	if channel == nil && retryParam.CodingPlanUnavailable {
+		return nil, types.NewErrorWithStatusCode(errors.New(i18n.T(c, i18n.MsgRelayCodingPlanUnavailable)), service.CodingPlanUnavailableCode, http.StatusTooManyRequests, types.ErrOptionWithSkipRetry())
 	}
 	if channel == nil {
 		return nil, types.NewError(errors.New(i18n.T(c, i18n.MsgRelayRetryNoAvailableChannel, map[string]any{"Group": selectGroup, "Model": info.OriginModelName})), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())

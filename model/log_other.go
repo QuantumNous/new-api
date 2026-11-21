@@ -14,6 +14,7 @@ const (
 	logOtherRootInfoKey     = "root_info"
 	logOtherAuditInfoKey    = "audit_info"
 	logOtherContentPartsKey = "content_parts"
+	logOtherAgentPlanKeyRef = "agent_plan_key_ref"
 )
 
 // legacySensitiveLogOtherKeys are historical top-level fields that must never
@@ -37,10 +38,11 @@ const (
 // Its maps stay private so callers cannot accidentally place privileged fields
 // in the user-visible top level.
 type LogOther struct {
-	public    map[string]any
-	adminInfo map[string]any
-	rootInfo  map[string]any
-	auditInfo map[string]any
+	public          map[string]any
+	adminInfo       map[string]any
+	rootInfo        map[string]any
+	auditInfo       map[string]any
+	agentPlanKeyRef string
 }
 
 func NewLogOther() *LogOther {
@@ -49,7 +51,7 @@ func NewLogOther() *LogOther {
 
 func isReservedLogOtherKey(key string) bool {
 	switch key {
-	case logOtherAdminInfoKey, logOtherRootInfoKey, logOtherAuditInfoKey:
+	case logOtherAdminInfoKey, logOtherRootInfoKey, logOtherAuditInfoKey, logOtherAgentPlanKeyRef:
 		return true
 	default:
 		return slices.Contains(legacySensitiveLogOtherKeys, key)
@@ -158,6 +160,9 @@ func (o *LogOther) toMap() map[string]any {
 	}
 
 	maps.Copy(result, o.public)
+	if o.agentPlanKeyRef != "" {
+		result[logOtherAgentPlanKeyRef] = o.agentPlanKeyRef
+	}
 	if adminInfo := copyLogOtherMap(o.adminInfo); len(adminInfo) > 0 {
 		result[logOtherAdminInfoKey] = adminInfo
 	}
@@ -242,7 +247,8 @@ func formatLogOtherJSON(value string, visibility logOtherVisibility) string {
 		return "{}"
 	}
 
-	changed := false
+	_, changed := values[logOtherAgentPlanKeyRef]
+	delete(values, logOtherAgentPlanKeyRef)
 	if visibility == logOtherVisibilityUser {
 		for _, key := range []string{logOtherAdminInfoKey, logOtherRootInfoKey, logOtherAuditInfoKey} {
 			if _, exists := values[key]; exists {
@@ -257,7 +263,7 @@ func formatLogOtherJSON(value string, visibility logOtherVisibility) string {
 			}
 		}
 	} else {
-		changed = normalizeLegacyRejectReason(values)
+		changed = normalizeLegacyRejectReason(values) || changed
 		if visibility == logOtherVisibilityAdmin {
 			if _, exists := values[logOtherRootInfoKey]; exists {
 				delete(values, logOtherRootInfoKey)

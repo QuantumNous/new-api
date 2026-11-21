@@ -13,6 +13,7 @@ var filterEvalOrder = []dto.ChannelFilterKind{
 	dto.FilterTaskPluginEndpoint,
 	dto.FilterTaskPluginIdentity,
 	dto.FilterResponsesWebSocket,
+	dto.FilterCodingPlan,
 }
 
 // ChannelSatisfiesFilters reports whether ch passes every filter.
@@ -91,6 +92,28 @@ func candidatePassesKindFilters(ch *Channel, exists bool, modelName string, kind
 
 func channelMatchesFilter(ch *Channel, modelName string, filter dto.ChannelFilter) bool {
 	switch filter.Kind {
+	case dto.FilterCodingPlan:
+		if slices.Contains(filter.ExcludedChannelIDs, ch.Id) {
+			return false
+		}
+		if pool := ch.CodingPlanPool(); pool != "" {
+			if filter.CodingPlanSeen != nil {
+				*filter.CodingPlanSeen = true
+			}
+			if slices.Contains(filter.ExcludedCodingPlanPools, pool) {
+				return false
+			}
+			blocked, retryAt := CodingPlanBlocked(pool)
+			if !blocked {
+				blocked, retryAt = ch.CodingPlanChannelBlocked()
+			}
+			if blocked && !retryAt.IsZero() && filter.CodingPlanRetryAt != nil &&
+				(filter.CodingPlanRetryAt.IsZero() || retryAt.Before(*filter.CodingPlanRetryAt)) {
+				*filter.CodingPlanRetryAt = retryAt
+			}
+			return !blocked
+		}
+		return !filter.CodingPlanOnly
 	case dto.FilterRequestPath:
 		if filter.RequestPath == "" {
 			return true

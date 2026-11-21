@@ -66,7 +66,9 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		if httpResp.StatusCode != http.StatusOK {
 			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			// reset status code 重置状态码
-			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+			if !service.ObserveCodingPlanRejection(c, httpResp, newAPIError) {
+				service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+			}
 			return newAPIError
 		}
 	}
@@ -74,7 +76,9 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
 		// reset status code 重置状态码
-		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+		if !service.IsCodingPlanQuotaRejection(c, newAPIError) {
+			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+		}
 		return newAPIError
 	}
 

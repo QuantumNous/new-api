@@ -21,6 +21,12 @@ func DecideRelayRetry(c *gin.Context, err *types.NewAPIError, retryTimes int) Po
 	if err == nil {
 		return PolicyDecision{Action: "stop", Reason: "request_completed", Source: "system"}
 	}
+	if c.Request != nil && c.Request.Context().Err() != nil {
+		return PolicyDecision{Action: "stop", Reason: "request_cancelled", Source: "system"}
+	}
+	if IsCodingPlanRelay(c) && c.Writer != nil && c.Writer.Written() {
+		return PolicyDecision{Action: "stop", Reason: "response_committed", Source: "system"}
+	}
 	if ShouldSkipRetryAfterChannelAffinityFailure(c) {
 		source := RequestPolicy(c).SessionModeSource
 		if source == "" {
@@ -39,6 +45,15 @@ func DecideRelayRetry(c *gin.Context, err *types.NewAPIError, retryTimes int) Po
 	}
 	if retryTimes <= 0 {
 		return PolicyDecision{Action: "stop", Reason: "attempt_budget_exhausted", Source: "global"}
+	}
+	if IsCodingPlanRelay(c) && err.GetErrorCode() == types.ErrorCodeDoRequestFailed {
+		if CodingPlanDialFailed(c) {
+			return PolicyDecision{Action: "retry", Reason: "upstream_dial_failed", Source: "upstream"}
+		}
+		return PolicyDecision{Action: "stop", Reason: "upstream_acceptance_unknown", Source: "upstream"}
+	}
+	if IsCodingPlanQuotaRejection(c, err) {
+		return PolicyDecision{Action: "retry", Reason: "upstream_quota_exhausted", Source: "upstream"}
 	}
 	code := err.StatusCode
 	if code >= 200 && code < 300 {
@@ -66,7 +81,7 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 	}
 	upstreamURLs := common.UpstreamAddresses(c)
 	logger.LogError(c, common.LogText("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.MaskSensitiveErrorWithStatusCode(upstreamURLs...))))
-	if ShouldDisableChannel(err) && channelError.AutoBan {
+	if !IsCodingPlanQuotaRejection(c, err) && ShouldDisableChannel(err) && channelError.AutoBan {
 		reason := err.MaskSensitiveErrorWithStatusCode(upstreamURLs...)
 		gopool.Go(func() {
 			DisableChannel(channelError, reason)

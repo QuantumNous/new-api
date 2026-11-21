@@ -25,6 +25,7 @@ const (
 	SystemTaskTypeMidjourneyPoll = "midjourney_poll"
 	SystemTaskTypeAsyncTaskPoll  = "async_task_poll"
 	SystemTaskTypeChannelBalance = "channel_balance"
+	SystemTaskTypeAgentPlanQuota = "agent_plan_quota"
 	SystemTaskTypeCleanup        = "system_task_cleanup"
 
 	systemTaskCleanupBatchSize = 500
@@ -250,12 +251,15 @@ func DeleteSystemTaskHistory(filter SystemTaskFilter) (int64, error) {
 	return result.RowsAffected, result.Error
 }
 
-// GetLatestSystemTask returns the most recent task row of the given type
-// (any status) so the scheduler can decide whether enough time has elapsed
-// since the last run. Returns (nil, nil) when no row exists.
-func GetLatestSystemTask(taskType string) (*SystemTask, error) {
+// GetLatestSystemTask returns the most recent task row of the given type,
+// optionally restricted to the given statuses, or nil if no row matches.
+func GetLatestSystemTask(taskType string, statuses ...SystemTaskStatus) (*SystemTask, error) {
 	var task SystemTask
-	err := DB.Where("type = ?", taskType).Order("id desc").First(&task).Error
+	query := DB.Where("type = ?", taskType)
+	if len(statuses) > 0 {
+		query = query.Where("status IN ?", statuses)
+	}
+	err := query.Order("id desc").First(&task).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil

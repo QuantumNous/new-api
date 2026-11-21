@@ -89,9 +89,11 @@ var channelReadOnlyFields = map[string]struct{}{
 	"balance_updated_time": {},
 	"used_quota":           {},
 	"balance_detail":       {},
+	"coding_plan_status":   {},
 }
 
 func clearChannelReadOnlyFields(channel *PatchChannel, requestData map[string]any) {
+	channel.CodingPlanStatus = nil
 	if _, ok := requestData["created_time"]; ok {
 		channel.CreatedTime = 0
 	}

@@ -216,6 +216,23 @@ type ChannelSpecialBase struct {
 	OpenAIBaseURL string
 }
 
+const VolcengineCodingPlanPreset = "doubao-coding-plan"
+const VolcengineCodingPlanBaseURL = "https://ark.cn-beijing.volces.com/api/coding/v3"
+const VolcengineTokenPlanBaseURL = "https://ark.cn-beijing.volces.com/api/plan/v3"
+
+func IsVolcenginePlanBaseURL(baseURL string) bool {
+	return NormalizeVolcenginePlanBaseURL(baseURL) == VolcengineCodingPlanPreset || baseURL == VolcengineTokenPlanBaseURL
+}
+
+// NormalizeVolcenginePlanBaseURL resolves the published Coding Plan URL to the
+// existing preset so stored URLs and legacy preset names share one route.
+func NormalizeVolcenginePlanBaseURL(baseURL string) string {
+	if baseURL == VolcengineCodingPlanBaseURL {
+		return VolcengineCodingPlanPreset
+	}
+	return baseURL
+}
+
 var ChannelSpecialBases = map[string]ChannelSpecialBase{
 	"glm-coding-plan": {
 		ClaudeBaseURL: "https://open.bigmodel.cn/api/anthropic",
@@ -229,9 +246,13 @@ var ChannelSpecialBases = map[string]ChannelSpecialBase{
 		ClaudeBaseURL: "https://api.kimi.com/coding",
 		OpenAIBaseURL: "https://api.kimi.com/coding/v1",
 	},
-	"doubao-coding-plan": {
+	VolcengineCodingPlanPreset: {
 		ClaudeBaseURL: "https://ark.cn-beijing.volces.com/api/coding",
-		OpenAIBaseURL: "https://ark.cn-beijing.volces.com/api/coding/v3",
+		OpenAIBaseURL: VolcengineCodingPlanBaseURL,
+	},
+	VolcengineTokenPlanBaseURL: {
+		ClaudeBaseURL: "https://ark.cn-beijing.volces.com/api/plan",
+		OpenAIBaseURL: VolcengineTokenPlanBaseURL,
 	},
 }
 

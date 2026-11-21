@@ -315,6 +315,15 @@ const MODEL_MAPPING_PREVIEW_FALLBACK: Array<{
 
 const ADVANCED_CUSTOM_ROUTE_TYPE_PREVIEW_LIMIT = 3
 const UPSTREAM_DETECTED_MODEL_PREVIEW_LIMIT = 8
+const VOLCENGINE_DEFAULT_URL = 'https://ark.cn-beijing.volces.com'
+const VOLCENGINE_CODING_PLAN_URL = `${VOLCENGINE_DEFAULT_URL}/api/coding/v3`
+const VOLCENGINE_TOKEN_PLAN_URL = `${VOLCENGINE_DEFAULT_URL}/api/plan/v3`
+const VOLCENGINE_BASE_URLS = [
+  VOLCENGINE_DEFAULT_URL,
+  'https://ark.ap-southeast.bytepluses.com',
+  VOLCENGINE_CODING_PLAN_URL,
+  VOLCENGINE_TOKEN_PLAN_URL,
+]
 const SENSITIVE_FORM_FIELDS = [
   'type',
   'base_url',
@@ -650,6 +659,22 @@ export function ChannelMutateDrawer({
     : defaultBaseURLs?.[currentType] || t(FIELD_PLACEHOLDERS.BASE_URL)
   const currentStatus = formValues.status
   const currentBaseUrl = formValues.base_url
+  const normalizedVolcengineUrl = currentBaseUrl?.trim().replace(/\/+$/, '')
+  const isVolcengineCodingPlan =
+    currentType === 45 &&
+    (normalizedVolcengineUrl === VOLCENGINE_CODING_PLAN_URL ||
+      normalizedVolcengineUrl === 'doubao-coding-plan')
+  const isVolcengineTokenPlan =
+    currentType === 45 && normalizedVolcengineUrl === VOLCENGINE_TOKEN_PLAN_URL
+  let volcenginePlanUrl: string | undefined
+  if (isVolcengineCodingPlan) {
+    volcenginePlanUrl = VOLCENGINE_CODING_PLAN_URL
+  } else if (isVolcengineTokenPlan) {
+    volcenginePlanUrl = VOLCENGINE_TOKEN_PLAN_URL
+  }
+  const volcenginePlanMode = isVolcengineCodingPlan
+    ? 'coding_plan'
+    : 'token_plan'
   const currentTaskPluginKey = formValues.task_plugin_key
   const currentTaskExtendPluginKeys = formValues.task_extend_plugin_keys
   const currentKey = formValues.key
@@ -879,6 +904,17 @@ export function ChannelMutateDrawer({
   const keyAddModeOptions = pluginLogin
     ? addModeOptions.filter((option) => option.value !== 'batch')
     : addModeOptions
+  const credentialAddModeOptions: { value: string; label: string }[] =
+    keyAddModeOptions.map((option) => ({
+      value: option.value,
+      label: t(option.label),
+    }))
+  if (currentType === 45) {
+    credentialAddModeOptions.push(
+      { value: 'coding_plan', label: t('Coding Plan') },
+      { value: 'token_plan', label: t('Token Plan') }
+    )
+  }
 
   const selectProvider = useCallback(
     (target: ChannelProviderTarget) => {
@@ -927,6 +963,9 @@ export function ChannelMutateDrawer({
             shouldDirty: true,
           })
         }
+        if (volcenginePlanUrl) {
+          form.setValue('base_url', '', { shouldDirty: true })
+        }
         const baseUrl = nextTaskPluginBaseUrl(
           form.getValues('base_url'),
           previousPlugin?.baseUrl,
@@ -946,6 +985,9 @@ export function ChannelMutateDrawer({
         ) {
           return
         }
+        if (volcenginePlanUrl && target.type !== 45) {
+          form.setValue('base_url', '', { shouldDirty: true })
+        }
         form.setValue('type', target.type, { shouldDirty: true })
         if (!isEditing && !providerTarget && !form.getValues('name').trim()) {
           const label = CHANNEL_TYPE_OPTIONS.find(
@@ -962,6 +1004,7 @@ export function ChannelMutateDrawer({
       canEditSensitive,
       providerTarget,
       isEditing,
+      volcenginePlanUrl,
       form,
       t,
       taskPluginOptionsQuery.data,
@@ -1190,7 +1233,7 @@ export function ChannelMutateDrawer({
     if (currentType === 45) {
       const currentBaseUrlValue = form.getValues('base_url')
       if (!currentBaseUrlValue || currentBaseUrlValue === '') {
-        form.setValue('base_url', 'https://ark.cn-beijing.volces.com')
+        form.setValue('base_url', VOLCENGINE_DEFAULT_URL)
       }
     }
 
@@ -1202,15 +1245,6 @@ export function ChannelMutateDrawer({
       }
     }
   }, [currentType, isEditing, form])
-
-  useEffect(() => {
-    if (currentType !== 45 || currentBaseUrl !== 'doubao-coding-plan') return
-
-    form.setValue('base_url', 'https://ark.cn-beijing.volces.com', {
-      shouldDirty: false,
-      shouldValidate: true,
-    })
-  }, [currentBaseUrl, currentType, form])
 
   useEffect(() => {
     if (isEditing || supportsMultiKeyAddMode) return
@@ -1307,8 +1341,9 @@ export function ChannelMutateDrawer({
   // A plugin channel lists models when its plugin has relay routes. A plugin
   // that logs in has no credential before the channel is saved.
   const modelFetchable =
-    MODEL_FETCHABLE_TYPES.has(currentType) ||
-    (boundTaskPlugin?.provider === true && (isEditing || !pluginLogin))
+    !volcenginePlanUrl &&
+    (MODEL_FETCHABLE_TYPES.has(currentType) ||
+      (boundTaskPlugin?.provider === true && (isEditing || !pluginLogin)))
   const previewKey = isEditing ? undefined : currentKey
   const previewRequest = useMemo<ChannelModelDiscoveryRequest>(
     () => ({
@@ -4313,21 +4348,15 @@ export function ChannelMutateDrawer({
                     </FormLabel>
                     <Select
                       disabled={sensitiveLocked}
-                      items={[
-                        {
-                          value: 'https://ark.cn-beijing.volces.com',
-                          label: t('https://ark.cn-beijing.volces.com'),
-                        },
-                        {
-                          value: 'https://ark.ap-southeast.bytepluses.com',
-                          label: t('https://ark.ap-southeast.bytepluses.com'),
-                        },
-                      ]}
+                      items={VOLCENGINE_BASE_URLS.map((url) => ({
+                        value: url,
+                        label: url,
+                      }))}
                       onValueChange={field.onChange}
                       value={
-                        field.value === 'doubao-coding-plan'
-                          ? 'https://ark.cn-beijing.volces.com'
-                          : field.value || 'https://ark.cn-beijing.volces.com'
+                        volcenginePlanUrl ||
+                        field.value ||
+                        VOLCENGINE_DEFAULT_URL
                       }
                     >
                       <FormControl>
@@ -4337,12 +4366,11 @@ export function ChannelMutateDrawer({
                       </FormControl>
                       <SelectContent alignItemWithTrigger={false}>
                         <SelectGroup>
-                          <SelectItem value='https://ark.cn-beijing.volces.com'>
-                            {t('https://ark.cn-beijing.volces.com')}
-                          </SelectItem>
-                          <SelectItem value='https://ark.ap-southeast.bytepluses.com'>
-                            {t('https://ark.ap-southeast.bytepluses.com')}
-                          </SelectItem>
+                          {VOLCENGINE_BASE_URLS.map((url) => (
+                            <SelectItem key={url} value={url}>
+                              {url}
+                            </SelectItem>
+                          ))}
                         </SelectGroup>
                       </SelectContent>
                     </Select>
@@ -4556,12 +4584,34 @@ export function ChannelMutateDrawer({
                       </FormLabel>
                       <Select
                         disabled={sensitiveLocked}
-                        items={keyAddModeOptions.map((option) => ({
-                          value: option.value,
-                          label: t(option.label),
-                        }))}
-                        onValueChange={field.onChange}
-                        value={field.value}
+                        items={credentialAddModeOptions}
+                        onValueChange={(mode) => {
+                          if (mode === null) return
+                          let baseUrl: string | undefined
+                          if (mode === 'coding_plan') {
+                            baseUrl = VOLCENGINE_CODING_PLAN_URL
+                          } else if (mode === 'token_plan') {
+                            baseUrl = VOLCENGINE_TOKEN_PLAN_URL
+                          } else if (mode === 'single' && volcenginePlanUrl) {
+                            baseUrl = VOLCENGINE_DEFAULT_URL
+                          }
+                          if (baseUrl) {
+                            form.setValue('base_url', baseUrl, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            })
+                          }
+                          field.onChange(
+                            mode === 'coding_plan' || mode === 'token_plan'
+                              ? 'single'
+                              : mode
+                          )
+                        }}
+                        value={
+                          volcenginePlanUrl && field.value === 'single'
+                            ? volcenginePlanMode
+                            : field.value
+                        }
                       >
                         <FormControl>
                           <SelectTrigger size='sm' className='w-full sm:w-56'>
@@ -4570,12 +4620,12 @@ export function ChannelMutateDrawer({
                         </FormControl>
                         <SelectContent alignItemWithTrigger={false}>
                           <SelectGroup>
-                            {keyAddModeOptions.map((option) => (
+                            {credentialAddModeOptions.map((option) => (
                               <SelectItem
                                 key={option.value}
                                 value={option.value}
                               >
-                                {t(option.label)}
+                                {option.label}
                               </SelectItem>
                             ))}
                           </SelectGroup>
@@ -4642,6 +4692,9 @@ export function ChannelMutateDrawer({
                     }
 
                     let keyDescription: ReactNode = t(FIELD_DESCRIPTIONS.KEY)
+                    if (isVolcengineTokenPlan) {
+                      keyDescription = t('Use your Agent Plan API key')
+                    }
                     if (isEditing) {
                       let keyModeDescription = t(
                         'Append mode: New keys will be added to the end of the existing key list'

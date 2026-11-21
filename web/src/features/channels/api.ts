@@ -34,6 +34,7 @@ import type {
 } from './lib/plugin-login'
 import type {
   AddChannelRequest,
+  AgentPlanQuota,
   BatchDeleteParams,
   BatchSetTagParams,
   Channel,
@@ -858,4 +859,11 @@ export async function getPrefillGroups(
 }> {
   const res = await api.get('/api/prefill_group', { params: { type } })
   return res.data
+}
+
+export async function getProviderQuotas() {
+  const response = await api.get<{ success: boolean; data: AgentPlanQuota[] }>(
+    '/api/channel/agent_plan_quotas'
+  )
+  return response.data
 }
