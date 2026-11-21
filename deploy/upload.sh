@@ -15,17 +15,6 @@ if [[ -n $(git status --porcelain) ]]; then
 fi
 
 revision=$(git rev-parse HEAD)
-source=${DEPLOY_SOURCE:-manual}
-[[ $source == manual || $source == github ]] || exit 1
-if [[ $source == manual ]]; then
-    GIT_SSH_COMMAND='ssh -o BatchMode=yes -o StrictHostKeyChecking=yes' \
-        git push -- "$DEPLOY_HOST:sailq-deploy/source.git" "HEAD:refs/deploy/$revision"
-    ssh "${ssh_options[@]}" -- "$DEPLOY_HOST" "bash ~/sailq-deploy/release.sh checkout $revision"
-    exit
-fi
-
-run_number=${DEPLOY_RUN_NUMBER:-0}
-[[ $run_number =~ ^[0-9]+$ ]] || exit 1
-
-git archive --format=tar.gz "$revision" | ssh "${ssh_options[@]}" -- "$DEPLOY_HOST" \
-    "bash ~/sailq-deploy/release.sh build $revision $source $run_number"
+GIT_SSH_COMMAND='ssh -o BatchMode=yes -o StrictHostKeyChecking=yes' \
+    git push -- "$DEPLOY_HOST:sailq-deploy/source.git" "HEAD:refs/deploy/$revision"
+ssh "${ssh_options[@]}" -- "$DEPLOY_HOST" "bash ~/sailq-deploy/release.sh checkout $revision"

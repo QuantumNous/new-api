@@ -20,9 +20,6 @@ jobs:
     environment: production
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
-        with:
-          persist-credentials: false
       - name: Check current main revision
         id: revision
         env:
@@ -36,21 +33,20 @@ jobs:
             [[ "$merged" != 0 ]] || exit 0
           fi
           echo 'current=true' >> "$GITHUB_OUTPUT"
-      - name: Upload, build and deploy
+      - name: Build and deploy on SailQ
         if: steps.revision.outputs.current == 'true'
         env:
           DEPLOY_HOST: ${{ vars.SAILQ_DEPLOY_HOST }}
           DEPLOY_KEY: ${{ secrets.SAILQ_DEPLOY_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.SAILQ_DEPLOY_KNOWN_HOSTS }}
-          DEPLOY_SOURCE: github
-          DEPLOY_RUN_NUMBER: ${{ github.run_number }}
         run: |
           set -euo pipefail
-          : "${DEPLOY_KEY:?Missing deploy key}" "${DEPLOY_KNOWN_HOSTS:?Missing host key}"
+          : "${DEPLOY_HOST:?Missing deploy host}" "${DEPLOY_KEY:?Missing deploy key}" "${DEPLOY_KNOWN_HOSTS:?Missing host key}"
           install -d -m 700 ~/.ssh
           umask 077
           printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           trap 'rm -f ~/.ssh/id_ed25519' EXIT
           unset DEPLOY_KEY DEPLOY_KNOWN_HOSTS
-          bash deploy/upload.sh
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -- "$DEPLOY_HOST" \
+            "bash ~/sailq-deploy/release.sh checkout $GITHUB_SHA github $GITHUB_RUN_NUMBER"
