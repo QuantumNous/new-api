@@ -39,6 +39,7 @@ relay.group_saturated: "The current group is at capacity. Please try again later
 relay.group_upstream_saturated: "The upstream of the current group is at capacity. Please try again later"
 relay.retry_get_channel_failed: "Failed to get available channel for model {{.Model}} under group {{.Group}} (retry): {{.Error}}"
 relay.coding_plan_unavailable: "Coding Plan capacity is temporarily unavailable"
+relay.service_unavailable: "The service is temporarily unavailable. Please try again later."
 relay.retry_no_available_channel: "No available channel for model {{.Model}} under group {{.Group}} (retry)"
 relay.access_token_unsupported: "Access tokens are not supported here"
 relay.request_rejected: "Request rejected by policy"

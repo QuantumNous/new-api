@@ -40,6 +40,7 @@ relay.group_saturated: "目前分組負載已飽和，請稍後再試，或升�
 relay.group_upstream_saturated: "目前分組上游負載已飽和，請稍後再試"
 relay.retry_get_channel_failed: "獲取分組 {{.Group}} 下模型 {{.Model}} 的可用管道失敗（retry）：{{.Error}}"
 relay.coding_plan_unavailable: "程式設計方案額度暫不可用"
+relay.service_unavailable: "目前服務暫時無法使用，請稍後重試"
 relay.retry_no_available_channel: "分組 {{.Group}} 下模型 {{.Model}} 的可用管道不存在（retry）"
 relay.access_token_unsupported: "暫不支援使用 access token"
 relay.request_rejected: "請求被策略拒絕"

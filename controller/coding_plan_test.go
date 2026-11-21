@@ -67,9 +67,12 @@ func testCodingPlanFailover(t *testing.T, format types.RelayFormat, plan string)
 	db := modelManagementDB(t, dialect, dsn)
 	require.NoError(t, db.AutoMigrate(&model.Token{}, &model.Log{}, &model.UserSubscription{}))
 	oldBatch, oldConsume, oldRetry := common.BatchUpdateEnabled, common.LogConsumeEnabled, common.RetryTimes
+	oldErrorLog := constant.ErrorLogEnabled
 	common.BatchUpdateEnabled, common.LogConsumeEnabled, common.RetryTimes = false, true, 0
+	constant.ErrorLogEnabled = true
 	t.Cleanup(func() {
 		common.BatchUpdateEnabled, common.LogConsumeEnabled, common.RetryTimes = oldBatch, oldConsume, oldRetry
+		constant.ErrorLogEnabled = oldErrorLog
 	})
 	require.NoError(t, db.Create(&model.User{Id: 7, Username: "plan-user", Group: "default", Quota: 1_000_000}).Error)
 	require.NoError(t, db.Create(&model.Token{Id: 8, UserId: 7, Key: "consumer", UnlimitedQuota: true}).Error)
@@ -84,10 +87,8 @@ func testCodingPlanFailover(t *testing.T, format types.RelayFormat, plan string)
 	const modelName = "gpt-4o-mini"
 	withTieredBillingConfig(t, map[string]string{modelName: "tiered_expr"}, map[string]string{modelName: "p * 1.0 + c * 2.0"})
 	quotaCode := "QuotaExceeded"
-	quotaMessage := "Coding Plan quota exhausted"
 	if plan == constant.VolcengineTokenPlanBaseURL {
 		quotaCode = "QuotaExceeded.AgentPlanQuotaExceeded"
-		quotaMessage = "Agent Plan quota exhausted"
 	}
 	quotaBody := `{"error":{"code":"` + quotaCode + `","type":"TooManyRequests","message":"window exhausted"}}`
 	tag := "coding-plan:" + t.Name() + "/" + dialect
@@ -204,6 +205,7 @@ func testCodingPlanFailover(t *testing.T, format types.RelayFormat, plan string)
 	t.Cleanup(func() { *settings = oldSettings })
 	engine := gin.New()
 	engine.POST(requestPath, func(c *gin.Context) {
+		c.Set(common.UpstreamRequestIdKey, "internal-provider-request")
 		common.SetContextKey(c, constant.ContextKeyUserId, 7)
 		common.SetContextKey(c, constant.ContextKeyUserGroup, "default")
 		common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
@@ -222,6 +224,7 @@ func testCodingPlanFailover(t *testing.T, format types.RelayFormat, plan string)
 		recorder := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, requestPath, strings.NewReader(requestPayload))
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept-Language", "zh-CN")
 		engine.ServeHTTP(recorder, req)
 		return recorder
 	}
@@ -239,18 +242,44 @@ func testCodingPlanFailover(t *testing.T, format types.RelayFormat, plan string)
 	require.NoError(t, db.First(&user, 7).Error)
 	assert.Equal(t, 1_000_000-logs[0].Quota, user.Quota)
 
+	require.NoError(t, db.Model(&user).Update("quota", 0).Error)
+	quotaRejected := request()
+	assert.Equal(t, http.StatusForbidden, quotaRejected.Code, quotaRejected.Body.String())
+	assert.Contains(t, quotaRejected.Body.String(), "用户额度不足")
+	if format != types.RelayFormatClaude {
+		assert.Contains(t, quotaRejected.Body.String(), string(types.ErrorCodeInsufficientUserQuota))
+	}
+	assert.Equal(t, []string{"plan-a", "plan-b"}, attempts)
+	require.NoError(t, db.Model(&user).Update("quota", 1_000_000-logs[0].Quota).Error)
+
 	common.MemoryCacheEnabled = true
 	model.InitChannelCache()
 	planBExhausted = true
 	exhausted := request()
-	assert.Equal(t, http.StatusTooManyRequests, exhausted.Code, exhausted.Body.String())
+	const publicMessage = "当前服务暂不可用，请稍后重试"
+	for _, response := range []*httptest.ResponseRecorder{exhausted, request()} {
+		require.Equal(t, http.StatusServiceUnavailable, response.Code, response.Body.String())
+		var envelope struct {
+			Error struct {
+				Message string `json:"message"`
+				Type    string `json:"type"`
+				Code    string `json:"code"`
+			} `json:"error"`
+		}
+		require.NoError(t, common.Unmarshal(response.Body.Bytes(), &envelope))
+		assert.Equal(t, publicMessage, envelope.Error.Message)
+		if format == types.RelayFormatClaude {
+			assert.Equal(t, "service_unavailable", envelope.Error.Type)
+		} else {
+			assert.Equal(t, "service_unavailable", envelope.Error.Code)
+		}
+		assert.Empty(t, response.Header().Get("Retry-After"))
+	}
 	assert.Equal(t, []string{"plan-a", "plan-b", "plan-b"}, attempts)
-	assert.Equal(t, http.StatusTooManyRequests, request().Code)
 	t.Setenv("CODING_PLAN_PAID_FALLBACK_GROUPS", "default")
 	paid := request()
 	assert.Equal(t, http.StatusOK, paid.Code, paid.Body.String())
 	assert.Equal(t, []string{"plan-a", "plan-b", "plan-b", "paid"}, attempts)
-	require.NotEmpty(t, exhausted.Header().Get("Retry-After"))
 	clearChannelInfo(&channels[1])
 	require.NotNil(t, channels[1].CodingPlanStatus)
 	assert.Equal(t, "exhausted", channels[1].CodingPlanStatus.State)
@@ -294,10 +323,25 @@ func testCodingPlanFailover(t *testing.T, format types.RelayFormat, plan string)
 	interrupted := request()
 	assert.Equal(t, http.StatusOK, interrupted.Code)
 	assert.Contains(t, interrupted.Body.String(), "hello")
-	assert.Contains(t, interrupted.Body.String(), quotaMessage)
+	assert.Contains(t, interrupted.Body.String(), publicMessage)
+	assert.Contains(t, interrupted.Body.String(), "service_unavailable")
+	assert.NotContains(t, interrupted.Body.String(), quotaCode)
+	assert.NotContains(t, interrupted.Body.String(), "window exhausted")
 	assert.Equal(t, []string{"plan-partial"}, attempts)
 	require.NoError(t, db.Where("type = ? AND channel_id = ?", model.LogTypeConsume, partialChannel.Id).Find(&logs).Error)
 	assert.Empty(t, logs)
+	var internalFailure model.Log
+	require.NoError(t, db.Where("type = ? AND channel_id = ?", model.LogTypeError, partialChannel.Id).Take(&internalFailure).Error)
+	assert.Contains(t, internalFailure.Content, "quota exhausted")
+	assert.Contains(t, internalFailure.Other, quotaCode)
+	assert.Equal(t, "internal-provider-request", internalFailure.UpstreamRequestId)
+	userLogs, err := model.GetLogByTokenId(8)
+	require.NoError(t, err)
+	require.NotEmpty(t, userLogs)
+	assert.Equal(t, publicMessage, userLogs[0].Content)
+	assert.JSONEq(t, `{"error_code":"service_unavailable","status_code":503}`, userLogs[0].Other)
+	assert.Empty(t, userLogs[0].UpstreamRequestId)
+	assert.Zero(t, userLogs[0].ChannelId)
 
 	if format == types.RelayFormatOpenAIResponses {
 		rejectedContinuation := partialChannel

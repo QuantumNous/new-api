@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 
 	"gorm.io/gorm"
 )
@@ -113,11 +114,31 @@ func assignDisplayLogIds(logs []*Log, startIdx int) {
 }
 
 func formatUserLogs(logs []*Log, startIdx int) {
-	for i := range logs {
-		logs[i].ChannelName = ""
-		logs[i].Other = formatLogOtherJSON(logs[i].Other, logOtherVisibilityUser)
+	for _, log := range logs {
+		log.formatForUser()
 	}
 	assignDisplayLogIds(logs, startIdx)
+}
+
+func (log *Log) formatForUser() {
+	log.ChannelName = ""
+	if log.Type == LogTypeError {
+		value := gjson.Get(log.Other, logOtherAdminInfoKey+"."+logOtherPublicErrorKey)
+		if value.Exists() {
+			var publicError publicLogError
+			if err := common.UnmarshalJsonStr(value.Raw, &publicError); err == nil && publicError.Message != "" {
+				other := NewLogOther()
+				other.SetPublic("error_code", publicError.Code)
+				other.SetPublic("status_code", publicError.Status)
+				log.Content = publicError.Message
+				log.Other = other.JSONString()
+				log.UpstreamRequestId = ""
+				log.ChannelId = 0
+				return
+			}
+		}
+	}
+	log.Other = formatLogOtherJSON(log.Other, logOtherVisibilityUser)
 }
 
 // FormatAdminLogs removes root-only diagnostics while retaining operational
@@ -667,8 +688,7 @@ func StreamUserLogs(ctx context.Context, userId int, filter LogFilter, fn func(*
 	return streamLogs(tx, "logs.id desc", func(log *Log) error {
 		count++
 		log.Id = count
-		log.ChannelName = ""
-		log.Other = formatLogOtherJSON(log.Other, logOtherVisibilityUser)
+		log.formatForUser()
 		return fn(log)
 	})
 }

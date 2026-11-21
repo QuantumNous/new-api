@@ -82,8 +82,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	//originalModel := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
 
 	var (
-		newAPIError *types.NewAPIError
-		ws          *websocket.Conn
+		newAPIError           *types.NewAPIError
+		ws                    *websocket.Conn
+		codingPlanUnavailable bool
 	)
 
 	if relayFormat == types.RelayFormatOpenAIRealtime {
@@ -109,14 +110,20 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if newAPIError != nil {
 			service.RecordRequestPolicyTermination(c, newAPIError)
 			logger.LogError(c, common.LogText("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
-			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
+			responseError := newAPIError
+			if codingPlanUnavailable || newAPIError.GetErrorCode() == service.CodingPlanUnavailableCode || service.IsCodingPlanQuotaRejection(c, newAPIError) {
+				responseError = service.RelayServiceUnavailable(c)
+				c.Header("Retry-After", "")
+			} else {
+				responseError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
+			}
 			upstreamURLs := common.UpstreamAddresses(c)
 			if relayFormat != types.RelayFormatOpenAIRealtime && c.Writer.Written() &&
 				strings.HasPrefix(c.Writer.Header().Get("Content-Type"), "text/event-stream") {
-				writeRelayStreamError(c, relayFormat, newAPIError)
+				writeRelayStreamError(c, relayFormat, newAPIError, responseError)
 				return
 			}
-			if service.IsCodingPlanRelay(c) && newAPIError.StatusCode == http.StatusTooManyRequests && !c.Writer.Written() &&
+			if service.IsCodingPlanRelay(c) && responseError.StatusCode == http.StatusTooManyRequests && !c.Writer.Written() &&
 				c.Writer.Header().Get("Retry-After") == "" {
 				if delay := service.CodingPlanUpstreamRetryAfter(c); delay > 0 {
 					service.SetCodingPlanRetryHeader(c, time.Now().Add(delay))
@@ -127,15 +134,15 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			}
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
-				helper.WssError(c, ws, newAPIError.ToOpenAIError(upstreamURLs...))
+				helper.WssError(c, ws, responseError.ToOpenAIError(upstreamURLs...))
 			case types.RelayFormatClaude:
-				c.JSON(newAPIError.StatusCode, gin.H{
+				c.JSON(responseError.StatusCode, gin.H{
 					"type":  "error",
-					"error": newAPIError.ToClaudeError(upstreamURLs...),
+					"error": responseError.ToClaudeError(upstreamURLs...),
 				})
 			default:
-				c.JSON(newAPIError.StatusCode, gin.H{
-					"error": newAPIError.ToOpenAIError(upstreamURLs...),
+				c.JSON(responseError.StatusCode, gin.H{
+					"error": responseError.ToOpenAIError(upstreamURLs...),
 				})
 			}
 		}
@@ -263,11 +270,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			probeState = ""
 		}
 		if channelErr != nil {
-			if channelErr.StatusCode == http.StatusTooManyRequests {
-				service.SetCodingPlanRetryHeader(c, retryParam.CodingPlanRetryAt)
-			}
+			codingPlanUnavailable = channelErr.GetErrorCode() == service.CodingPlanUnavailableCode
 			logger.LogError(c, channelErr.Error())
-			if channelErr.GetErrorCode() != service.CodingPlanUnavailableCode || newAPIError == nil {
+			// Keep the last upstream error for diagnostics when reselection finds no route.
+			if !codingPlanUnavailable || newAPIError == nil {
 				newAPIError = channelErr
 			}
 			break
@@ -389,7 +395,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 }
 
-func writeRelayStreamError(c *gin.Context, format types.RelayFormat, apiError *types.NewAPIError) {
+func writeRelayStreamError(c *gin.Context, format types.RelayFormat, apiError, responseError *types.NewAPIError) {
 	// 心跳提交响应头后，最终错误继续通过同一个流返回。
 	status, _ := common.GetContextKeyType[*relaycommon.StreamStatus](c, constant.ContextKeyResponseStreamStatus)
 	if status == nil {
@@ -399,17 +405,17 @@ func writeRelayStreamError(c *gin.Context, format types.RelayFormat, apiError *t
 	status.MarkFailed(string(apiError.GetErrorCode()), string(apiError.GetErrorType()), apiError.StatusCode)
 	upstreamURLs := common.UpstreamAddresses(c)
 	if format == types.RelayFormatClaude {
-		_ = helper.ClaudeData(c, dto.ClaudeResponse{Type: "error", Error: apiError.ToClaudeError(upstreamURLs...)})
+		_ = helper.ClaudeData(c, dto.ClaudeResponse{Type: "error", Error: responseError.ToClaudeError(upstreamURLs...)})
 		return
 	}
 	if format == types.RelayFormatOpenAIResponses {
-		openAIError := apiError.ToOpenAIError(upstreamURLs...)
+		openAIError := responseError.ToOpenAIError(upstreamURLs...)
 		if event, err := common.Marshal(gin.H{"type": "error", "code": openAIError.Code, "message": openAIError.Message}); err == nil {
 			_ = helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: "error"}, string(event))
 		}
 		return
 	}
-	_ = helper.ObjectData(c, gin.H{"error": apiError.ToOpenAIError(upstreamURLs...)})
+	_ = helper.ObjectData(c, gin.H{"error": responseError.ToOpenAIError(upstreamURLs...)})
 	helper.Done(c)
 }
 

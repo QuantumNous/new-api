@@ -117,6 +117,17 @@ func Distribute() func(c *gin.Context) {
 				})
 			}
 			if selectErr != nil {
+				if selectErr.Code == service.CodingPlanUnavailableCode {
+					logger.LogError(c, common.LogText("channel selection failed (%s): %s", selectErr.Code, i18n.T(c, selectErr.MessageID)))
+					c.Header("Retry-After", "")
+					publicError := service.RelayServiceUnavailable(c)
+					if c.Request.URL.Path == "/v1/messages" {
+						c.AbortWithStatusJSON(publicError.StatusCode, gin.H{"type": "error", "error": publicError.ToClaudeError()})
+					} else {
+						c.AbortWithStatusJSON(publicError.StatusCode, gin.H{"error": publicError.ToOpenAIError()})
+					}
+					return
+				}
 				if selectErr.FilterKind == taskdto.FilterTaskPluginIdentity {
 					logTaskPluginChannelDecision(c, selectErr.Channel, modelRequest.Model, "channel_rejected", "identity_mismatch")
 				}

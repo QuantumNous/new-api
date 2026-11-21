@@ -109,6 +109,9 @@ func RecordRelayErrorLog(c *gin.Context, channelId int, err *types.NewAPIError, 
 	other.SetPublic("error_type", err.GetErrorType())
 	other.SetPublic("error_code", err.GetErrorCode())
 	other.SetPublic("status_code", err.StatusCode)
+	if err.GetErrorCode() == CodingPlanUnavailableCode || IsCodingPlanQuotaRejection(c, err) {
+		other.SetPublicError(RelayServiceUnavailable(c))
+	}
 	AppendRelayLogAdminInfo(c, relayInfo, other)
 	appendRequestPluginRecord(relayInfo, other)
 	AppendResponseModelLogInfo(relayInfo, other)

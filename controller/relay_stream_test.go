@@ -283,7 +283,7 @@ func TestRelayStreamErrorAfterKeepAlive(t *testing.T) {
 			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, "https://provider.example")
 			common.SetContextKey(c, constant.ContextKeyUpstreamRequestOrigin, "https://provider.example")
 			apiError := types.NewErrorWithStatusCode(errors.New("upstream rejected input at https://provider.example/v1/messages"), types.ErrorCodeBadResponseStatusCode, http.StatusBadRequest)
-			writeRelayStreamError(c, format, apiError)
+			writeRelayStreamError(c, format, apiError, apiError)
 			require.Equal(t, http.StatusOK, recorder.Code)
 			require.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
 			require.Contains(t, recorder.Body.String(), "upstream rejected input")

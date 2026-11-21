@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
 const (
@@ -15,7 +16,24 @@ const (
 	logOtherAuditInfoKey    = "audit_info"
 	logOtherContentPartsKey = "content_parts"
 	logOtherAgentPlanKeyRef = "agent_plan_key_ref"
+	logOtherPublicErrorKey  = "public_error"
 )
+
+type publicLogError struct {
+	Message string          `json:"message"`
+	Code    types.ErrorCode `json:"error_code"`
+	Status  int             `json:"status_code"`
+}
+
+// SetPublicError overrides the error shown to the log owner. Admin and root
+// views continue to show the original error and upstream request ID.
+func (o *LogOther) SetPublicError(err *types.NewAPIError) {
+	o.SetAdmin(logOtherPublicErrorKey, publicLogError{
+		Message: err.Error(),
+		Code:    err.GetErrorCode(),
+		Status:  err.StatusCode,
+	})
+}
 
 // legacySensitiveLogOtherKeys are historical top-level fields that must never
 // be written via SetPublic and must be stripped from user-visible projections.

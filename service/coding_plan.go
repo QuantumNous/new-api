@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -38,6 +39,15 @@ const (
 	CodingPlanUnavailableCode  types.ErrorCode = "coding_plan_unavailable"
 	codingPlanRetryDeadlineKey                 = "coding_plan_retry_deadline"
 )
+
+// RelayServiceUnavailable is the public error for unavailable service capacity.
+func RelayServiceUnavailable(c *gin.Context) *types.NewAPIError {
+	return types.WithOpenAIError(types.OpenAIError{
+		Message: i18n.T(c, i18n.MsgRelayServiceUnavailable),
+		Type:    "server_error",
+		Code:    "service_unavailable",
+	}, http.StatusServiceUnavailable)
+}
 
 const codingPlanRelayKey = "coding_plan_relay"
 const codingPlanRetryAfterKey = "coding_plan_retry_after"
