@@ -179,13 +179,13 @@ func TestTripoListAndFileUpload(t *testing.T) {
 	usage := callObject(t, plugin, "extractUsage", nil, map[string]any{"requestBody": uploaded["requestBody"]})
 	assert.Equal(t, float64(0), usage["credits"])
 
-	_, imageErr := plugin.Engine.CallPath(t.Context(), "native", []string{"uploadFile"}, map[string]any{
+	largeImage := callObject(t, plugin, "native", []string{"uploadFile"}, map[string]any{
 		"body": map[string]any{
 			"kind":  "multipart",
 			"files": []any{map[string]any{"field": "file", "ref": "request_file:file", "filename": "big.png", "mimeType": "image/png", "size": float64(21 * 1024 * 1024)}},
 		},
 	})
-	require.Error(t, imageErr)
+	assert.Equal(t, "submit", largeImage["kind"])
 
 	presigned := callObject(t, plugin, "parseSubmitResponse", nil, map[string]any{
 		"publicTaskId": "task_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",

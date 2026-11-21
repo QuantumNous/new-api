@@ -57,7 +57,6 @@ export const meta = {
 // pages. A request whose options are not in those tables holds this amount,
 // then settlement uses credits_consumed.
 const MAX_CREDITS = 105;
-const IMAGE_UPLOAD_BYTES = 20 * 1024 * 1024;
 const GATEWAY_TASK_ID = /^task_[0-9A-Za-z]{32}$/;
 
 const TASK_STATUS = {
@@ -343,12 +342,6 @@ function progressText(value) {
   return Math.round(number) + "%";
 }
 
-function imageUpload(file) {
-  const mime = String(file.mimeType || "").toLowerCase();
-  const name = String(file.filename || "").toLowerCase();
-  return mime === "image/jpeg" || mime === "image/png" || mime === "image/jpg" || /\.(png|jpe?g)$/.test(name);
-}
-
 function submitIntent(route, body) {
   const ids = [];
   collectTaskIds(body, ids);
@@ -369,7 +362,6 @@ export const native = {
     const files = (ctx.body.files || []).filter((file) => file && file.field === "file");
     if (files.length !== 1) throw new Error("file is required");
     const file = files[0];
-    if (imageUpload(file) && Number(file.size) > IMAGE_UPLOAD_BYTES) throw new Error("image file exceeds 20 MB");
     return {
       kind: "submit",
       model: "tripo",
