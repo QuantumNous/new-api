@@ -6,7 +6,7 @@ mode=${1:-}
 revision=${2:-}
 source=${3:-manual}
 run_number=${4:-0}
-[[ $mode == build || $mode == activate ]] || exit 2
+[[ $mode == build || $mode == checkout || $mode == activate ]] || exit 2
 [[ $revision =~ ^[0-9a-f]{40}$ ]] || exit 2
 [[ $source == manual || $source == github ]] || exit 2
 [[ $run_number =~ ^(0|[1-9][0-9]{0,9})$ ]] || exit 2
@@ -22,10 +22,14 @@ compose=("${docker[@]}" compose --project-name sailq --env-file .env -f compose.
 health_url=
 [[ ! -s health-url ]] || read -r health_url < health-url
 
-if [[ $mode == build ]]; then
+if [[ $mode != activate ]]; then
     build_dir=$(mktemp -d)
     trap 'rm -rf -- "$build_dir"' EXIT
-    tar -xzf - -C "$build_dir"
+    if [[ $mode == checkout ]]; then
+        git --git-dir=source.git archive "$revision" | tar -xf - -C "$build_dir"
+    else
+        tar -xzf - -C "$build_dir"
+    fi
 fi
 exec 9>deploy.lock
 flock -w 1800 9
@@ -47,7 +51,7 @@ log_release() {
     printf '%s %s %s %s %s\n' "$(date -u +%FT%TZ)" "$source" "$revision" "${image_id:--}" "$1" >> releases.log
 }
 
-if [[ $mode == build ]] && ! "${docker[@]}" image inspect "sailq-new-api:$revision" >/dev/null 2>&1; then
+if [[ $mode != activate ]] && ! "${docker[@]}" image inspect "sailq-new-api:$revision" >/dev/null 2>&1; then
     printf '%s\n' "$revision" > "$build_dir/VERSION"
     if ! "${docker[@]}" build --label "org.opencontainers.image.revision=$revision" -t "sailq-new-api:$revision" "$build_dir"; then
         log_release build-failed
