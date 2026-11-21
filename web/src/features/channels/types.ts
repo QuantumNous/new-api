@@ -80,6 +80,12 @@ export const channelSchema = z.object({
   balance: z.number().default(0), // in USD
   balance_updated_time: z.number(),
   balance_detail: channelBalanceDetailSchema.nullish(),
+  coding_plan_status: z
+    .object({
+      state: z.enum(['available', 'exhausted', 'recovering', 'cooldown']),
+      retry_at: z.number().optional(),
+    })
+    .nullish(),
   models: z.string().default(''),
   group: z.string().default('default'),
   used_quota: z.number().default(0),
@@ -427,4 +433,35 @@ export interface AddChannelRequest {
   multi_key_mode?: 'random' | 'polling'
   batch_add_set_key_prefix_2_name?: boolean
   channel: Partial<Channel>
+}
+
+export type AgentPlanQuota = {
+  id: string
+  name?: string
+  product?: 'agent-plan' | 'coding-plan'
+  seat_id?: string
+  expires_at?: number
+  status:
+    | 'ok'
+    | 'pending'
+    | 'credentials_missing'
+    | 'access_denied'
+    | 'rate_limited'
+    | 'unavailable'
+    | 'no_quota'
+  last_success_at?: number
+  windows?: {
+    period: 'five_hour' | 'daily' | 'weekly' | 'monthly'
+    quota?: number
+    used?: number
+    used_percent?: number
+    reset_at?: number
+  }[]
+  keys: {
+    id: string
+    label: string
+    today_tokens?: number
+    channels: { id: number; name: string; today_tokens?: number }[]
+  }[]
+  unmatched_channels?: number
 }

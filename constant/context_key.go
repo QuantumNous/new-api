@@ -47,6 +47,7 @@ const (
 	// request, which differs from the base URL for absolute Advanced Custom routes
 	// and for adaptors that build official endpoints themselves.
 	ContextKeyUpstreamRequestOrigin ContextKey = "upstream_request_origin"
+	ContextKeyAgentPlanUsageKey     ContextKey = "agent_plan_usage_key"
 
 	ContextKeyAutoGroup           ContextKey = "auto_group"
 	ContextKeyAutoGroupIndex      ContextKey = "auto_group_index"

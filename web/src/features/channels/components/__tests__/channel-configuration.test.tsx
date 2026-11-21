@@ -1075,6 +1075,108 @@ test.each([
   )
 })
 
+test.each([
+  ['Token Plan', 'plan', 'single', 'Token Plan'],
+  ['Token Plan', 'plan', 'batch', 'Batch Add (one key per line)'],
+  [
+    'Token Plan',
+    'plan',
+    'multi_to_single',
+    'Multi-Key Mode (multiple keys, one channel)',
+  ],
+  [
+    'Coding Plan',
+    'coding',
+    'multi_to_single',
+    'Multi-Key Mode (multiple keys, one channel)',
+  ],
+])(
+  'VolcEngine %s keeps its /api/%s/v3 URL with %s credentials',
+  async (planLabel, plan, mode, label) => {
+    const planUrl = `https://ark.cn-beijing.volces.com/api/${plan}/v3`
+    const post = vi
+      .spyOn(api, 'post')
+      .mockResolvedValue({ data: { success: true } })
+    const user = userEvent.setup()
+    render(<ConfigurationHarness />)
+    await user.click(await screen.findByRole('option', { name: /VolcEngine/ }))
+    const addMode = screen.getByRole('combobox', { name: 'Add Mode' })
+    const address = screen.getByRole('combobox', { name: /API Base URL/ })
+    await user.click(addMode)
+    await user.click(screen.getByRole('option', { name: planLabel }))
+    expect(address).toHaveTextContent(planUrl)
+
+    await user.click(addMode)
+    await user.click(screen.getByRole('option', { name: 'Single Key' }))
+    expect(address).toHaveTextContent('https://ark.cn-beijing.volces.com')
+    expect(address).not.toHaveTextContent(planUrl)
+
+    await user.click(addMode)
+    await user.click(screen.getByRole('option', { name: planLabel }))
+    if (mode !== 'single') {
+      await user.click(addMode)
+      await user.click(screen.getByRole('option', { name: label }))
+      expect(addMode).toHaveTextContent(label)
+      expect(address).toHaveTextContent(planUrl)
+    }
+    const key = mode === 'single' ? 'plan-key' : 'first-key\nsecond-key'
+    fireEvent.change(screen.getByLabelText('API Key *'), {
+      target: { value: key },
+    })
+    const modelInput = screen.getByRole('combobox', {
+      name: 'Select models or add custom ones',
+    })
+    await user.type(modelInput, 'doubao-seed-2.1-pro{Enter}')
+    await user.click(screen.getByRole('button', { name: 'Create Channel' }))
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith(
+        '/api/channel',
+        expect.objectContaining({
+          mode,
+          channel: expect.objectContaining({
+            type: 45,
+            base_url: planUrl,
+            key,
+          }),
+        }),
+        expect.anything()
+      )
+    )
+  }
+)
+
+test.each([
+  [
+    'https://ark.cn-beijing.volces.com/api/plan/v3',
+    'https://ark.cn-beijing.volces.com/api/plan/v3',
+  ],
+  [
+    'https://ark.cn-beijing.volces.com/api/coding/v3',
+    'https://ark.cn-beijing.volces.com/api/coding/v3',
+  ],
+  ['doubao-coding-plan', 'https://ark.cn-beijing.volces.com/api/coding/v3'],
+])(
+  'editing VolcEngine plan %s keeps the stored route',
+  async (savedUrl, planUrl) => {
+    editingChannel = { ...editingChannel, type: 45, base_url: savedUrl }
+    const put = vi
+      .spyOn(api, 'put')
+      .mockResolvedValue({ data: { success: true } })
+    const user = userEvent.setup()
+    render(<ConfigurationHarness currentRow={editingChannel} />)
+    expect(
+      await screen.findByRole('combobox', { name: /API Base URL/ })
+    ).toHaveTextContent(planUrl)
+    await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+    await waitFor(() =>
+      expect(put.mock.calls[0]?.[1]).toMatchObject({
+        id: 42,
+        base_url: savedUrl,
+      })
+    )
+  }
+)
+
 test('a failed creation keeps its draft and prevents duplicate submission while pending', async () => {
   const reply = deferredResponse<{
     data: { success: boolean; message: string }

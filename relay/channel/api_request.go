@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ import (
 	common2 "github.com/QuantumNous/new-api/common"
 	appconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -536,6 +538,7 @@ func keepUpstreamRedirectResponse(_ *http.Request, _ []*http.Request) error {
 }
 
 func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
+	common2.SetContextKey(c, appconstant.ContextKeyAgentPlanUsageKey, nil)
 	client, err := service.GetHttpClientWithProxySettings(info.ChannelSetting.Proxy, info.ChannelSetting)
 	if err != nil {
 		return nil, fmt.Errorf("new proxy http client failed: %w", err)
@@ -559,7 +562,7 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		helper.SetEventStreamHeaders(c)
 		// 处理流式请求的 ping 保活
 		generalSettings := operation_setting.GetGeneralSetting()
-		if generalSettings.PingIntervalEnabled && !info.DisablePing {
+		if generalSettings.PingIntervalEnabled && !info.DisablePing && !service.IsCodingPlanRelay(c) {
 			pingInterval := time.Duration(generalSettings.PingIntervalSeconds) * time.Second
 			stopPinger := helper.StartStreamKeepAlive(c, pingInterval)
 			defer stopPinger()
@@ -567,10 +570,34 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	}
 
 	common2.SetContextKey(c, appconstant.ContextKeyUpstreamRequestOrigin, req.URL.Scheme+"://"+req.URL.Host)
+	var cancel context.CancelFunc
+	var headerTimer *time.Timer
+	if deadline := service.CodingPlanRetryDeadline(c); !deadline.IsZero() {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			if req.Body != nil {
+				_ = req.Body.Close()
+			}
+			return nil, types.NewError(context.DeadlineExceeded, types.ErrorCodeDoRequestFailed)
+		}
+		var attemptContext context.Context
+		attemptContext, cancel = context.WithCancel(req.Context())
+		req = req.WithContext(attemptContext)
+		headerTimer = time.AfterFunc(remaining, cancel)
+	}
 	resp, err := relayClient.Do(req)
+	if headerTimer != nil {
+		headerTimer.Stop()
+		if resp == nil || err != nil {
+			cancel()
+		} else {
+			resp.Body = &cancelOnCloseBody{ReadCloser: resp.Body, cancel: cancel}
+		}
+	}
 	if err != nil {
 		// A url.Error quotes the request URL, whose query may carry a
 		// credential: log its operation, the host and the cause only.
+		service.ObserveCodingPlanTransportFailure(c, err)
 		reason := err.Error()
 		var urlErr *url.Error
 		if errors.As(err, &urlErr) && urlErr.Err != nil {
@@ -581,6 +608,9 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	}
 	if resp == nil {
 		return nil, errors.New("resp is nil")
+	}
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		recordVolcenginePlanUsageKey(c, req, info)
 	}
 	if common2.DebugEnabled {
 		policy := service.NormalizeHTTPTransportPolicy(info.ChannelSetting)
@@ -601,6 +631,52 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	// make the transport drop the connection that carries the response.
 	_ = c.Request.Body.Close()
 	return resp, nil
+}
+
+// Attribute the completed relay to the credential sent after header overrides.
+func recordVolcenginePlanUsageKey(c *gin.Context, req *http.Request, info *common.RelayInfo) {
+	if info.ChannelMeta == nil || info.ChannelType != appconstant.ChannelTypeVolcEngine {
+		return
+	}
+	var pathPrefix string
+	switch appconstant.NormalizeVolcenginePlanBaseURL(strings.TrimRight(info.ChannelBaseUrl, "/")) {
+	case appconstant.VolcengineTokenPlanBaseURL:
+		pathPrefix = "/api/plan/"
+	case appconstant.VolcengineCodingPlanPreset:
+		pathPrefix = "/api/coding/"
+	default:
+		return
+	}
+	const arkHost = "ark.cn-beijing.volces.com"
+	if req.URL.Scheme != "https" || req.URL.Hostname() != arkHost ||
+		(req.Host != "" && req.Host != req.URL.Host) || !strings.HasPrefix(req.URL.Path, pathPrefix) {
+		return
+	}
+	authorization := strings.Fields(req.Header.Get("Authorization"))
+	apiKey := strings.TrimSpace(req.Header.Get("X-Api-Key"))
+	if len(authorization) == 2 && strings.EqualFold(authorization[0], "Bearer") {
+		if apiKey != "" && apiKey != authorization[1] {
+			return
+		}
+		apiKey = authorization[1]
+	} else if len(authorization) > 0 {
+		return
+	}
+	if apiKey != "" && len(strings.Fields(apiKey)) == 1 {
+		common2.SetContextKey(c, appconstant.ContextKeyAgentPlanUsageKey, model.AgentPlanUsageKey{
+			ChannelID: info.ChannelId, KeyRef: model.AgentPlanKeyRef(apiKey),
+		})
+	}
+}
+
+type cancelOnCloseBody struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (body *cancelOnCloseBody) Close() error {
+	defer body.cancel()
+	return body.ReadCloser.Close()
 }
 
 func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {

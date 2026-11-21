@@ -17,12 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { getRouteApi, Link } from '@tanstack/react-router'
 import { Settings2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Tooltip,
   TooltipContent,
@@ -37,9 +38,14 @@ import { ChannelsDialogs } from './components/channels-dialogs'
 import { ChannelsPrimaryButtons } from './components/channels-primary-buttons'
 import { ChannelsProvider } from './components/channels-provider'
 import { ChannelsTable } from './components/channels-table'
+import { ProviderQuotas } from './components/provider-quotas'
+
+const channelRoute = getRouteApi('/_authenticated/channels/')
 
 export function Channels() {
   const { t } = useTranslation()
+  const search = channelRoute.useSearch()
+  const showProviderQuotas = search.view === 'provider-quotas'
   const isRoot = useAuthStore(
     (state) => state.auth.user?.role === ROLE.SUPER_ADMIN
   )
@@ -47,6 +53,7 @@ export function Channels() {
     queryKey: ['channel-ops'],
     queryFn: async () => requireServerSuccess(await getChannelOps()),
     retry: false,
+    enabled: !showProviderQuotas,
     staleTime: 5 * 60 * 1000,
   })
   const retryTimes = channelOpsQuery.data?.data?.retry_times
@@ -85,6 +92,30 @@ export function Channels() {
     )
   }
 
+  if (showProviderQuotas) {
+    return (
+      <SectionPageLayout>
+        <SectionPageLayout.Title>
+          {t('Provider quotas')}
+        </SectionPageLayout.Title>
+        <SectionPageLayout.Actions>
+          <Button
+            variant='outline'
+            nativeButton={false}
+            render={
+              <Link to='/channels' search={{ ...search, view: undefined }} />
+            }
+          >
+            {t('Back to channels')}
+          </Button>
+        </SectionPageLayout.Actions>
+        <SectionPageLayout.Content>
+          <ProviderQuotas />
+        </SectionPageLayout.Content>
+      </SectionPageLayout>
+    )
+  }
+
   return (
     <ChannelsProvider>
       <SectionPageLayout fixedContent>
@@ -95,6 +126,18 @@ export function Channels() {
           </span>
         </SectionPageLayout.Title>
         <SectionPageLayout.Actions>
+          <Button
+            variant='outline'
+            nativeButton={false}
+            render={
+              <Link
+                to='/channels'
+                search={{ ...search, view: 'provider-quotas' }}
+              />
+            }
+          >
+            {t('Provider quotas')}
+          </Button>
           <ChannelsPrimaryButtons />
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>

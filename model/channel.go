@@ -64,7 +64,8 @@ type Channel struct {
 	Keys []string `json:"-" gorm:"-"`
 	// BalanceDetail is the last balance query in channel responses; see
 	// GetBalanceDetail.
-	BalanceDetail *ChannelBalanceDetail `json:"balance_detail,omitempty" gorm:"-"`
+	BalanceDetail    *ChannelBalanceDetail `json:"balance_detail,omitempty" gorm:"-"`
+	CodingPlanStatus *CodingPlanStatus     `json:"coding_plan_status,omitempty" gorm:"-"`
 }
 
 const ChannelStatusReasonAllKeysDisabled = "All keys are disabled"
@@ -217,6 +218,12 @@ func (channel *Channel) GetKeys() []string {
 }
 
 func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
+	return channel.GetNextEnabledKeyExcluding(nil)
+}
+
+// GetNextEnabledKeyExcluding uses the channel's normal rotation, skipping keys
+// that already rejected the current request.
+func (channel *Channel) GetNextEnabledKeyExcluding(excluded []string) (string, int, *types.NewAPIError) {
 	// If not in multi-key mode, return the original key string directly.
 	if !channel.ChannelInfo.IsMultiKey {
 		return channel.Key, 0, nil
@@ -248,7 +255,7 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 	// Collect indexes of enabled keys
 	enabledIdx := make([]int, 0, len(keys))
 	for i := range keys {
-		if getStatus(i) == common.ChannelStatusEnabled {
+		if getStatus(i) == common.ChannelStatusEnabled && !slices.Contains(excluded, keys[i]) {
 			enabledIdx = append(enabledIdx, i)
 		}
 	}
@@ -288,7 +295,7 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 		}
 		for i := range keys {
 			idx := (start + i) % len(keys)
-			if getStatus(idx) == common.ChannelStatusEnabled {
+			if getStatus(idx) == common.ChannelStatusEnabled && !slices.Contains(excluded, keys[idx]) {
 				// update polling index for next call (point to the next position)
 				channel.ChannelInfo.MultiKeyPollingIndex = (idx + 1) % len(keys)
 				return keys[idx], idx, nil

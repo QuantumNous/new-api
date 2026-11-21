@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -47,12 +49,15 @@ func AppendTaskPluginIdentityFilter(c *gin.Context, pluginKey string) {
 }
 
 type RetryParam struct {
-	Ctx          *gin.Context
-	TokenGroup   string
-	ModelName    string
-	RequestPath  string
-	Retry        *int
-	resetNextTry bool
+	Ctx                   *gin.Context
+	TokenGroup            string
+	ModelName             string
+	RequestPath           string
+	Retry                 *int
+	resetNextTry          bool
+	CodingPlanFilter      *dto.ChannelFilter
+	CodingPlanUnavailable bool
+	CodingPlanRetryAt     time.Time
 }
 
 func (p *RetryParam) GetRetry() int {
@@ -122,6 +127,30 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	selectGroup := param.TokenGroup
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
 	filters := GetChannelConstraints(param.Ctx).Filters
+	selectCandidate := func(group string, priority int, deferPaid bool) (*model.Channel, error) {
+		if param.CodingPlanFilter == nil {
+			return model.GetRandomSatisfiedChannel(group, param.ModelName, priority, filters)
+		}
+		planSeen := false
+		planFilter := *param.CodingPlanFilter
+		planFilter.CodingPlanOnly = true
+		planFilter.CodingPlanSeen = &planSeen
+		planFilter.CodingPlanRetryAt = &param.CodingPlanRetryAt
+		candidateFilters := append(slices.Clone(filters), planFilter)
+		channel, err := model.GetRandomSatisfiedChannel(group, param.ModelName, 0, candidateFilters)
+		if channel != nil || err != nil {
+			return channel, err
+		}
+		if planSeen || param.CodingPlanUnavailable || param.CodingPlanFilter.CodingPlanOnly {
+			param.CodingPlanUnavailable = true
+			if deferPaid || !CodingPlanPaidFallbackAllowed(group) {
+				return nil, nil
+			}
+		}
+		planFilter.CodingPlanOnly = false
+		candidateFilters[len(filters)] = planFilter
+		return model.GetRandomSatisfiedChannel(group, param.ModelName, priority, candidateFilters)
+	}
 	affinityRetryOffset := param.Ctx.GetInt(ginKeyChannelAffinityRetryOffset)
 
 	if param.TokenGroup == "auto" {
@@ -141,6 +170,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 		}
 
+		var paidFallbackGroups []int
 		for i := startGroupIndex; i < len(autoGroups); i++ {
 			autoGroup := autoGroups[i]
 			// Calculate priorityRetry for current group
@@ -153,13 +183,11 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			priorityRetry := max(groupRetry-affinityRetryOffset, 0)
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(
-				autoGroup,
-				param.ModelName,
-				priorityRetry,
-				filters,
-			)
+			channel, _ = selectCandidate(autoGroup, priorityRetry, true)
 			if channel == nil {
+				if param.CodingPlanUnavailable && CodingPlanPaidFallbackAllowed(autoGroup) {
+					paidFallbackGroups = append(paidFallbackGroups, i)
+				}
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组
 				logger.LogDebug(param.Ctx, "No available channel in group %s for model %s at priorityRetry %d, trying next group", autoGroup, param.ModelName, priorityRetry)
@@ -179,7 +207,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 
 			// Prepare state for next retry
 			// 为下一次重试准备状态
-			if crossGroupRetry && groupRetry >= common.RetryTimes {
+			if crossGroupRetry && groupRetry >= common.RetryTimes && (param.CodingPlanFilter == nil || channel.CodingPlanPool() == "") {
 				// Current group has exhausted all retries, prepare to switch to next group
 				// This request still uses current group, but next retry will use next group
 				// 当前分组已用完所有重试次数，准备切换到下一个分组
@@ -198,13 +226,22 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			break
 		}
+		if channel == nil {
+			for _, i := range paidFallbackGroups {
+				selectGroup = autoGroups[i]
+				channel, err = selectCandidate(selectGroup, 0, false)
+				if err != nil {
+					return nil, selectGroup, err
+				}
+				if channel != nil {
+					common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroup, selectGroup)
+					common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i)
+					break
+				}
+			}
+		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(
-			param.TokenGroup,
-			param.ModelName,
-			max(param.GetRetry()-affinityRetryOffset, 0),
-			filters,
-		)
+		channel, err = selectCandidate(param.TokenGroup, max(param.GetRetry()-affinityRetryOffset, 0), false)
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}
@@ -302,6 +339,10 @@ type ChannelSelectError struct {
 // callers. The caller still applies SetupContextForSelectedChannel.
 func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam) (*model.Channel, string, *ChannelSelectError) {
 	constraints := GetChannelConstraints(c)
+	if retry.CodingPlanFilter == nil && IsCodingPlanRequest(retry.RequestPath) &&
+		(retry.RequestPath != "/v1/responses" || (c.Request != nil && c.Request.Method == http.MethodPost)) {
+		retry.CodingPlanFilter = &dto.ChannelFilter{Kind: dto.FilterCodingPlan}
+	}
 	if pin, found, overridden := constraints.ResolvedPin(); found {
 		for _, lost := range overridden {
 			logger.LogWarn(c, common.LogText(
@@ -336,6 +377,25 @@ func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam
 			affinitySatisfied := false
 			if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled {
 				affinitySatisfied, _ = model.ChannelSatisfiesFilters(preferred, modelName, constraints.Filters)
+				if pool := preferred.CodingPlanPool(); pool != "" && retry.CodingPlanFilter != nil {
+					blocked, _ := model.CodingPlanBlocked(pool)
+					routeBlocked, _ := preferred.CodingPlanChannelBlocked()
+					affinitySatisfied = affinitySatisfied && !blocked && !routeBlocked
+				}
+			}
+			if affinitySatisfied && retry.CodingPlanFilter != nil && preferred.CodingPlanPool() == "" {
+				if usingGroup == "auto" {
+					probe := *retry
+					probe.Ctx = c.Copy()
+					candidate, _, selectErr := CacheGetRandomSatisfiedChannel(&probe)
+					affinitySatisfied = selectErr == nil && candidate != nil && candidate.CodingPlanPool() == ""
+				} else {
+					planSeen := false
+					planFilter := dto.ChannelFilter{Kind: dto.FilterCodingPlan, CodingPlanOnly: true, CodingPlanSeen: &planSeen}
+					filters := append(slices.Clone(constraints.Filters), planFilter)
+					planCandidate, selectErr := model.GetRandomSatisfiedChannel(usingGroup, modelName, 0, filters)
+					affinitySatisfied = selectErr == nil && (!planSeen || (planCandidate == nil && CodingPlanPaidFallbackAllowed(usingGroup)))
+				}
 			}
 			if affinitySatisfied {
 				if usingGroup == "auto" {
@@ -378,6 +438,10 @@ func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam
 				StatusCode: http.StatusServiceUnavailable, Code: types.ErrorCodeModelNotFound, MessageID: i18n.MsgDistributorGetChannelFailed,
 				Params: map[string]any{"Group": showGroup, "Model": modelName, "Error": err.Error()},
 			}
+		}
+		if channel == nil && retry.CodingPlanUnavailable {
+			SetCodingPlanRetryHeader(c, retry.CodingPlanRetryAt)
+			return nil, selectGroup, &ChannelSelectError{StatusCode: http.StatusTooManyRequests, Code: CodingPlanUnavailableCode, MessageID: i18n.MsgRelayCodingPlanUnavailable}
 		}
 		if channel == nil {
 			return nil, selectGroup, &ChannelSelectError{

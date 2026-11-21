@@ -19,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/model_setting"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 func stopReasonClaude2OpenAI(reason string) string {
@@ -340,7 +341,29 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		Usage:        &dto.Usage{},
 	}
 	var err *types.NewAPIError
+	var messageStart string
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+		if err = service.CodingPlanStreamRejection(c, data); err != nil {
+			sr.Stop(err)
+			return
+		}
+		if service.IsCodingPlanRelay(c) && !c.Writer.Written() {
+			switch gjson.Get(data, "type").String() {
+			case "ping":
+				return
+			case "message_start":
+				messageStart = data
+				return
+			}
+		}
+		if messageStart != "" {
+			err = HandleStreamResponseData(c, info, claudeInfo, messageStart)
+			messageStart = ""
+			if err != nil {
+				sr.Stop(err)
+				return
+			}
+		}
 		err = HandleStreamResponseData(c, info, claudeInfo, data)
 		if err != nil {
 			sr.Stop(err)

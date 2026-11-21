@@ -351,7 +351,17 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	createdAt := common.GetTimestamp()
 	other := params.Other
 	content := other.setContent(params.Content)
-	otherStr := other.JSONString()
+	storedOther := other
+	value, _ := common.GetContextKey(c, constant.ContextKeyAgentPlanUsageKey)
+	if key, ok := value.(AgentPlanUsageKey); ok && key.ChannelID == params.ChannelId {
+		stored := LogOther{}
+		if other != nil {
+			stored = *other
+		}
+		stored.agentPlanKeyRef = key.KeyRef
+		storedOther = &stored
+	}
+	otherStr := storedOther.JSONString()
 	// 判断是否需要记录 IP
 	needRecordIp := false
 	if settingMap, err := GetUserSetting(userId, false); err == nil {

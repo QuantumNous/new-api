@@ -192,7 +192,7 @@ func filterAbilitiesByConstraints(abilities []Ability, modelName string, filters
 
 	var channels []*Channel
 	if err := DB.Where("id IN ?", channelIds).Find(&channels).Error; err != nil {
-		if identityFilterRequiresKey(filters) {
+		if identityFilterRequiresKey(filters) || len(filtersByKind(filters, dto.FilterCodingPlan)) > 0 {
 			return nil
 		}
 		return abilities

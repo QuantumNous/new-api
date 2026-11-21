@@ -38,7 +38,7 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
-	if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok {
+	if _, ok := channelconstant.ChannelSpecialBases[channelconstant.NormalizeVolcenginePlanBaseURL(info.ChannelBaseUrl)]; ok {
 		adaptor := claude.Adaptor{}
 		return adaptor.ConvertClaudeRequest(c, info, req)
 	}
@@ -241,7 +241,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if baseUrl == "" {
 		baseUrl = channelconstant.GetChannelBaseURL(channelconstant.ChannelTypeVolcEngine)
 	}
-	specialPlan, hasSpecialPlan := channelconstant.ChannelSpecialBases[baseUrl]
+	specialPlan, hasSpecialPlan := channelconstant.ChannelSpecialBases[channelconstant.NormalizeVolcenginePlanBaseURL(baseUrl)]
 
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
@@ -253,6 +253,10 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		}
 		return fmt.Sprintf("%s/api/v3/chat/completions", baseUrl), nil
 	default:
+		if baseUrl == channelconstant.VolcengineTokenPlanBaseURL &&
+			info.RelayMode != constant.RelayModeChatCompletions && info.RelayMode != constant.RelayModeResponses {
+			return "", fmt.Errorf("unsupported relay mode: %d", info.RelayMode)
+		}
 		switch info.RelayMode {
 		case constant.RelayModeChatCompletions:
 			if hasSpecialPlan && specialPlan.OpenAIBaseURL != "" {
@@ -272,6 +276,9 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		case constant.RelayModeRerank:
 			return fmt.Sprintf("%s/api/v3/rerank", baseUrl), nil
 		case constant.RelayModeResponses:
+			if hasSpecialPlan && specialPlan.OpenAIBaseURL != "" {
+				return specialPlan.OpenAIBaseURL + "/responses", nil
+			}
 			return fmt.Sprintf("%s/api/v3/responses", baseUrl), nil
 		case constant.RelayModeAudioSpeech:
 			if baseUrl == channelconstant.GetChannelBaseURL(channelconstant.ChannelTypeVolcEngine) {
@@ -348,7 +355,7 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	if info.RelayFormat == types.RelayFormatClaude {
-		if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok {
+		if _, ok := channelconstant.ChannelSpecialBases[channelconstant.NormalizeVolcenginePlanBaseURL(info.ChannelBaseUrl)]; ok {
 			adaptor := claude.Adaptor{}
 			return adaptor.DoResponse(c, resp, info)
 		}

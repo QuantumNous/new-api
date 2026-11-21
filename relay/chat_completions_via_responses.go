@@ -185,14 +185,18 @@ func relayResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, adaptor 
 	info.IsStream = clientStream || upstreamStream
 	if httpResp.StatusCode != http.StatusOK {
 		newApiErr := service.RelayErrorHandler(c.Request.Context(), httpResp, false)
-		service.ResetStatusCode(newApiErr, statusCodeMappingStr)
+		if !service.ObserveCodingPlanRejection(c, httpResp, newApiErr) {
+			service.ResetStatusCode(newApiErr, statusCodeMappingStr)
+		}
 		return nil, newApiErr
 	}
 
 	if upstreamStream && clientStream {
 		usage, newApiErr := openaichannel.OaiResponsesToChatStreamHandler(c, info, httpResp)
 		if newApiErr != nil {
-			service.ResetStatusCode(newApiErr, statusCodeMappingStr)
+			if !service.IsCodingPlanQuotaRejection(c, newApiErr) {
+				service.ResetStatusCode(newApiErr, statusCodeMappingStr)
+			}
 			return nil, newApiErr
 		}
 		return usage, nil
@@ -201,7 +205,9 @@ func relayResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, adaptor 
 		info.IsStream = false
 		usage, newApiErr := openaichannel.OaiResponsesToChatBufferedStreamHandler(c, info, httpResp)
 		if newApiErr != nil {
-			service.ResetStatusCode(newApiErr, statusCodeMappingStr)
+			if !service.IsCodingPlanQuotaRejection(c, newApiErr) {
+				service.ResetStatusCode(newApiErr, statusCodeMappingStr)
+			}
 			return nil, newApiErr
 		}
 		return usage, nil
@@ -209,7 +215,9 @@ func relayResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, adaptor 
 
 	usage, newApiErr := openaichannel.OaiResponsesToChatHandler(c, info, httpResp)
 	if newApiErr != nil {
-		service.ResetStatusCode(newApiErr, statusCodeMappingStr)
+		if !service.IsCodingPlanQuotaRejection(c, newApiErr) {
+			service.ResetStatusCode(newApiErr, statusCodeMappingStr)
+		}
 		return nil, newApiErr
 	}
 	return usage, nil
