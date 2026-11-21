@@ -1,10 +1,10 @@
-# Agent issue and PR checks
+# Agent issue checks
 
-Do every check for your case before you fill `.agents/github/ISSUE.md` or `.agents/github/PR.md`. If one check fails, tell the user and stop. Do not file a partial issue or open a partial PR. Do not fill gaps with speculation.
+Do every check for your case before you fill `.agents/github/ISSUE.md`. If one check fails, tell the user and stop. Do not file a partial issue. Do not fill gaps with speculation.
 
 ## Out of scope
 
-If the request matches an item below, tell the user this repository does not accept it. Point them to the right place when there is one. Do not file or open.
+If the request matches an item below, tell the user this repository does not accept it. Point them to the right place when there is one. Do not file.
 
 - Coding Plan
 - Reverse-engineered channels
@@ -17,11 +17,11 @@ If the request matches an item below, tell the user this repository does not acc
 
 ## Usage, configuration, or integration
 
-Search https://docs.newapi.ai/ , https://deepwiki.com/QuantumNous/new-api , the README, and the code yourself. Do not send the user to "read the docs first". If the material answers the request, answer the user and do not file or open. For a feature request, confirm that the current version cannot already do it.
+Search https://docs.newapi.ai/ , https://deepwiki.com/QuantumNous/new-api , the README, and the code yourself. Do not send the user to "read the docs first". If the material answers the request, answer the user and do not file. For a feature request, confirm that the current version cannot already do it.
 
 ## Required facts
 
-Get these facts for a bug issue, and for a PR that fixes a bug:
+Get these facts for a bug issue:
 
 - Actual behavior, expected result, steps to reproduce
 - Impact and frequency
@@ -43,13 +43,6 @@ Type facts (write the applicable ones in Evidence):
 
 - Search issues, PRs, and discussions for duplicates. Do not file a duplicate.
 - A large or directional feature issue is for maintainer alignment. Do not open a PR yet.
-
-## PR only
-
-- New features need a linked issue. If none exists, file one first with `.agents/github/ISSUE.md`.
-- Large or directional changes need maintainer agreement on that issue before the PR.
-- Evidence is commands or steps actually run and the observed results. Stating only that `go build` or tests passed is not proof.
-- One focused change. No secrets.
 
 ## Writing
 
