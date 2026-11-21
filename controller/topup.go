@@ -26,6 +26,7 @@ import (
 
 func GetTopUpInfo(c *gin.Context) {
 	complianceConfirmed := operation_setting.IsPaymentComplianceConfirmed()
+	minTopUp := effectiveGatewayMinTopUp(0)
 	stripeMinTopUp := effectiveGatewayMinTopUp(setting.StripeMinTopUp)
 	waffoMinTopUp := effectiveGatewayMinTopUp(setting.WaffoMinTopUp)
 	waffoPancakeMinTopUp := effectiveGatewayMinTopUp(setting.WaffoPancakeMinTopUp)
@@ -36,7 +37,7 @@ func GetTopUpInfo(c *gin.Context) {
 		for _, method := range operation_setting.PayMethods {
 			copied := make(map[string]string, len(method)+1)
 			maps.Copy(copied, method)
-			floorMin := effectiveGatewayMinTopUp(0)
+			floorMin := minTopUp
 			switch copied["type"] {
 			case "stripe":
 				floorMin = stripeMinTopUp
@@ -132,7 +133,7 @@ func GetTopUpInfo(c *gin.Context) {
 		}(),
 		"creem_products":          setting.CreemProducts,
 		"pay_methods":             payMethods,
-		"min_topup":               operation_setting.MinTopUp,
+		"min_topup":               minTopUp,
 		"stripe_min_topup":        stripeMinTopUp,
 		"waffo_min_topup":         waffoMinTopUp,
 		"waffo_pancake_min_topup": waffoPancakeMinTopUp,

@@ -115,8 +115,10 @@ func TestGlobalMinTopUpEnforcedOnWaffoPancakeAndTopUpInfo(t *testing.T) {
 	oldComplianceConfirmed := operation_setting.GetPaymentSetting().ComplianceConfirmed
 	oldComplianceVersion := operation_setting.GetPaymentSetting().ComplianceTermsVersion
 	oldPayMethods := operation_setting.PayMethods
+	oldGinMode := gin.Mode()
 
 	t.Cleanup(func() {
+		gin.SetMode(oldGinMode)
 		operation_setting.GetGeneralSetting().QuotaDisplayType = oldDisplayType
 		operation_setting.MinTopUp = oldMinTopUp
 		setting.WaffoPancakeMinTopUp = oldWaffoPancakeMin
@@ -253,5 +255,25 @@ func TestGlobalMinTopUpEnforcedOnWaffoPancakeAndTopUpInfo(t *testing.T) {
 		// Verify GetTopUpInfo does not mutate global operation_setting.PayMethods
 		require.Len(t, operation_setting.PayMethods, 3)
 		require.Equal(t, "5.50", operation_setting.PayMethods[2]["min_topup"])
+	})
+
+	t.Run("Tokens display mode scales effective minimum floor by QuotaPerUnit", func(t *testing.T) {
+		operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeTokens
+		t.Cleanup(func() {
+			operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeUSD
+		})
+
+		expectedMinTokens := int64(10 * common.QuotaPerUnit)
+		require.Equal(t, expectedMinTokens, effectiveGatewayMinTopUpAmount(setting.WaffoPancakeMinTopUp))
+
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/waffo-pancake/amount", strings.NewReader(`{"amount":500000}`))
+		ctx.Request.Header.Set("Content-Type", "application/json")
+
+		RequestWaffoPancakeAmount(ctx)
+
+		require.Equal(t, http.StatusOK, recorder.Code)
+		require.JSONEq(t, `{"message":"error","data":"Top-up amount cannot be less than 5000000","message_key":"Top-up amount cannot be less than {{min}}","message_params":{"min":5000000}}`, recorder.Body.String())
 	})
 }
