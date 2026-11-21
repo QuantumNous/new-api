@@ -35,7 +35,8 @@ if [[ $source == github ]]; then
         echo "Skipping older GitHub deployment $run_number"
         exit
     fi
-    git --git-dir=source.git fetch --no-tags https://github.com/donyugroup/new-api.git \
+    upstream=https://github.com/donyugroup/new-api.git
+    git --git-dir=source.git fetch --no-tags "$upstream" \
         +refs/heads/main:refs/heads/main
     if [[ $(git --git-dir=source.git rev-parse refs/heads/main) != "$revision" ]]; then
         echo "Skipping revision $revision because main has moved"
@@ -63,6 +64,13 @@ image_id=$("${docker[@]}" image inspect --format '{{.Id}}' "sailq-new-api:$revis
 
 # Bring up and check data services before replacing the application.
 RELEASE_SHA=$revision "${compose[@]}" up -d --wait --wait-timeout 120 postgres redis
+if [[ $source == github ]]; then
+    upstream_ref=$(git ls-remote --exit-code "$upstream" refs/heads/main)
+    if [[ ${upstream_ref%%$'\t'*} != "$revision" ]]; then
+        log_release main-advanced
+        exit 0
+    fi
+fi
 if RELEASE_SHA=$revision "${compose[@]}" up -d --no-deps --no-build --pull never --wait --wait-timeout 150 new-api &&
     { [[ -z $health_url ]] || curl --fail --silent --show-error --max-time 10 "$health_url" | grep -Eq '"success"[[:space:]]*:[[:space:]]*true'; }; then
     printf '%s\n' "$revision" > current.tmp
