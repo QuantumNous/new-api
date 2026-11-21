@@ -243,18 +243,21 @@ export function RechargeFormCard({
                   </Label>
                   <div className='grid grid-cols-2 gap-1.5 sm:gap-3 md:grid-cols-4'>
                     {presetAmounts.map((preset) => {
-                      const discount = isStripeOnly
-                        ? getDiscountRateForPaymentType(
-                            preset.value,
-                            topupInfo?.discount,
-                            PAYMENT_TYPES.STRIPE
-                          )
-                        : preset.discount && preset.discount < 1
-                          ? preset.discount
-                          : getMatchedAmountDiscount(
-                              preset.value,
-                              topupInfo?.discount
-                            )
+                      let discount = 1.0
+                      if (isStripeOnly) {
+                        discount = getDiscountRateForPaymentType(
+                          preset.value,
+                          topupInfo?.discount,
+                          PAYMENT_TYPES.STRIPE
+                        )
+                      } else if (preset.discount && preset.discount < 1) {
+                        discount = preset.discount
+                      } else {
+                        discount = getMatchedAmountDiscount(
+                          preset.value,
+                          topupInfo?.discount
+                        )
+                      }
                       const {
                         displayValue,
                         actualPrice,
