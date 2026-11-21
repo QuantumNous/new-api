@@ -15,7 +15,7 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 [[ -s .env && -s compose.yaml ]] || { echo "Install compose.yaml and .env first" >&2; exit 1; }
 docker=(docker)
 if ! docker info >/dev/null 2>&1; then
-    docker=(sudo -n docker)
+    docker=(sudo -n --preserve-env=RELEASE_SHA docker)
 fi
 compose=("${docker[@]}" compose --project-name sailq --env-file .env -f compose.yaml)
 
