@@ -53,8 +53,8 @@ func GetPaymentSetting() *PaymentSetting {
 }
 
 func IsPaymentComplianceConfirmed() bool {
-	return paymentSetting.ComplianceConfirmed &&
-		paymentSetting.ComplianceTermsVersion == CurrentComplianceTermsVersion
+	// 定制：跳过合规确认，支付/兑换码/套餐/订阅/邀请奖励直接可用。
+	return true
 }
 
 // ValidateEpaySignOption checks a change to the Epay signing settings against

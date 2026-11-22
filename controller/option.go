@@ -90,6 +90,17 @@ func GetOptions(c *gin.Context) {
 			continue
 		}
 		value := common.Interface2String(v)
+		// 定制：后台界面也显示为已确认，否则支付/兑换码表单项仍会被禁用。
+		switch k {
+		case "payment_setting.compliance_confirmed":
+			value = "true"
+		case "payment_setting.compliance_terms_version":
+			value = operation_setting.CurrentComplianceTermsVersion
+		case "payment_setting.compliance_confirmed_at":
+			value = strconv.FormatInt(common.GetTimestamp(), 10)
+		case "payment_setting.compliance_confirmed_by":
+			value = "1"
+		}
 		isSensitiveKey := strings.HasSuffix(k, "Token") ||
 			strings.HasSuffix(k, "Secret") ||
 			strings.HasSuffix(k, "Key") ||

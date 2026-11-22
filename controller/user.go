@@ -283,21 +283,26 @@ func Register(c *gin.Context) {
 	if common.EmailVerificationEnabled {
 		cleanUser.Email = user.Email
 	}
-	if err := cleanUser.Insert(inviterId); err != nil {
+	// 邀请码和建用户放在同一个事务：码无效/已用/过期时，用户不会落库。
+	if err := model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := cleanUser.InsertWithTx(tx, inviterId); err != nil {
+			return err
+		}
+		return model.ConsumeInviteCodeWithTx(tx, user.InviteCode, cleanUser.Id)
+	}); err != nil {
 		if errors.Is(err, model.ErrEmailAlreadyTaken) {
 			common.ApiErrorT(c, "Email address is already in use")
+			return
+		}
+		if errors.Is(err, model.ErrInviteCodeInvalid) {
+			common.ApiErrorT(c, "Invitation code is invalid, used or expired")
 			return
 		}
 		common.ApiError(c, err)
 		return
 	}
-
-	// 获取插入后的用户ID
-	var insertedUser model.User
-	if err := model.DB.Where("username = ?", cleanUser.Username).First(&insertedUser).Error; err != nil {
-		common.ApiErrorT(c, "User registration failed or user ID retrieval failed")
-		return
-	}
+	cleanUser.FinishInsert(inviterId)
+	insertedUser := cleanUser
 	// 生成默认令牌
 	if constant.GenerateDefaultToken {
 		key, err := common.GenerateKey()

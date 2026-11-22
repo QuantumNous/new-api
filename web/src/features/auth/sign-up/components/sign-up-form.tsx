@@ -66,6 +66,7 @@ export function SignUpForm({
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
   const [verificationCode, setVerificationCode] = useState('')
+  const [inviteCode, setInviteCode] = useState('')
   const [agreedToLegal, setAgreedToLegal] = useState(false)
   const [wechatCode, setWeChatCode] = useState('')
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
@@ -166,6 +167,11 @@ export function SignUpForm({
       }
     }
 
+    if (!inviteCode.trim()) {
+      toast.error(t('Please enter the invitation code'))
+      return
+    }
+
     if (!validateTurnstile()) return
 
     setIsLoading(true)
@@ -175,6 +181,7 @@ export function SignUpForm({
         password: data.password,
         email: data.email || undefined,
         verification_code: verificationCode || undefined,
+        invite_code: inviteCode.trim(),
         aff_code: getAffiliateCode(),
         turnstile: turnstileToken,
       })
@@ -274,6 +281,18 @@ export function SignUpForm({
             </FormItem>
           )}
         />
+
+        {/* Invitation Code Field */}
+        <div className='grid gap-2'>
+          <Label htmlFor='invite-code'>{t('Invitation Code')}</Label>
+          <Input
+            id='invite-code'
+            value={inviteCode}
+            onChange={(event) => setInviteCode(event.target.value)}
+            placeholder={t('Enter your invitation code')}
+            autoComplete='off'
+          />
+        </div>
 
         {/* Password Field */}
         <FormField
