@@ -73,6 +73,7 @@
   "Epay webhook failed to write response trade_no=%s client_ip=%s error=%q": "易支付 webhook 响应写入失败 trade_no=%s client_ip=%s error=%q",
   "Epay webhook ignored event trade_no=%s callback_type=%s trade_status=%s client_ip=%s verify_info=%q": "易支付 webhook 忽略事件 trade_no=%s callback_type=%s trade_status=%s client_ip=%s verify_info=%q",
   "Epay webhook params are empty path=%q client_ip=%s": "易支付 webhook 参数为空 path=%q client_ip=%s",
+  "Epay webhook partner id mismatch path=%q client_ip=%s callback_pid=%q": "易支付 webhook 商户 ID 不匹配 path=%q client_ip=%s callback_pid=%q",
   "Epay webhook received request path=%q client_ip=%s method=%s params=%q": "易支付 webhook 收到请求 path=%q client_ip=%s method=%s params=%q",
   "Epay webhook rejected reason=webhook_disabled path=%q client_ip=%s": "易支付 webhook 被拒绝 reason=webhook_disabled path=%q client_ip=%s",
   "Epay webhook signature verification failed path=%q client_ip=%s verify_error=%q": "易支付 webhook 验签失败 path=%q client_ip=%s verify_error=%q",
