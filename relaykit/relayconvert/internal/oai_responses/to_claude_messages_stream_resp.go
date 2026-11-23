@@ -161,7 +161,7 @@ func (s *ResponsesToClaudeStreamState) ConvertChunk(event *dto.ResponsesStreamRe
 	case responsesEventCompleted, responsesEventDone, responsesEventIncomplete:
 		responses, err := s.finish(event.Response, estimatedInputTokens)
 		return responses, s.Usage, err
-	case responsesEventFailed, responsesEventError:
+	case "error", responsesEventFailed, responsesEventError:
 		message := strings.TrimSpace(event.Message)
 		if message == "" {
 			message = event.Type

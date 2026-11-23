@@ -123,7 +123,7 @@ func ResponsesStreamEventToChatChunks(event *dto.ResponsesStreamResponse, state 
 		}
 		chunks = append(chunks, state.finalize(response)...)
 		return chunks, nil
-	case responsesEventFailed, responsesEventError:
+	case "error", responsesEventFailed, responsesEventError:
 		return nil, fmt.Errorf("responses stream error: %s", event.Type)
 	default:
 		return nil, nil
