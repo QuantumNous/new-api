@@ -826,7 +826,9 @@ export function processUserChartData(
       acc[labelOf(user)] = USER_COLORS[i % USER_COLORS.length]
       return acc
     },
-    {}
+    // Display names are free text; a name such as "__proto__" must still
+    // become an own key.
+    Object.create(null) as Record<string, string>
   )
 
   const timeUserMap = new Map<string, Map<string, number>>()

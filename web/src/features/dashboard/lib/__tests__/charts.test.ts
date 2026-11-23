@@ -224,4 +224,20 @@ describe('processUserChartData user labels', () => {
     expect(new Set(labels).size).toBe(4)
     expect(labels).toEqual(['a', 'Bob (b)', 'c', 'b'])
   })
+
+  test('gives a color to a display name that matches an object key', () => {
+    const result = processUserChartData(
+      [
+        { username: 'a', display_name: '__proto__', created_at: 0, quota: 2 },
+        { username: 'b', display_name: 'Bob', created_at: 0, quota: 1 },
+      ],
+      'day',
+      undefined,
+      10,
+      'display_name'
+    )
+    const colors = result.spec_user_rank.color.specified
+    expect(Object.hasOwn(colors, '__proto__')).toBe(true)
+    expect(Object.hasOwn(colors, 'Bob')).toBe(true)
+  })
 })
