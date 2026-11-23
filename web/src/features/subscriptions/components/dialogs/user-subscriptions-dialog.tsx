@@ -60,7 +60,7 @@ import {
   deleteUserSubscription,
   resetUserSubscriptionsByPlan,
 } from '../../api'
-import { formatTimestamp } from '../../lib'
+import { formatTimestamp, useSubscriptionPriceFormatter } from '../../lib'
 import type { PlanRecord, UserSubscriptionRecord } from '../../types'
 
 interface Props {
@@ -107,6 +107,7 @@ function SubscriptionStatusBadge(props: {
 
 export function UserSubscriptionsDialog(props: Props) {
   const { t } = useTranslation()
+  const formatPrice = useSubscriptionPriceFormatter()
   const [loading, setLoading] = useState(false)
   const [creating, setCreating] = useState(false)
   const [plans, setPlans] = useState<PlanRecord[]>([])
@@ -260,7 +261,7 @@ export function UserSubscriptionsDialog(props: Props) {
               <Combobox
                 options={plans.map((p) => ({
                   value: String(p.plan.id),
-                  label: `${p.plan.title} ($${Number(p.plan.price_amount || 0).toFixed(2)})`,
+                  label: `${p.plan.title} (${formatPrice(p.plan.price_amount)})`,
                 }))}
                 value={selectedPlanId}
                 onValueChange={(v) => v !== null && setSelectedPlanId(v)}

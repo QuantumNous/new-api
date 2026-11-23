@@ -159,9 +159,10 @@ export function parseCurrencyDisplayType(
   return isCurrencyDisplayType(value) ? value : fallback
 }
 
-function getConfig(): CurrencyConfig {
-  const { config } = useSystemConfigStore.getState()
-  const currency = config?.currency ?? DEFAULT_CURRENCY_CONFIG
+function getConfig(
+  currency = useSystemConfigStore.getState().config?.currency ??
+    DEFAULT_CURRENCY_CONFIG
+): CurrencyConfig {
   return {
     ...DEFAULT_CURRENCY_CONFIG,
     ...currency,
@@ -625,12 +626,12 @@ export function isCurrencyDisplayEnabled(): boolean {
  */
 export function formatLocalCurrencyAmount(
   amount: number | null | undefined,
-  options?: CurrencyFormatOptions
+  options?: CurrencyFormatOptions,
+  currency?: CurrencyConfig
 ): string {
   if (amount == null || Number.isNaN(amount)) return '-'
 
-  const { config } = getCurrencyDisplay()
-  const meta = getBillingDisplayMeta(config)
+  const meta = getBillingDisplayMeta(getConfig(currency))
   const merged = mergeOptions(options)
 
   return formatCurrencyValue(amount, merged, meta)

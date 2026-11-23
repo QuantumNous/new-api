@@ -26,12 +26,17 @@ import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
 import { formatQuota } from '@/lib/format'
 
-import { formatDuration, formatResetPeriod } from '../lib'
+import {
+  formatDuration,
+  formatResetPeriod,
+  useSubscriptionPriceFormatter,
+} from '../lib'
 import type { PlanRecord } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
 export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
   const { t } = useTranslation()
+  const formatPrice = useSubscriptionPriceFormatter()
 
   return useMemo(
     (): ColumnDef<PlanRecord>[] => [
@@ -66,10 +71,10 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
       {
         accessorFn: (row) => row.plan.price_amount,
         id: 'price',
-        header: t('Price'),
+        header: t('Plan Price'),
         cell: ({ row }) => (
           <span className='font-semibold text-emerald-600'>
-            ${Number(row.original.plan.price_amount || 0).toFixed(2)}
+            {formatPrice(row.original.plan.price_amount)}
           </span>
         ),
         size: 100,
@@ -200,6 +205,6 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         meta: { pinned: 'right' as const },
       },
     ],
-    [t]
+    [t, formatPrice]
   )
 }

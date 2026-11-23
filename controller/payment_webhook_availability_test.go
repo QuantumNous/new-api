@@ -5,10 +5,12 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
+	"fmt"
 	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 
@@ -34,6 +36,120 @@ func confirmPaymentComplianceForTest(t *testing.T) {
 	})
 	paymentSetting.ComplianceConfirmed = true
 	paymentSetting.ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
+}
+
+func TestSubscriptionPriceFollowsSiteCurrency(t *testing.T) {
+	setupEpayCallbackTest(t)
+	operation_setting.GetPaymentSetting().EpaySignType = operation_setting.EpaySignTypeMD5
+	operation_setting.EpayKey = "test_key"
+	previousDB, previousLogDB := model.DB, model.LOG_DB
+	previousMain, previousLog := common.MainDatabaseType(), common.LogDatabaseType()
+	previousRate, previousUnit := operation_setting.USDExchangeRate, common.QuotaPerUnit
+	general := operation_setting.GetGeneralSetting()
+	previousDisplayType := general.QuotaDisplayType
+	previousRedis := common.RedisEnabled
+	common.RedisEnabled = false
+	t.Cleanup(func() {
+		model.DB, model.LOG_DB = previousDB, previousLogDB
+		common.SetMainDatabaseType(previousMain)
+		common.SetLogDatabaseType(previousLog)
+		operation_setting.USDExchangeRate, common.QuotaPerUnit = previousRate, previousUnit
+		general.QuotaDisplayType = previousDisplayType
+		common.RedisEnabled = previousRedis
+	})
+	operation_setting.USDExchangeRate, common.QuotaPerUnit = 7, 500000
+
+	for _, tc := range []struct {
+		kind    common.DatabaseType
+		env     string
+		version string
+	}{
+		{common.DatabaseTypeSQLite, "", "SELECT sqlite_version()"},
+		{common.DatabaseTypeMySQL, "TEST_MYSQL_DSN", "SELECT VERSION()"},
+		{common.DatabaseTypePostgreSQL, "TEST_POSTGRES_DSN", "SHOW server_version"},
+	} {
+		t.Run(string(tc.kind), func(t *testing.T) {
+			general.QuotaDisplayType = operation_setting.QuotaDisplayTypeCNY
+			dsn := os.Getenv(tc.env)
+			if tc.env != "" && dsn == "" {
+				t.Skip(tc.env + " is not configured")
+			}
+			db, _ := newAuditTestDatabase(t, string(tc.kind), dsn)
+			model.DB, model.LOG_DB = db, db
+			common.SetMainDatabaseType(tc.kind)
+			common.SetLogDatabaseType(tc.kind)
+			var version string
+			require.NoError(t, db.Raw(tc.version).Scan(&version).Error)
+			t.Logf("%s %s", tc.kind, version)
+			require.NoError(t, db.AutoMigrate(
+				&model.SubscriptionPlan{}, &model.SubscriptionOrder{}, &model.UserSubscription{},
+				&model.User{}, &model.SystemTask{}, &model.Log{},
+			))
+			user := model.User{Username: "subscription-buyer", Quota: 50_000_000}
+			require.NoError(t, db.Create(&user).Error)
+
+			router := gin.New()
+			router.Use(func(c *gin.Context) { c.Set("id", user.Id) })
+			router.POST("/plans", AdminCreateSubscriptionPlan)
+			router.GET("/plans", GetSubscriptionPlans)
+			router.POST("/balance", SubscriptionRequestBalancePay)
+			router.POST("/epay", SubscriptionRequestEpay)
+			request := func(method, path, body string) *httptest.ResponseRecorder {
+				t.Helper()
+				req := httptest.NewRequest(method, path, strings.NewReader(body))
+				req.Header.Set("Content-Type", "application/json")
+				recorder := httptest.NewRecorder()
+				router.ServeHTTP(recorder, req)
+				require.Equal(t, http.StatusOK, recorder.Code)
+				return recorder
+			}
+
+			response := request(http.MethodPost, "/plans", `{"plan":{"title":"Plan","price_amount":50,"total_amount":4285714,"enabled":true}}`)
+			var created struct {
+				Success bool                   `json:"success"`
+				Data    model.SubscriptionPlan `json:"data"`
+			}
+			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &created))
+			require.True(t, created.Success, response.Body.String())
+			planID := created.Data.Id
+			t.Cleanup(func() { model.InvalidateSubscriptionPlanCache(planID) })
+
+			response = request(http.MethodGet, "/plans", "")
+			var listed struct {
+				Data []SubscriptionPlanDTO `json:"data"`
+			}
+			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &listed))
+			require.Len(t, listed.Data, 1)
+			assert.Equal(t, 50.0, listed.Data[0].Plan.PriceAmount)
+			require.NotNil(t, listed.Data[0].BalanceQuota)
+			assert.Equal(t, 3_571_429, *listed.Data[0].BalanceQuota)
+
+			response = request(http.MethodPost, "/epay", fmt.Sprintf(`{"plan_id":%d,"payment_method":"alipay"}`, planID))
+			var checkout struct {
+				Message string            `json:"message"`
+				Data    map[string]string `json:"data"`
+			}
+			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &checkout))
+			require.Equal(t, "success", checkout.Message)
+			assert.Equal(t, "50.00", checkout.Data["money"])
+
+			response = request(http.MethodPost, "/balance", fmt.Sprintf(`{"plan_id":%d,"expected_quota":1}`, planID))
+			assert.Contains(t, response.Body.String(), "The balance price changed.")
+			response = request(http.MethodPost, "/balance", fmt.Sprintf(`{"plan_id":%d,"expected_quota":3571429}`, planID))
+			require.Contains(t, response.Body.String(), `"success":true`)
+			require.NoError(t, db.First(&user, user.Id).Error)
+			assert.Equal(t, 46_428_571, user.Quota)
+
+			general.QuotaDisplayType = operation_setting.QuotaDisplayTypeUSD
+			listed.Data = nil
+			response = request(http.MethodGet, "/plans", "")
+			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &listed))
+			require.Len(t, listed.Data, 1)
+			assert.Equal(t, 50.0, listed.Data[0].Plan.PriceAmount)
+			require.NotNil(t, listed.Data[0].BalanceQuota)
+			assert.Equal(t, 25_000_000, *listed.Data[0].BalanceQuota)
+		})
+	}
 }
 
 func TestStripeWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {

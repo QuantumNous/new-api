@@ -17,10 +17,25 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { TFunction } from 'i18next'
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 
+import { toIntlLocale } from '@/i18n/languages'
+import { formatLocalCurrencyAmount } from '@/lib/currency'
 import dayjs from '@/lib/dayjs'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import type { SubscriptionPlan } from '../types'
+
+export function useSubscriptionPriceFormatter(): (amount: number) => string {
+  const { i18n } = useTranslation()
+  const currency = useSystemConfigStore((state) => state.config.currency)
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
+  return useCallback(
+    (amount: number) => formatLocalCurrencyAmount(amount, { locale }, currency),
+    [currency, locale]
+  )
+}
 
 export function formatDuration(
   plan: Partial<SubscriptionPlan>,
