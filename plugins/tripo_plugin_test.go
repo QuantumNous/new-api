@@ -86,9 +86,13 @@ func TestTripoCreditEstimate(t *testing.T) {
 	}{
 		{name: "text standard texture", route: "/generation/text-to-model", body: map[string]any{"model": "v3.1-20260211"}, want: 20},
 		{name: "text geometry only", route: "/generation/text-to-model", body: map[string]any{"texture": false, "pbr": false}, want: 10},
+		{name: "omitted pbr keeps texture", route: "/generation/text-to-model", body: map[string]any{"model": "v3.1-20260211", "texture": false, "texture_quality": "extreme"}, want: 40},
 		{name: "image 8k with addons", route: "/generation/image-to-model", body: map[string]any{"model": "v3.1-20260211", "texture_quality": "extreme", "geometry_quality": "detailed", "quad": true, "smart_low_poly": true, "generate_parts": true}, want: 105},
 		{name: "p series image detailed", route: "/generation/image-to-model", body: map[string]any{"model": "P1-20260311", "texture_quality": "detailed"}, want: 60},
-		{name: "unknown model holds the ceiling", route: "/models/import", body: map[string]any{"input": "https://example.com/a.glb"}, want: 105},
+		{name: "p2 text 8k ignores h addons", route: "/generation/text-to-model", body: map[string]any{"model": "P2-20260801", "texture_quality": "extreme", "geometry_quality": "detailed", "quad": true, "smart_low_poly": true, "generate_parts": true}, want: 130},
+		{name: "p2 image standard texture", route: "/generation/image-to-model", body: map[string]any{"model": "P2-20260801"}, want: 110},
+		{name: "p2 image geometry only", route: "/generation/image-to-model", body: map[string]any{"model": "P2-20260801", "texture": false, "pbr": false}, want: 100},
+		{name: "unknown model holds the ceiling", route: "/models/import", body: map[string]any{"input": "https://example.com/a.glb"}, want: 130},
 		{name: "rig check is free", route: "/animations/rig-check", body: map[string]any{"input": "task_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, want: 0},
 		{name: "presign is free", route: "/files/presign", body: map[string]any{"format": "glb"}, want: 0},
 	}

@@ -51,12 +51,14 @@ export const meta = {
   ],
 };
 
-// Highest published hold: H-series image to 3D at 8K (50) plus detailed
-// geometry (20), quad (5), smart low poly (10) and generate parts (20).
-// Prices are from developers.tripo3d.ai/en/pricing and the H3.1 / P1 model
-// pages. A request whose options are not in those tables holds this amount,
-// then settlement uses credits_consumed.
-const MAX_CREDITS = 105;
+// Highest published hold is P2 8K texture: 130 credits for text, image, and
+// multiview (developers.tripo3d.ai/en/models/p2). P2 does not add the H-series
+// geometry, quad, smart-low-poly, or generate-parts surcharges. H-series image
+// to 3D at 8K plus those addons is 105. Other prices are from
+// developers.tripo3d.ai/en/pricing and the H3.1 / P1 model pages. A request
+// whose route is not in those tables holds this amount, then settlement uses
+// credits_consumed.
+const MAX_CREDITS = 130;
 const GATEWAY_TASK_ID = /^task_[0-9A-Za-z]{32}$/;
 
 const TASK_STATUS = {
@@ -143,12 +145,14 @@ function rewriteTaskIds(value, originTasks) {
 function modelSeries(model) {
   const raw = trimmed(model);
   if (!raw || /^v/i.test(raw)) return "h";
+  if (/^p2(?:$|[^0-9])/i.test(raw)) return "p2";
   if (/^p/i.test(raw)) return "p";
   return "unknown";
 }
 
 function textureState(body) {
-  if (body.pbr === true) return "on";
+  // Tripo defaults an omitted pbr to true, and pbr true forces texture on.
+  if (body.pbr === true || body.pbr === undefined || body.pbr === null) return "on";
   if (body.texture === false) return "off";
   if (body.texture === true || body.texture === undefined || body.texture === null) return "on";
   return "unknown";
@@ -162,7 +166,7 @@ function textureQuality(body) {
 }
 
 function generationAddons(body, series) {
-  if (series === "p") return 0;
+  if (series === "p" || series === "p2") return 0;
   let extra = 0;
   if (body.geometry_quality === "detailed") extra += 20;
   else if (body.geometry_quality !== undefined && body.geometry_quality !== null && trimmed(body.geometry_quality) !== "" && trimmed(body.geometry_quality) !== "standard") extra += 20;
@@ -177,16 +181,19 @@ function generationCredits(kind, body) {
   const textured = textureState(body);
   const quality = textureQuality(body);
   const text = kind === "text";
-  const tables = text
-    ? { h: { off: 10, standard: 20, detailed: 30, extreme: 40 }, p: { off: 30, standard: 40, detailed: 50, extreme: 50 } }
-    : { h: { off: 20, standard: 30, detailed: 40, extreme: 50 }, p: { off: 40, standard: 50, detailed: 60, extreme: 60 } };
+  const h = text
+    ? { off: 10, standard: 20, detailed: 30, extreme: 40 }
+    : { off: 20, standard: 30, detailed: 40, extreme: 50 };
+  const p = text
+    ? { off: 30, standard: 40, detailed: 50, extreme: 50 }
+    : { off: 40, standard: 50, detailed: 60, extreme: 60 };
+  // P2 text, image, and multiview share one published table.
+  const p2 = { off: 100, standard: 110, detailed: 120, extreme: 130 };
   let tier = "standard";
   if (textured === "off") tier = "off";
   else if (textured === "unknown" || quality === "unknown") tier = "extreme";
   else tier = quality;
-  const h = tables.h[tier];
-  const p = tables.p[tier];
-  const base = series === "p" ? p : series === "h" ? h : Math.max(h, p);
+  const base = series === "p2" ? p2[tier] : series === "p" ? p[tier] : series === "h" ? h[tier] : Math.max(h[tier], p[tier]);
   return base + generationAddons(body, series);
 }
 
