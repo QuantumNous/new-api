@@ -240,14 +240,6 @@ function imageCredits(route, body) {
   return 50;
 }
 
-function listCredits(body, names, each, fallback) {
-  for (const name of names) {
-    const list = body[name];
-    if (Array.isArray(list) && list.length > 0 && list.length <= 20) return list.length * each;
-  }
-  return fallback;
-}
-
 function decimateCredits(body) {
   const label = (trimmed(body.model) + " " + trimmed(body.version) + " " + trimmed(body.topology)).toLowerCase();
   if (body.quad === true || label.indexOf("quad") >= 0) return 40;
@@ -278,8 +270,11 @@ function estimateCredits(route, body) {
       return imageCredits(route, value);
     case "/generation/image-to-multiview":
       return 10;
-    case "/generation/edit-multiview":
-      return listCredits(value, ["images", "views", "edits"], 5, 20);
+    case "/generation/edit-multiview": {
+      const prompts = value.prompts;
+      if (Array.isArray(prompts) && prompts.length >= 1 && prompts.length <= 4) return prompts.length * 5;
+      return 20;
+    }
     case "/models/texture": {
       const quality = textureQuality(value);
       if (quality === "detailed") return 20;
