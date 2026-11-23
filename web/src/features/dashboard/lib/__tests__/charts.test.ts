@@ -222,7 +222,7 @@ describe('processUserChartData user labels', () => {
     )
     const labels = rankLabels(result)
     expect(new Set(labels).size).toBe(4)
-    expect(labels).toEqual(['a', 'Bob (b)', 'c', 'b'])
+    expect(labels).toEqual(['Bob (a)', 'Bob (b)', 'Bob (a) (c)', 'b (d)'])
   })
 
   test('gives a color to a display name that matches an object key', () => {

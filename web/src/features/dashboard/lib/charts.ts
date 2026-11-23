@@ -709,46 +709,39 @@ const USER_COLORS = [
 
 // Charts always group by the unique username. In display-name mode the label
 // falls back to the username when the display name is empty, and adds the
-// username when the display name alone would match another user's label.
+// username only when two users would otherwise get the same label, because
+// generated usernames can be long and crowd the axis and legend.
 function buildUserLabels(
   data: QuotaDataItem[],
   userLabel: UserChartLabel
 ): Map<string, string> {
-  const displayNameByUser = new Map<string, string>()
+  const names = new Map<string, string>()
   data.forEach((item) => {
     const username = item.username || 'unknown'
-    if (displayNameByUser.has(username)) return
+    if (names.has(username)) return
     const displayName =
       userLabel === 'display_name' ? item.display_name?.trim() : ''
-    displayNameByUser.set(username, displayName || username)
+    names.set(username, displayName || username)
   })
 
-  const labelCount = new Map<string, number>()
-  displayNameByUser.forEach((label) => {
-    labelCount.set(label, (labelCount.get(label) || 0) + 1)
-  })
+  const counts = new Map<string, number>()
+  names.forEach((name) => counts.set(name, (counts.get(name) || 0) + 1))
+  const short = (name: string, username: string) =>
+    name === username || counts.get(name) === 1 ? name : `${name} (${username})`
+  const full = (name: string, username: string) =>
+    name === username ? name : `${name} (${username})`
 
-  const labels = new Map<string, string>()
-  displayNameByUser.forEach((label, username) => {
-    const unique = label === username || labelCount.get(label) === 1
-    labels.set(username, unique ? label : `${label} (${username})`)
-  })
-
-  // A generated label can still match another user's label, for example a
-  // display name that already reads "Bob (alice)". Those users fall back to
-  // their usernames, which are unique, until no label repeats.
-  let hasDuplicate = true
-  while (hasDuplicate) {
-    const owners = new Map<string, number>()
-    labels.forEach((label) => owners.set(label, (owners.get(label) || 0) + 1))
-    hasDuplicate = false
-    labels.forEach((label, username) => {
-      if ((owners.get(label) || 0) < 2 || label === username) return
-      labels.set(username, username)
-      hasDuplicate = true
-    })
+  // A display name written like another user's label, such as "Bob (alice)",
+  // can still collide. Then every label carries its username, and as a last
+  // resort the unique usernames are used.
+  for (const format of [short, full]) {
+    const labels = new Map<string, string>()
+    names.forEach((name, username) =>
+      labels.set(username, format(name, username))
+    )
+    if (new Set(labels.values()).size === labels.size) return labels
   }
-  return labels
+  return new Map([...names.keys()].map((username) => [username, username]))
 }
 
 export function processUserChartData(
