@@ -257,14 +257,12 @@ export function UploadDialog(props: UploadDialogProps) {
       contentClassName='sm:max-w-3xl'
       bodyClassName='space-y-4'
       title={
-        props.initialKey
-          ? t('Upload new plugin version')
-          : t('Upload task plugin')
+        props.initialKey ? t('Upload new plugin version') : t('Upload plugin')
       }
       description={
         props.initialKey
           ? `${t('Plugin key')}: ${props.initialKey}`
-          : t('Upload a JavaScript task platform plugin.')
+          : t('Upload a JavaScript plugin.')
       }
       footer={
         <>
@@ -294,7 +292,7 @@ export function UploadDialog(props: UploadDialogProps) {
         <AlertTitle>{t('Third-party plugin risk')}</AlertTitle>
         <AlertDescription>
           {t(
-            'Uploading a plugin is an administrator-level trust decision. A plugin can access channel credentials and shape upstream requests. Review its source and diff before activation.'
+            'A plugin can read channel keys and change what is sent upstream. Check its code and changes before activating it.'
           )}
         </AlertDescription>
       </Alert>
@@ -372,10 +370,7 @@ export function UploadDialog(props: UploadDialogProps) {
             ) : null}
           </div>
           <FieldDescription>
-            {iconFileName ||
-              t(
-                'Optional icon.svg or icon.png shipped next to plugin.js, up to 512 KiB. Stored separately from the source.'
-              )}
+            {iconFileName || t('Optional SVG or PNG icon, up to 512 KiB.')}
           </FieldDescription>
           {iconError ? <FieldError>{iconError}</FieldError> : null}
         </Field>

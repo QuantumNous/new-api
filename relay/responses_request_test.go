@@ -9,9 +9,15 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/requestplugin"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/setting/request_plugin_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -89,4 +95,51 @@ func TestPrepareResponsesRequestDeepSeekEffectiveReasoning(t *testing.T) {
 			}
 		})
 	}
+}
+
+// finalizedEgressPlugin rejects a body whose first input item is reasoning,
+// which only the DeepSeek finalizer adds to the test request.
+const finalizedEgressPlugin = `export const meta = {apiVersion: 1, key: "rp-finalized-egress", name: "Finalized egress", version: "1.0.0", author: {name: "Test"}};
+export function egress(ctx, req) {
+  const input = req.body && req.body.input;
+  if (Array.isArray(input) && input.length && input[0].type === "reasoning") {
+    return {action: "reject", code: "finalized.seen", message: "Egress saw the finalized body"};
+  }
+  return {action: "continue"};
+}`
+
+func TestPrepareResponsesRequestEgressReadsTheFinalizedBody(t *testing.T) {
+	settings := model_setting.GetGlobalSettings()
+	previous := settings.PassThroughRequestEnabled
+	t.Cleanup(func() { settings.PassThroughRequestEnabled = previous })
+	settings.PassThroughRequestEnabled = false
+	require.NoError(t, i18n.Init())
+	plugin, err := jsplugin.DefaultRegistry.Register(finalizedEgressPlugin, jsplugin.Options{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = jsplugin.DefaultRegistry.Unregister(plugin.Meta.Key) })
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{request_plugin_setting.InstancesOption: `[{"id":"fe","name":"Finalized","plugin":"rp-finalized-egress","enabled":true,"global":true}]`}))
+	t.Cleanup(func() {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{request_plugin_setting.InstancesOption: "[]"}))
+	})
+
+	raw := `{"model":"deepseek-flash","reasoning":{"effort":"high"},"input":[{"type":"function_call","call_id":"c1","name":"lookup","arguments":"{}"}]}`
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(raw))
+	c.Request.Header.Set("Content-Type", "application/json")
+	t.Cleanup(func() { common.CleanupBodyStorage(c) })
+	common.SetContextKey(c, constant.ContextKeyOriginalModel, "deepseek-flash")
+	common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeDeepSeek)
+	common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, "https://api.deepseek.com")
+	common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{})
+	_, _, apiErr := requestplugin.Ingress(c, types.RelayFormatOpenAIResponses)
+	require.Nil(t, apiErr)
+	var req dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal([]byte(raw), &req))
+	info := relaycommon.GenRelayInfoResponses(c, &req)
+	_, _, closer, apiErr := PrepareResponsesRequest(c, info, &req)
+	if closer != nil {
+		t.Cleanup(func() { _ = closer.Close() })
+	}
+	require.NotNil(t, apiErr, "egress must read the reasoning item the finalizer added")
+	assert.Equal(t, types.ErrorCodeRequestRejected, apiErr.GetErrorCode())
 }

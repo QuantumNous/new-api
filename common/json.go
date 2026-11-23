@@ -2,9 +2,10 @@ package common
 
 import (
 	"bytes"
-	"encoding/json"
+	"errors"
 	"io"
 
+	"github.com/MoeForge/moego/json"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/gin-gonic/gin/binding"
 )
@@ -27,6 +28,10 @@ func (hostJSONCodec) Unmarshal(data []byte, v any) error {
 	return json.Unmarshal(data, v)
 }
 
+func (hostJSONCodec) UnmarshalNoCopy(data []byte, v any) error {
+	return json.UnmarshalNoCopy(data, v)
+}
+
 func (hostJSONCodec) Decode(r io.Reader, v any) error {
 	return json.NewDecoder(r).Decode(v)
 }
@@ -43,12 +48,35 @@ func Unmarshal(data []byte, v any) error {
 	return kitutil.Unmarshal(data, v)
 }
 
+// UnmarshalNoCopy borrows strings and raw JSON from data. Keep data and borrowed
+// raw JSON immutable while decoded values are in use.
+func UnmarshalNoCopy(data []byte, v any) error {
+	return kitutil.UnmarshalNoCopy(data, v)
+}
+
 func UnmarshalJsonStr(data string, v any) error {
 	return kitutil.UnmarshalJsonStr(data, v)
 }
 
 func DecodeJson(reader io.Reader, v any) error {
 	return kitutil.DecodeJson(reader, v)
+}
+
+// DecodeJsonBody reads one JSON value and requires EOF after trailing whitespace.
+// Seekable readers let the decoder process large values through a bounded window.
+func DecodeJsonBody(reader io.Reader, v any) error {
+	decoder := json.NewDecoder(reader)
+	if err := decoder.Decode(v); err != nil {
+		return err
+	}
+	var extra struct{}
+	if err := decoder.Decode(&extra); err != io.EOF {
+		if err != nil {
+			return err
+		}
+		return errors.New("multiple JSON values in request body")
+	}
+	return nil
 }
 
 // DecodeJsonWithValidation decodes JSON and applies Gin's configured binding-tag

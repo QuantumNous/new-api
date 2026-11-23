@@ -9,6 +9,7 @@ import (
 
 	"github.com/Calcium-Ion/go-epay/epay"
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -151,6 +152,11 @@ func SubscriptionEpayNotify(c *gin.Context) {
 		_, _ = c.Writer.Write([]byte("fail"))
 		return
 	}
+	if !epayCallbackPartnerMatches(client, params) {
+		logger.LogWarn(c.Request.Context(), common.LogText("Epay webhook partner id mismatch path=%q client_ip=%s callback_pid=%q", c.Request.RequestURI, c.ClientIP(), params["pid"]))
+		_, _ = c.Writer.Write([]byte("fail"))
+		return
+	}
 
 	if verifyInfo.TradeStatus != epay.StatusTradeSuccess {
 		_, _ = c.Writer.Write([]byte("fail"))
@@ -203,6 +209,11 @@ func SubscriptionEpayReturn(c *gin.Context) {
 	}
 	verifyInfo, err := client.Verify(params)
 	if err != nil || !verifyInfo.VerifyStatus {
+		c.Redirect(http.StatusFound, paymentReturnPath("/wallet?pay=fail"))
+		return
+	}
+	if !epayCallbackPartnerMatches(client, params) {
+		logger.LogWarn(c.Request.Context(), common.LogText("Epay webhook partner id mismatch path=%q client_ip=%s callback_pid=%q", c.Request.RequestURI, c.ClientIP(), params["pid"]))
 		c.Redirect(http.StatusFound, paymentReturnPath("/wallet?pay=fail"))
 		return
 	}

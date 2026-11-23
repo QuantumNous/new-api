@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
-	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -13,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/MoeForge/moego/ojson"
+	"github.com/MoeForge/moego/regexp"
 	"github.com/QuantumNous/new-api/common"
 	kitreasoning "github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -106,6 +106,21 @@ func (e *ParamOverrideReturnError) Error() string {
 	}
 	return e.Message
 }
+
+// ParamOverrideRequestValueError reports a valid condition that could not be
+// evaluated because the request carried a value of another type than the rule
+// compares against, for example a string temperature in a numeric gt rule.
+// The request triggered it, so callers report a 400 instead of a channel error.
+type ParamOverrideRequestValueError struct {
+	Path string
+	Err  error
+}
+
+func (e *ParamOverrideRequestValueError) Error() string {
+	return fmt.Sprintf("comparison failed for path %s: %v", e.Path, e.Err)
+}
+
+func (e *ParamOverrideRequestValueError) Unwrap() error { return e.Err }
 
 func AsParamOverrideReturnError(err error) (*ParamOverrideReturnError, bool) {
 	if err == nil {
@@ -217,6 +232,7 @@ func ApplyParamOverrideWithRelayInfo(jsonData []byte, info *RelayInfo) ([]byte, 
 		return nil, err
 	}
 	syncReasoningEffortAfterParamOverride(info, jsonData, result)
+	markRequestPluginOverrides(info, jsonData, result)
 	syncRuntimeHeaderOverrideFromContext(info, overrideCtx)
 	if info != nil {
 		if recorder != nil {
@@ -232,8 +248,8 @@ func syncReasoningEffortAfterParamOverride(info *RelayInfo, before, after []byte
 	if info == nil {
 		return
 	}
-	_, existedBefore := extractReasoningEffortFromJSON(info.GetFinalRequestRelayFormat(), before)
-	effort, existsAfter := extractReasoningEffortFromJSON(info.GetFinalRequestRelayFormat(), after)
+	_, existedBefore := ReasoningEffortFromJSON(info.GetFinalRequestRelayFormat(), before)
+	effort, existsAfter := ReasoningEffortFromJSON(info.GetFinalRequestRelayFormat(), after)
 	if existsAfter {
 		info.SetReasoningEffort(effort)
 		return
@@ -243,7 +259,9 @@ func syncReasoningEffortAfterParamOverride(info *RelayInfo, before, after []byte
 	}
 }
 
-func extractReasoningEffortFromJSON(format types.RelayFormat, data []byte) (string, bool) {
+// ReasoningEffortFromJSON reads the reasoning effort a JSON body of format
+// sets, and whether the body holds a reasoning control at all.
+func ReasoningEffortFromJSON(format types.RelayFormat, data []byte) (string, bool) {
 	switch format {
 	case types.RelayFormatOpenAI:
 		if effort, exists := firstStringValue(data, "reasoning_effort"); exists && effort != "" {
@@ -687,6 +705,11 @@ func checkSingleCondition(doc *ojson.Doc, contextJSON string, condition *Conditi
 
 	result, err := condition.compareGjsonValues(value, targetValue)
 	if err != nil {
+		var valueErr *ParamOverrideRequestValueError
+		if errors.As(err, &valueErr) {
+			valueErr.Path = condition.Path
+			return false, valueErr
+		}
 		return false, fmt.Errorf("comparison failed for path %s: %v", condition.Path, err)
 	}
 
@@ -774,7 +797,7 @@ func compareEqual(jsonValue, targetValue ojson.Result) (bool, error) {
 
 	// 如果类型不同，报错
 	if jsonValue.Type != targetValue.Type {
-		return false, fmt.Errorf("compare for different types, got %v and %v", jsonValue.Type, targetValue.Type)
+		return false, &ParamOverrideRequestValueError{Err: fmt.Errorf("compare for different types, got %v and %v", jsonValue.Type, targetValue.Type)}
 	}
 
 	switch jsonValue.Type {
@@ -790,9 +813,13 @@ func compareEqual(jsonValue, targetValue ojson.Result) (bool, error) {
 }
 
 func compareNumeric(jsonValue, targetValue ojson.Result, operator string) (bool, error) {
-	// 只有数字类型才支持数值比较
-	if jsonValue.Type != ojson.Number || targetValue.Type != ojson.Number {
+	// 只有数字类型才支持数值比较。规则值不是数字是配置错误，
+	// 请求值不是数字是请求错误。
+	if targetValue.Type != ojson.Number {
 		return false, fmt.Errorf("numeric comparison requires both values to be numbers, got %v and %v", jsonValue.Type, targetValue.Type)
+	}
+	if jsonValue.Type != ojson.Number {
+		return false, &ParamOverrideRequestValueError{Err: fmt.Errorf("numeric comparison requires both values to be numbers, got %v and %v", jsonValue.Type, targetValue.Type)}
 	}
 
 	jsonNum := jsonValue.Num

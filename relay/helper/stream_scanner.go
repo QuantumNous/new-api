@@ -125,7 +125,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 
 	// Finish the request keepalive before changing headers. The scanner owns
 	// subsequent ping and data writes through its shared write mutex.
-	if writer, ok := c.Writer.(*streamKeepAliveWriter); ok {
+	if writer := keepAliveWriter(c); writer != nil {
 		writer.stop()
 	}
 

@@ -1,8 +1,7 @@
 package mistral
 
 import (
-	"regexp"
-
+	"github.com/MoeForge/moego/regexp"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 )

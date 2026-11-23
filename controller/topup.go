@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -135,17 +136,39 @@ type AmountRequest struct {
 }
 
 func GetEpayClient() *epay.Client {
-	if operation_setting.PayAddress == "" || operation_setting.EpayId == "" || operation_setting.EpayKey == "" {
+	if operation_setting.PayAddress == "" || operation_setting.EpayId == "" {
 		return nil
 	}
-	withUrl, err := epay.NewClient(&epay.Config{
+	config := &epay.Config{
 		PartnerID: operation_setting.EpayId,
 		Key:       operation_setting.EpayKey,
-	}, operation_setting.PayAddress)
+	}
+	if paymentSetting := operation_setting.GetPaymentSetting(); paymentSetting.EpaySignType == operation_setting.EpaySignTypeRSA {
+		config.SignType = epay.SignTypeRSA
+		config.MerchantPrivateKey = paymentSetting.EpayMerchantPrivateKey
+		config.PlatformPublicKey = paymentSetting.EpayPlatformPublicKey
+	} else if operation_setting.EpayKey == "" {
+		return nil
+	}
+	withUrl, err := epay.NewClient(config, operation_setting.PayAddress)
 	if err != nil {
 		return nil
 	}
 	return withUrl
+}
+
+func epayCallbackPartnerMatches(client *epay.Client, params map[string]string) bool {
+	if client == nil || client.Config == nil {
+		return false
+	}
+	if !strings.EqualFold(client.Config.SignType, epay.SignTypeRSA) {
+		return true
+	}
+	expectedPID := client.Config.PartnerID
+	if strings.TrimSpace(expectedPID) == "" {
+		return false
+	}
+	return params["pid"] == expectedPID
 }
 
 func getPayMoney(amount int64, group string) float64 {
@@ -457,6 +480,13 @@ func EpayNotify(c *gin.Context) {
 		} else {
 			logger.LogWarn(c.Request.Context(), common.LogText("Epay webhook signature verification failed path=%q client_ip=%s verify_status=false", c.Request.RequestURI, c.ClientIP()))
 		}
+		return
+	}
+	if !epayCallbackPartnerMatches(client, params) {
+		if _, writeErr := c.Writer.Write([]byte("fail")); writeErr != nil {
+			logger.LogError(c.Request.Context(), common.LogText("Epay webhook failed to write response path=%q client_ip=%s error=%q", c.Request.RequestURI, c.ClientIP(), writeErr.Error()))
+		}
+		logger.LogWarn(c.Request.Context(), common.LogText("Epay webhook partner id mismatch path=%q client_ip=%s callback_pid=%q", c.Request.RequestURI, c.ClientIP(), params["pid"]))
 		return
 	}
 	logger.LogInfo(c.Request.Context(), common.LogText("Epay webhook signature verified trade_no=%s callback_type=%s trade_status=%s client_ip=%s verify_info=%q", verifyInfo.ServiceTradeNo, verifyInfo.Type, verifyInfo.TradeStatus, c.ClientIP(), common.GetJsonString(verifyInfo)))

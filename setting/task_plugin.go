@@ -14,7 +14,31 @@ const (
 
 	officialTaskPluginMarketplaceIndexURL = "https://www.newapi.ai/api/v1/plugins/index.json"
 	githubTaskPluginMarketplaceIndexURL   = "https://raw.githubusercontent.com/QuantumNous/new-api-plugins/main/index.json"
+	// CommunityTaskPluginMarketplaceIndexURL lists plugins their authors publish
+	// on newapi.ai. Install counts go to this site only.
+	CommunityTaskPluginMarketplaceIndexURL = "https://www.newapi.ai/api/v1/community/index.json"
 )
+
+// The kind of a marketplace source is decided by its address, never by what
+// the source says about itself.
+const (
+	TaskPluginMarketplaceKindOfficial   = "official"
+	TaskPluginMarketplaceKindCommunity  = "community"
+	TaskPluginMarketplaceKindThirdParty = "third_party"
+)
+
+// TaskPluginMarketplaceSourceKind returns the kind of the source at indexURL:
+// the built-in official addresses are official, the built-in community address
+// is community, and anything else is a third-party source.
+func TaskPluginMarketplaceSourceKind(indexURL string) string {
+	switch strings.TrimSpace(indexURL) {
+	case officialTaskPluginMarketplaceIndexURL, githubTaskPluginMarketplaceIndexURL:
+		return TaskPluginMarketplaceKindOfficial
+	case CommunityTaskPluginMarketplaceIndexURL:
+		return TaskPluginMarketplaceKindCommunity
+	}
+	return TaskPluginMarketplaceKindThirdParty
+}
 
 type TaskPluginMarketplaceSource struct {
 	Name     string `json:"name"`
@@ -25,6 +49,7 @@ func defaultTaskPluginMarketplaceSources() []TaskPluginMarketplaceSource {
 	return []TaskPluginMarketplaceSource{
 		{Name: "Official", IndexURL: officialTaskPluginMarketplaceIndexURL},
 		{Name: "GitHub", IndexURL: githubTaskPluginMarketplaceIndexURL},
+		{Name: "Community", IndexURL: CommunityTaskPluginMarketplaceIndexURL},
 	}
 }
 

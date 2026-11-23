@@ -2,8 +2,12 @@ package jsplugin
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -44,9 +48,7 @@ func TestRegistryIndexesNativeRoutesAndProtocolsInOneGeneration(t *testing.T) {
 	byKey, ok := generation.Get("routing-alpha")
 	require.True(t, ok)
 	assert.Same(t, plugin, byKey)
-	byType, ok := generation.GetByChannelType(50)
-	require.True(t, ok)
-	assert.Same(t, plugin, byType)
+	assert.Equal(t, []*LoadedPlugin{plugin}, generation.PluginsByChannelType(50))
 	byModel, ok := generation.GetByModel("video-alpha")
 	require.True(t, ok)
 	assert.Same(t, plugin, byModel)
@@ -198,8 +200,9 @@ func TestPerProtocolModelsAllowDisjointPluginsOnSharedProtocol(t *testing.T) {
 
 func TestPreflightRoutingConflict(t *testing.T) {
 	first := mustCompileRoutingPlugin(t, "preflight-first", 90, `["model-a"]`, "", "")
-	second := mustCompileRoutingPlugin(t, "preflight-second", 90, `["model-b"]`, "", "")
+	second := mustCompileRoutingPlugin(t, "preflight-second", 0, `["MODEL-A"]`, "", "")
 	replacement := mustCompileRoutingPlugin(t, "preflight-first", 90, `["model-a-v2"]`, "", "")
+	sameType := mustCompileRoutingPlugin(t, "preflight-same-type", 90, `["model-b"]`, "", "")
 
 	require.NoError(t, PreflightRoutingConflict(nil, first), "a lone candidate against a nil generation must be admitted")
 
@@ -209,10 +212,10 @@ func TestPreflightRoutingConflict(t *testing.T) {
 
 	err := PreflightRoutingConflict(current, second)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "preflight-first")
-	assert.Contains(t, err.Error(), "channelType 90 conflicts")
+	assert.Contains(t, err.Error(), `plugin preflight-second model "MODEL-A" conflicts with plugin preflight-first`)
 
 	require.NoError(t, PreflightRoutingConflict(current, replacement), "same-key re-upload must replace rather than self-conflict")
+	require.NoError(t, PreflightRoutingConflict(current, sameType), "plugins may share a channel type")
 
 	left := mustCompileRoutingPlugin(t, "preflight-left", 0, `["shared-model"]`,
 		`protocols: [{name: "openai_responses", supports: ["stream", "sync", "background"]}],`,
@@ -555,8 +558,8 @@ export function parseTaskResult() { return {}; }
 
 func TestRegistryReportsPartialAndFailedRebuildOutcomes(t *testing.T) {
 	registry := NewRegistry()
-	alpha := mustCompileRoutingPlugin(t, "outcome-alpha", 601, `["alpha"]`, "", "")
-	beta := mustCompileRoutingPlugin(t, "outcome-beta", 601, `["beta"]`, "", "")
+	alpha := mustCompileRoutingPlugin(t, "outcome-alpha", 0, `["alpha"]`, "", "")
+	beta := mustCompileRoutingPlugin(t, "outcome-beta", 0, `["ALPHA"]`, "", "")
 	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{alpha, beta}))
 
 	partial := registry.LastRebuildOutcome()
@@ -588,16 +591,10 @@ func TestRegistryExcludesConflictingPluginWithoutBlockingGeneration(t *testing.T
 		expectedError string
 	}{
 		{
-			name:          "legacy channel type",
-			first:         mustCompileRoutingPlugin(t, "channel-alpha", 50, `["alpha"]`, "", ""),
-			second:        mustCompileRoutingPlugin(t, "channel-beta", 50, `["beta"]`, "", ""),
-			expectedError: "channelType 50 conflicts",
-		},
-		{
-			name:          "overlapping channelTypes entry",
-			first:         mustCompileRoutingPlugin(t, "channel-alpha", 0, `["alpha"]`, `channelTypes: [55, 1],`, ""),
-			second:        mustCompileRoutingPlugin(t, "channel-beta", 0, `["beta"]`, `channelTypes: [1],`, ""),
-			expectedError: "channelType 1 conflicts",
+			name:          "model differing only in case",
+			first:         mustCompileRoutingPlugin(t, "model-alpha", 0, `["alpha"]`, "", ""),
+			second:        mustCompileRoutingPlugin(t, "model-beta", 0, `["ALPHA"]`, "", ""),
+			expectedError: `model "ALPHA" conflicts with plugin model-alpha`,
 		},
 	}
 
@@ -618,13 +615,27 @@ func TestRegistryExcludesConflictingPluginWithoutBlockingGeneration(t *testing.T
 	}
 }
 
+// Several plugins may declare a built-in channel type: each is admitted, and
+// a channel of the type serves them in key order.
+func TestPluginsShareChannelType(t *testing.T) {
+	registry := NewRegistry()
+	beta := mustCompileRoutingPlugin(t, "zhipu-beta", 0, `["glm-video"]`, `channelTypes: [26, 16],`, "")
+	alpha := mustCompileRoutingPlugin(t, "zhipu-alpha", 26, `["cogview"]`, "", "")
+	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{beta, alpha}))
+
+	assert.Empty(t, registry.RoutingErrors())
+	assert.Equal(t, []*LoadedPlugin{alpha, beta}, registry.PluginsByChannelType(26))
+	assert.Equal(t, []*LoadedPlugin{beta}, registry.PluginsByChannelType(16))
+	assert.Empty(t, registry.PluginsByChannelType(1))
+}
+
 func TestRegistryRetainsIncumbentWhenUpdatedPluginConflicts(t *testing.T) {
 	registry := NewRegistry()
 	incumbent := mustCompileRoutingPlugin(t, "incumbent", 70, `["model-v1"]`, "", "")
 	other := mustCompileRoutingPlugin(t, "other", 71, `["other-model"]`, "", "")
 	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{incumbent, other}))
 
-	conflictingUpdate := mustCompileRoutingPlugin(t, "incumbent", 71, `["model-v2"]`, "", "")
+	conflictingUpdate := mustCompileRoutingPlugin(t, "incumbent", 70, `["model-v2", "OTHER-MODEL"]`, "", "")
 	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{conflictingUpdate, other}))
 
 	active, ok := registry.Get("incumbent")
@@ -644,8 +655,8 @@ func TestRegistryRetainsIncumbentWhenUpdatedPluginConflicts(t *testing.T) {
 
 func TestRegistryAdmitsNewConflictsInDeterministicKeyOrder(t *testing.T) {
 	registry := NewRegistry()
-	alpha := mustCompileRoutingPlugin(t, "alpha", 80, `["alpha-model"]`, "", "")
-	beta := mustCompileRoutingPlugin(t, "beta", 80, `["beta-model"]`, "", "")
+	alpha := mustCompileRoutingPlugin(t, "alpha", 0, `["shared-model"]`, "", "")
+	beta := mustCompileRoutingPlugin(t, "beta", 0, `["SHARED-MODEL"]`, "", "")
 
 	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{beta, alpha}))
 
@@ -654,7 +665,7 @@ func TestRegistryAdmitsNewConflictsInDeterministicKeyOrder(t *testing.T) {
 	assert.Same(t, alpha, active)
 	_, betaActive := registry.Get("beta")
 	assert.False(t, betaActive)
-	assert.Contains(t, registry.RoutingErrors()["beta"], "channelType 80 conflicts")
+	assert.Contains(t, registry.RoutingErrors()["beta"], `model "SHARED-MODEL" conflicts with plugin alpha`)
 }
 
 func TestRegistryPublishesHealthyUpdateAlongsideRejectedUpdate(t *testing.T) {
@@ -665,7 +676,7 @@ func TestRegistryPublishesHealthyUpdateAlongsideRejectedUpdate(t *testing.T) {
 	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{healthyV1, offenderV1, owner}))
 
 	healthyV2 := mustCompileRoutingPlugin(t, "healthy", 84, `["healthy-v2"]`, "", "")
-	offenderV2 := mustCompileRoutingPlugin(t, "offender", 83, `["offender-v2"]`, "", "")
+	offenderV2 := mustCompileRoutingPlugin(t, "offender", 82, `["offender-v2", "OWNER"]`, "", "")
 	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{healthyV2, offenderV2, owner}))
 
 	activeHealthy, ok := registry.Get("healthy")
@@ -674,27 +685,27 @@ func TestRegistryPublishesHealthyUpdateAlongsideRejectedUpdate(t *testing.T) {
 	activeOffender, ok := registry.Get("offender")
 	require.True(t, ok)
 	assert.Same(t, offenderV1, activeOffender)
-	assert.Contains(t, registry.RoutingErrors()["offender"], "channelType 83 conflicts")
+	assert.Contains(t, registry.RoutingErrors()["offender"], `conflicts with plugin offender model "OWNER"`)
 }
 
 func TestRegistryAdmitsInterdependentUpdatesAsOneGeneration(t *testing.T) {
 	tests := []struct {
-		name       string
-		firstType  int
-		secondType int
+		name         string
+		firstModels  string
+		secondModels string
 	}{
-		{name: "one update frees the type needed by another", firstType: 102, secondType: 103},
-		{name: "two plugins swap types", firstType: 102, secondType: 101},
+		{name: "one update frees the name needed by another", firstModels: `["SECOND-OWNED"]`, secondModels: `["second-v2"]`},
+		{name: "two plugins swap names", firstModels: `["SECOND-OWNED"]`, secondModels: `["FIRST-OWNED"]`},
 	}
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
 			registry := NewRegistry()
-			firstV1 := mustCompileRoutingPlugin(t, "dependent-first", 101, `["first-v1"]`, "", "")
-			secondV1 := mustCompileRoutingPlugin(t, "dependent-second", 102, `["second-v1"]`, "", "")
+			firstV1 := mustCompileRoutingPlugin(t, "dependent-first", 0, `["first-owned"]`, "", "")
+			secondV1 := mustCompileRoutingPlugin(t, "dependent-second", 0, `["second-owned"]`, "", "")
 			require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{firstV1, secondV1}))
 
-			firstV2 := mustCompileRoutingPlugin(t, "dependent-first", testCase.firstType, `["first-v2"]`, "", "")
-			secondV2 := mustCompileRoutingPlugin(t, "dependent-second", testCase.secondType, `["second-v2"]`, "", "")
+			firstV2 := mustCompileRoutingPlugin(t, "dependent-first", 0, testCase.firstModels, "", "")
+			secondV2 := mustCompileRoutingPlugin(t, "dependent-second", 0, testCase.secondModels, "", "")
 			require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{firstV2, secondV2}))
 
 			activeFirst, ok := registry.Get("dependent-first")
@@ -710,13 +721,13 @@ func TestRegistryAdmitsInterdependentUpdatesAsOneGeneration(t *testing.T) {
 
 func TestRejectedUpdateDoesNotRestoreIncumbentAheadOfHealthyPeer(t *testing.T) {
 	registry := NewRegistry()
-	alphaV1 := mustCompileRoutingPlugin(t, "fallback-alpha", 111, `["alpha-v1"]`, "", "")
-	betaV1 := mustCompileRoutingPlugin(t, "fallback-beta", 112, `["beta-v1"]`, "", "")
-	owner := mustCompileRoutingPlugin(t, "fallback-owner", 113, `["owner"]`, "", "")
+	alphaV1 := mustCompileRoutingPlugin(t, "fallback-alpha", 0, `["alpha-owned"]`, "", "")
+	betaV1 := mustCompileRoutingPlugin(t, "fallback-beta", 0, `["beta-v1"]`, "", "")
+	owner := mustCompileRoutingPlugin(t, "fallback-owner", 0, `["owner"]`, "", "")
 	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{alphaV1, betaV1, owner}))
 
-	alphaV2 := mustCompileRoutingPlugin(t, "fallback-alpha", 113, `["alpha-v2"]`, "", "")
-	betaV2 := mustCompileRoutingPlugin(t, "fallback-beta", 111, `["beta-v2"]`, "", "")
+	alphaV2 := mustCompileRoutingPlugin(t, "fallback-alpha", 0, `["alpha-v2", "OWNER"]`, "", "")
+	betaV2 := mustCompileRoutingPlugin(t, "fallback-beta", 0, `["beta-v2", "ALPHA-OWNED"]`, "", "")
 	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{alphaV2, betaV2, owner}))
 
 	_, alphaActive := registry.Get("fallback-alpha")
@@ -727,16 +738,16 @@ func TestRejectedUpdateDoesNotRestoreIncumbentAheadOfHealthyPeer(t *testing.T) {
 	activeOwner, ok := registry.Get("fallback-owner")
 	require.True(t, ok)
 	assert.Same(t, owner, activeOwner)
-	assert.Contains(t, registry.RoutingErrors()["fallback-alpha"], "channelType 113 conflicts")
+	assert.Contains(t, registry.RoutingErrors()["fallback-alpha"], `conflicts with plugin fallback-alpha model "OWNER"`)
 	assert.NotContains(t, registry.RoutingErrors(), "fallback-beta")
 }
 
 func TestRemovingOverrideNeverRetainsRemovedIncumbent(t *testing.T) {
 	registry := NewRegistry()
-	override := mustCompileRoutingPlugin(t, "fallback", 92, `["override"]`, "", "")
-	owner := mustCompileRoutingPlugin(t, "owner", 91, `["owner"]`, "", "")
+	override := mustCompileRoutingPlugin(t, "fallback", 0, `["override"]`, "", "")
+	owner := mustCompileRoutingPlugin(t, "owner", 0, `["owner"]`, "", "")
 	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{override, owner}))
-	factory, err := registry.RegisterFactory(routingTestPluginSource("fallback", 91, `["factory"]`, "", ""), Options{})
+	factory, err := registry.RegisterFactory(routingTestPluginSource("fallback", 0, `["factory", "OWNER"]`, "", ""), Options{})
 	require.NoError(t, err)
 
 	require.NoError(t, registry.Unregister("fallback"))
@@ -748,7 +759,7 @@ func TestRemovingOverrideNeverRetainsRemovedIncumbent(t *testing.T) {
 	assert.Same(t, owner, ownerActive)
 	assert.NotContains(t, registry.OverridePlugins(), "fallback")
 	assert.NotContains(t, registry.ActiveOverridePlugins(), "fallback")
-	assert.Contains(t, registry.RoutingErrors()["fallback"], "channelType 91 conflicts")
+	assert.Contains(t, registry.RoutingErrors()["fallback"], `conflicts with plugin fallback model "OWNER"`)
 
 	require.NoError(t, registry.Unregister("owner"))
 	fallbackPlugin, ok := registry.Get("fallback")
@@ -758,13 +769,13 @@ func TestRemovingOverrideNeverRetainsRemovedIncumbent(t *testing.T) {
 
 func TestRejectedNewOverrideRetainsFactoryIncumbent(t *testing.T) {
 	registry := NewRegistry()
-	factorySource := routingTestPluginSource("factory-fallback", 121, `["factory"]`, "", "")
+	factorySource := routingTestPluginSource("factory-fallback", 0, `["factory"]`, "", "")
 	factory, err := registry.RegisterFactory(factorySource, Options{})
 	require.NoError(t, err)
-	owner := mustCompileRoutingPlugin(t, "factory-owner", 122, `["owner"]`, "", "")
+	owner := mustCompileRoutingPlugin(t, "factory-owner", 0, `["owner"]`, "", "")
 	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{owner}))
 
-	conflictingOverride := mustCompileRoutingPlugin(t, "factory-fallback", 122, `["override"]`, "", "")
+	conflictingOverride := mustCompileRoutingPlugin(t, "factory-fallback", 0, `["override", "OWNER"]`, "", "")
 	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{conflictingOverride, owner}))
 
 	active, ok := registry.Get("factory-fallback")
@@ -772,7 +783,7 @@ func TestRejectedNewOverrideRetainsFactoryIncumbent(t *testing.T) {
 	assert.Same(t, factory, active)
 	assert.Same(t, conflictingOverride, registry.OverridePlugins()["factory-fallback"])
 	assert.NotContains(t, registry.ActiveOverridePlugins(), "factory-fallback")
-	assert.Contains(t, registry.RoutingErrors()["factory-fallback"], "channelType 122 conflicts")
+	assert.Contains(t, registry.RoutingErrors()["factory-fallback"], `conflicts with plugin factory-fallback model "OWNER"`)
 }
 
 func TestGenericChannelTypesDoNotCreateLegacyIdentityConflicts(t *testing.T) {
@@ -783,8 +794,7 @@ func TestGenericChannelTypesDoNotCreateLegacyIdentityConflicts(t *testing.T) {
 			second := mustCompileRoutingPlugin(t, "generic-beta", channelType, `["beta"]`, "", "")
 
 			require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{first, second}))
-			_, found := registry.GetByChannelType(channelType)
-			assert.False(t, found)
+			assert.Empty(t, registry.PluginsByChannelType(channelType))
 		})
 	}
 }
@@ -809,6 +819,16 @@ func TestDeclarativeRouteValidationProtectsNamespacesAndCanonicalSyntax(t *testi
 			name:          "SPA root",
 			route:         Route{Method: "POST", Path: "/console/jobs", Type: RouteTypeSubmit},
 			expectedError: "reserved namespace /console",
+		},
+		{
+			name:          "request processing page",
+			route:         Route{Method: "GET", Path: "/request-processing", Type: RouteTypeQuery, Render: "native"},
+			expectedError: "reserved namespace /request-processing",
+		},
+		{
+			name:          "security page",
+			route:         Route{Method: "GET", Path: "/security/:section", Type: RouteTypeQuery, Render: "native"},
+			expectedError: "reserved namespace /security",
 		},
 		{
 			name:          "dynamic root can claim reserved subtree",
@@ -1221,4 +1241,21 @@ func routingProtocolExport(name string) string {
 		renderEvents: function() { return {events: [], state: null, done: false}; },
 		renderFinal: function(ctx, task) { return task; }
 	}};`, name)
+}
+
+// Every console page is a reserved namespace, so a plugin route cannot
+// answer a reload or a direct visit of the page.
+func TestReservedRouteNamespacesCoverConsolePages(t *testing.T) {
+	entries, err := os.ReadDir("../../web/src/routes/_authenticated")
+	if errors.Is(err, fs.ErrNotExist) {
+		t.Skip("the web sources are not in this tree")
+	}
+	require.NoError(t, err)
+	for _, entry := range entries {
+		name := strings.TrimSuffix(entry.Name(), ".tsx")
+		if name == "route" || strings.HasPrefix(name, "-") {
+			continue
+		}
+		assert.Contains(t, reservedRouteNamespaces, "/"+name, "console page /%s", name)
+	}
 }
