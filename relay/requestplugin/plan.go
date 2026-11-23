@@ -518,7 +518,8 @@ func (p *Plan) runInstance(ctx context.Context, call Call, instance *request_plu
 	var rewritten []int
 	var patches []requestpatch.Effect
 	refused := false
-	for index, effect := range effects {
+	for index := 0; index < len(effects); index++ {
+		effect := effects[index]
 		switch effect.Type {
 		case requestpatch.EffectReasoningSet:
 			if effort, err := reasoning.ParseEffort(effect.Effort); err != nil || effort == "" {
@@ -529,18 +530,28 @@ func (p *Plan) runInstance(ctx context.Context, call Call, instance *request_plu
 				next.record.ReasoningEffort = effect.Effort
 			}
 		case requestpatch.EffectMediaReencode:
-			if effect.Media < 0 || effect.Media >= len(media) {
+			end := index
+			for end < len(effects) {
+				candidate := effects[end]
+				if candidate.Type != requestpatch.EffectMediaReencode || candidate.Media < 0 || candidate.Media >= len(media) {
+					break
+				}
+				end++
+			}
+			if end == index {
 				return change{}, errorInvalidEffect, fmt.Errorf("effects[%d].media %d does not exist", index, effect.Media)
 			}
-			ops, reencode, err := reencodeMedia(ctx, media[effect.Media], effect)
-			if err != nil {
-				return change{}, errorMedia, fmt.Errorf("effects[%d]: %w", index, err)
+			for offset, result := range processImageEncoders().reencode(ctx, media, effects[index:end]) {
+				if result.err != nil {
+					return change{}, errorMedia, fmt.Errorf("effects[%d]: %w", index+offset, result.err)
+				}
+				mediaOps = append(mediaOps, result.ops...)
+				if result.change != nil {
+					result.change.Index = effects[index+offset].Media
+					next.record.Media = append(next.record.Media, *result.change)
+				}
 			}
-			mediaOps = append(mediaOps, ops...)
-			if reencode != nil {
-				reencode.Index = effect.Media
-				next.record.Media = append(next.record.Media, *reencode)
-			}
+			index = end - 1
 		case requestpatch.EffectMediaText:
 			if !attachments.exists(effect.Media) {
 				return change{}, errorInvalidEffect, fmt.Errorf("effects[%d].media %d does not exist", index, effect.Media)
