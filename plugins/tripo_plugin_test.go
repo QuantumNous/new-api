@@ -100,6 +100,9 @@ func TestTripoCreditEstimate(t *testing.T) {
 		{name: "one multiview edit", route: "/generation/edit-multiview", body: map[string]any{"prompts": []any{map[string]any{"view": "front", "prompt": "red"}}}, want: 5},
 		{name: "four multiview edits", route: "/generation/edit-multiview", body: map[string]any{"prompts": []any{"a", "b", "c", "d"}}, want: 20},
 		{name: "missing multiview prompts hold 20", route: "/generation/edit-multiview", body: map[string]any{"images": []any{"front"}}, want: 20},
+		{name: "smart segment model file token", route: "/mesh/smartsegment", body: map[string]any{"seg_type": "model", "input": "file_a1b2c3d4-e5f6-7890-abcd-ef1234567890"}, want: 55},
+		{name: "smart segment image file token", route: "/mesh/smartsegment", body: map[string]any{"seg_type": "image", "input": "file_a1b2c3d4-e5f6-7890-abcd-ef1234567890"}, want: 85},
+		{name: "smart segment image glb url stays on the image price", route: "/mesh/smartsegment", body: map[string]any{"seg_type": "image", "input": "https://example.com/a.glb"}, want: 85},
 		{name: "unknown model holds the ceiling", route: "/models/import", body: map[string]any{"input": "https://example.com/a.glb"}, want: 130},
 		{name: "rig check is free", route: "/animations/rig-check", body: map[string]any{"input": "task_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, want: 0},
 		{name: "presign is free", route: "/files/presign", body: map[string]any{"format": "glb"}, want: 0},
@@ -140,6 +143,19 @@ func TestTripoTaskResultAndSettlement(t *testing.T) {
 	})
 	assert.Equal(t, "FAILURE", failed["status"])
 	assert.Equal(t, "rejected", failed["reason"])
+
+	image := callObject(t, plugin, "parseTaskResult", nil, map[string]any{}, map[string]any{
+		"code": float64(0),
+		"data": map[string]any{"status": "success", "output": map[string]any{"generated_image_url": "https://cdn.example/image.png"}},
+	})
+	assert.Equal(t, "SUCCESS", image["status"])
+	assert.Equal(t, "https://cdn.example/image.png", image["url"])
+
+	model := callObject(t, plugin, "parseTaskResult", nil, map[string]any{}, map[string]any{
+		"code": float64(0),
+		"data": map[string]any{"status": "success", "output": map[string]any{"model_url": "https://cdn.example/model.glb", "generated_image_url": "https://cdn.example/image.png"}},
+	})
+	assert.Equal(t, "https://cdn.example/model.glb", model["url"])
 
 	settled := callObject(t, plugin, "extractUsageOnComplete", nil, map[string]any{}, map[string]any{}, map[string]any{
 		"code": float64(0),

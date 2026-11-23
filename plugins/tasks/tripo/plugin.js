@@ -249,10 +249,6 @@ function decimateCredits(body) {
   return 40;
 }
 
-function looksLikeModelInput(value) {
-  return /\.(glb|gltf|fbx|obj|stl|3mf|usdz)($|\?)/i.test(trimmed(value));
-}
-
 // Published credit for the request Tripo will receive. Unlisted options hold
 // MAX_CREDITS; the completed task settles on credits_consumed.
 function estimateCredits(route, body) {
@@ -286,7 +282,7 @@ function estimateCredits(route, body) {
     case "/mesh/segment":
       return 40;
     case "/mesh/smartsegment":
-      if (looksLikeModelInput(value.input)) return 55;
+      if (trimmed(value.seg_type).toLowerCase() === "model") return 55;
       return 85;
     case "/mesh/complete":
       if ((trimmed(value.mode) + " " + trimmed(value.method)).toLowerCase().indexOf("quick") >= 0) return 30;
@@ -500,7 +496,7 @@ export function parseTaskResult(ctx, body) {
   const result = { status: status, progress: progressText(detail.progress) };
   if (status === "FAILURE") result.reason = trimmed(detail.error_message) || (detail.error_code === undefined ? "" : String(detail.error_code));
   const output = plainObject(detail.output);
-  const url = trimmed(output && (output.model_url || output.image_url || output.rendered_image_url));
+  const url = trimmed(output && (output.model_url || output.image_url || output.rendered_image_url || output.generated_image_url));
   if (url) result.url = url;
   return result;
 }
