@@ -213,8 +213,11 @@ function imageSizeTier(size) {
   return "unknown";
 }
 
-function imageCredits(body) {
-  const model = trimmed(body.model).toLowerCase();
+function imageCredits(route, body) {
+  // An omitted model is seedream_v4 for text-to-image and seedream_v5 for image-to-image.
+  let model = trimmed(body.model).toLowerCase();
+  if (!model && route === "/generation/text-to-image") model = "seedream_v4";
+  if (!model && route === "/generation/image-to-image") model = "seedream_v5";
   const tier = imageSizeTier(body.size || body.resolution);
   const quality = trimmed(body.quality).toLowerCase();
   const knownQuality = !quality || quality === "low" || quality === "medium" || quality === "high" || quality === "xhigh" || quality === "max";
@@ -272,7 +275,7 @@ function estimateCredits(route, body) {
       return 30;
     case "/generation/text-to-image":
     case "/generation/image-to-image":
-      return imageCredits(value);
+      return imageCredits(route, value);
     case "/generation/image-to-multiview":
       return 10;
     case "/generation/edit-multiview":
