@@ -21,6 +21,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Write VERSION
+        run: |
+          VERSION="ownapi-$(TZ=Asia/Shanghai date +'%Y%m%d')-$(git rev-parse --short=7 HEAD)"
+          echo "$VERSION" > VERSION
+          echo "Building $VERSION"
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
