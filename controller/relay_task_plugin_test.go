@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -615,6 +616,129 @@ func TestNativeVideoTaskSubmissionKey(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, pending.reply.Code)
 	assert.Contains(t, pending.reply.Body.String(), "idempotency_pending")
 	assert.Equal(t, "2", pending.reply.Header().Get("Retry-After"))
+}
+
+func TestNativeVideoTaskReplayAfterClientDisconnect(t *testing.T) {
+	db, dialect := openTaskDialectDatabase(t, &model.User{}, &model.Token{}, &model.Channel{}, &model.Task{}, &model.TaskSubmissionKey{}, &model.Log{})
+	oldDB, oldLogDB := model.DB, model.LOG_DB
+	oldMain, oldLog := common.MainDatabaseType(), common.LogDatabaseType()
+	oldRedis, oldMemory, oldBatch, oldConsume, oldExport := common.RedisEnabled, common.MemoryCacheEnabled, common.BatchUpdateEnabled, common.LogConsumeEnabled, common.DataExportEnabled
+	idempotencyEnabled := constant.TaskSubmissionIdempotencyEnabled
+	model.DB, model.LOG_DB = db, db
+	common.SetDatabaseTypes(dialect, dialect)
+	common.RedisEnabled, common.MemoryCacheEnabled, common.BatchUpdateEnabled, common.LogConsumeEnabled, common.DataExportEnabled = false, false, false, true, false
+	constant.TaskSubmissionIdempotencyEnabled = true
+	t.Cleanup(func() {
+		model.DB, model.LOG_DB = oldDB, oldLogDB
+		common.SetDatabaseTypes(oldMain, oldLog)
+		common.RedisEnabled, common.MemoryCacheEnabled, common.BatchUpdateEnabled, common.LogConsumeEnabled, common.DataExportEnabled = oldRedis, oldMemory, oldBatch, oldConsume, oldExport
+		constant.TaskSubmissionIdempotencyEnabled = idempotencyEnabled
+	})
+
+	const modelName = "video-model"
+	withTieredBillingConfig(t, map[string]string{modelName: "tiered_expr"}, map[string]string{modelName: `tier("video", 0.08)`})
+	const source = `
+export const meta={apiVersion:1,key:"doubao",name:"Video test",version:"1.0.0",author:{name:"Test"},models:["video-model"],fetchMode:"per_task"};
+export function buildSubmitRequest(ctx){return {url:ctx.baseUrl+"/jobs",body:ctx.requestBody};}
+export function parseSubmitResponse(ctx,resp){return {taskId:resp.body.id,taskData:resp.body};}
+export function parseTaskResult(){return {status:"IN_PROGRESS"};}
+export function buildQueryRequest(){return {};}
+`
+	plugin, err := pluginruntime.CompilePlugin(source, pluginruntime.Options{})
+	require.NoError(t, err)
+	var upstreamSubmits atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPost, r.Method)
+		assert.Equal(t, "/jobs", r.URL.Path)
+		upstreamSubmits.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"provider-job"}`))
+	}))
+	t.Cleanup(server.Close)
+
+	initial := int(20 * common.QuotaPerUnit)
+	charge := common.QuotaRound(0.08 * common.QuotaPerUnit)
+	user := model.User{Username: "video-tester", AffCode: "video-test", Quota: initial}
+	require.NoError(t, db.Create(&user).Error)
+	token := model.Token{UserId: user.Id, Key: "video-test-key", RemainQuota: initial}
+	require.NoError(t, db.Create(&token).Error)
+	channel := model.Channel{Name: "video test upstream", Type: constant.ChannelTypeTaskPlugin}
+	require.NoError(t, db.Create(&channel).Error)
+	route := pluginruntime.Route{Path: "/api/v3/contents/generations/tasks", Type: pluginruntime.RouteTypeSubmit}
+	request := func(ctx context.Context) (*gin.Context, *relaycommon.RelayInfo, *httptest.ResponseRecorder) {
+		reply := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(reply)
+		c.Request = httptest.NewRequestWithContext(ctx, http.MethodPost, "/doubao"+route.Path, strings.NewReader(`{"model":"video-model"}`))
+		c.Request.Header.Set("Idempotency-Key", "video-retry")
+		c.Set("group", "default")
+		c.Set("username", user.Username)
+		c.Set("task_request", map[string]any{"model": modelName})
+		c.Set(pluginruntime.ContextKeyPinnedPlugin, pluginruntime.PinnedPlugin{Plugin: plugin})
+		c.Set(pluginruntime.ContextKeyPinnedRoute, pluginruntime.PinnedRoute{Plugin: plugin, Route: route})
+		common.SetContextKey(c, constant.ContextKeyOriginalModel, modelName)
+		common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, server.URL)
+		common.SetContextKey(c, constant.ContextKeyChannelId, channel.Id)
+		common.SetContextKey(c, constant.ContextKeyChannelType, channel.Type)
+		info := taskSubmissionRelayInfo(nil)
+		info.PublicTaskID = ""
+		info.UserId, info.TokenId, info.TokenKey = user.Id, token.Id, token.Key
+		info.OriginModelName, info.UserGroup = modelName, "default"
+		info.LockedChannel = &channel
+		info.UserSetting.BillingPreference = "wallet_only"
+		return c, info, reply
+	}
+
+	ctx, disconnect := context.WithCancel(context.Background())
+	defer disconnect()
+	c, info, _ := request(ctx)
+	require.False(t, prepareTaskSubmissionKey(c, info))
+	originalID := info.PublicTaskID
+	require.NotEmpty(t, originalID)
+	outcome, taskErr := executeTaskSubmissionWith(c, info, func(c *gin.Context, info *relaycommon.RelayInfo) (*relay.TaskSubmitResult, *dto.TaskError) {
+		result, err := relay.RelayTaskSubmit(c, info)
+		require.Nil(t, err)
+		require.Equal(t, "provider-job", result.UpstreamTaskID)
+		disconnect()
+		return result, nil
+	})
+	if taskErr != nil {
+		// Let the asynchronous refund complete before the fixture DB is cleaned up.
+		require.Eventually(t, func() bool {
+			var storedUser model.User
+			var storedToken model.Token
+			return db.First(&storedUser, user.Id).Error == nil && db.First(&storedToken, token.Id).Error == nil &&
+				storedUser.Quota == initial && storedToken.RemainQuota == initial
+		}, time.Second, 10*time.Millisecond)
+	}
+	require.Nil(t, taskErr)
+	require.NotNil(t, outcome)
+
+	for range 2 {
+		retry, retryInfo, reply := request(context.Background())
+		require.True(t, prepareTaskSubmissionKey(retry, retryInfo))
+		require.Equal(t, http.StatusOK, reply.Code)
+		var receipt struct{ ID string }
+		require.NoError(t, common.Unmarshal(reply.Body.Bytes(), &receipt))
+		assert.Equal(t, originalID, receipt.ID)
+	}
+	assert.Equal(t, int32(1), upstreamSubmits.Load())
+	var tasks []model.Task
+	require.NoError(t, db.Find(&tasks).Error)
+	require.Len(t, tasks, 1)
+	assert.Equal(t, originalID, tasks[0].TaskID)
+	assert.Equal(t, "provider-job", tasks[0].PrivateData.UpstreamTaskID)
+	assert.Equal(t, charge, tasks[0].Quota)
+	require.NoError(t, db.First(&user, user.Id).Error)
+	require.NoError(t, db.First(&token, token.Id).Error)
+	assert.Equal(t, initial-charge, user.Quota)
+	assert.Equal(t, charge, user.UsedQuota)
+	assert.Equal(t, initial-charge, token.RemainQuota)
+	assert.Equal(t, charge, token.UsedQuota)
+	var logs []model.Log
+	require.NoError(t, db.Where("user_id = ?", user.Id).Find(&logs).Error)
+	require.Len(t, logs, 1)
+	assert.Equal(t, model.LogTypeConsume, logs[0].Type)
+	assert.Equal(t, charge, logs[0].Quota)
 }
 
 func TestImmediateTaskSettlementDatabase(t *testing.T) {
