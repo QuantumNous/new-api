@@ -28,26 +28,20 @@ import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
 import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { MODEL_PRICING_ISSUES_QUERY_KEY } from '@/features/system-settings/models/pricing-issues'
 
-import {
-  activateTaskPlugin,
-  getTaskPlugin,
-  installMarketplacePlugin,
-} from '../api'
+import { getTaskPlugin } from '../api'
 import {
   findMarketplaceVersion,
   marketplaceSourceKind,
-  resolvePluginSourceUrl,
   type InstallState,
 } from '../lib/marketplace'
-import { toastPluginChange } from '../lib/plugin-change-toast'
-import { fetchPluginIconDataUri } from '../lib/plugin-icon-file'
 import {
-  computeSourceSha256,
-  fetchPluginSourceText,
-  PluginSourceFetchError,
-} from '../lib/plugin-url'
+  downloadMarketplaceRelease,
+  installMarketplaceRelease,
+  invalidateMarketplaceInstalls,
+  marketplaceErrorMessage,
+} from '../lib/marketplace-install'
+import { toastPluginChange } from '../lib/plugin-change-toast'
 import type { MarketplacePlugin, MarketplaceSource } from '../types'
 import { CommunityPluginReach } from './community-plugin-reach'
 import { JavaScriptViewer } from './javascript-viewer'
@@ -77,6 +71,7 @@ export type MarketplaceInstallTarget = {
 
 type MarketplaceInstallDialogProps = {
   target: MarketplaceInstallTarget | null
+  reviewOnly?: boolean
   onOpenChange: (open: boolean) => void
 }
 
@@ -86,6 +81,7 @@ export function MarketplaceInstallDialog(props: MarketplaceInstallDialogProps) {
     <MarketplaceInstallContent
       key={`${props.target.source.index_url}-${props.target.plugin.key}-${props.target.version}`}
       target={props.target}
+      reviewOnly={props.reviewOnly}
       onOpenChange={props.onOpenChange}
     />
   )
@@ -101,7 +97,9 @@ function MarketplaceInstallContent(
   const pluginKey = target.plugin.key
   const entry = findMarketplaceVersion(target.plugin, selectedVersion)
   const hasInstalledPlugin = target.installState.status !== 'not_installed'
-  const [reviewTab, setReviewTab] = useState('details')
+  const [reviewTab, setReviewTab] = useState(
+    props.reviewOnly ? 'changelog' : 'details'
+  )
   const sourceKind = marketplaceSourceKind(target.source.index_url)
 
   const sourceQuery = useQuery({
@@ -118,31 +116,7 @@ function MarketplaceInstallContent(
     meta: { errorToast: false },
     queryFn: async () => {
       if (!entry) throw new Error('missing marketplace entry')
-      const url = resolvePluginSourceUrl(target.source.index_url, entry.path)
-      if (!url) {
-        throw new Error(
-          t('The source gives an invalid address for this plugin.')
-        )
-      }
-      const text = await fetchPluginSourceText(url)
-      // Computed for display only. The upload request carries the index hash and
-      // the server re-hashes what it received, so a tampered browser cannot pass
-      // a mismatched source off as verified.
-      const digest = await computeSourceSha256(text)
-      // The logo is cosmetic: a missing or malformed icon file must never block
-      // the install, so a failed fetch simply yields no icon.
-      const iconUrl = target.plugin.iconFile
-        ? resolvePluginSourceUrl(
-            target.source.index_url,
-            target.plugin.iconFile.path
-          )
-        : null
-      const icon = iconUrl
-        ? await fetchPluginIconDataUri(iconUrl, {
-            sha256: target.plugin.iconFile?.sha256,
-          })
-        : null
-      return { url, text, digest, icon }
+      return downloadMarketplaceRelease(target.source, target.plugin, entry)
     },
   })
 
@@ -164,32 +138,9 @@ function MarketplaceInstallContent(
       ) {
         throw new Error('source not fetched')
       }
-      const detail = await installMarketplacePlugin({
-        source: sourceQuery.data.text,
-        sourceSha256: entry.sha256,
-        remark: `${target.source.name} v${selectedVersion}`,
-        icon: sourceQuery.data.icon ?? undefined,
-        marketplaceIndexUrl: target.source.index_url,
-      })
-      if (detail.plugin && !detail.plugin.active) {
-        const notice = await activateTaskPlugin(
-          detail.meta.key,
-          detail.meta.version
-        )
-        return { ...detail, pricing_issues: notice?.pricing_issues ?? [] }
-      }
-      return detail
+      return installMarketplaceRelease(target.source, entry, sourceQuery.data)
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['task-plugins'] })
-      queryClient.invalidateQueries({ queryKey: ['task-plugin', pluginKey] })
-      queryClient.invalidateQueries({
-        queryKey: ['task-plugin-versions', pluginKey],
-      })
-      queryClient.invalidateQueries({
-        queryKey: MODEL_PRICING_ISSUES_QUERY_KEY,
-      })
-    },
+    onSettled: () => invalidateMarketplaceInstalls(queryClient, [pluginKey]),
     onSuccess: (detail) => {
       toastPluginChange(
         t('Installed {{name}} v{{version}}', {
@@ -202,16 +153,9 @@ function MarketplaceInstallContent(
     },
   })
 
-  const fetchError = sourceQuery.error
-  let fetchErrorMessage = ''
-  if (fetchError instanceof PluginSourceFetchError) {
-    fetchErrorMessage =
-      fetchError.reason === 'too_large'
-        ? t('Plugin source exceeds the 8 MiB limit.')
-        : t('Could not download the plugin code. Try again later.')
-  } else if (fetchError) {
-    fetchErrorMessage = fetchError.message
-  }
+  const fetchErrorMessage = sourceQuery.error
+    ? marketplaceErrorMessage(sourceQuery.error)
+    : ''
 
   const digestMismatch = Boolean(
     entry?.sha256 &&
@@ -248,7 +192,7 @@ function MarketplaceInstallContent(
   return (
     <Dialog
       open
-      initialFocus={false}
+      initialFocus={props.reviewOnly ? undefined : false}
       onOpenChange={props.onOpenChange}
       contentClassName='sm:max-w-3xl'
       headerClassName='gap-1.5 pr-6'
@@ -264,7 +208,9 @@ function MarketplaceInstallContent(
             size={36}
           />
           <span className='min-w-0 text-lg font-semibold break-words'>
-            {t('Install {{name}}', { name: target.plugin.name })}
+            {props.reviewOnly
+              ? target.plugin.name
+              : t('Install {{name}}', { name: target.plugin.name })}
           </span>
         </span>
       }
@@ -275,68 +221,72 @@ function MarketplaceInstallContent(
       footer={
         <>
           <Button variant='outline' onClick={() => props.onOpenChange(false)}>
-            {t('Cancel')}
+            {props.reviewOnly ? t('Back') : t('Cancel')}
           </Button>
-          <Button
-            disabled={
-              !entry ||
-              !sourceQuery.data ||
-              sourceQuery.isFetching ||
-              sourceQuery.isError ||
-              digestMismatch ||
-              installMutation.isPending
-            }
-            onClick={() => installMutation.mutate()}
-          >
-            <Download />
-            {confirmLabel}
-          </Button>
+          {!props.reviewOnly && (
+            <Button
+              disabled={
+                !entry ||
+                !sourceQuery.data ||
+                sourceQuery.isFetching ||
+                sourceQuery.isError ||
+                digestMismatch ||
+                installMutation.isPending
+              }
+              onClick={() => installMutation.mutate()}
+            >
+              <Download />
+              {confirmLabel}
+            </Button>
+          )}
         </>
       }
     >
       <MarketplaceAuthorLine plugin={target.plugin} />
       <div className='space-y-2'>
-        <Combobox
-          aria-label={t('Select version')}
-          value={selectedVersion}
-          disabled={
-            target.plugin.versions.length <= 1 || installMutation.isPending
-          }
-          options={target.plugin.versions.map((version) => {
-            const labels = [version.version]
-            if (version.version === target.plugin.latest) {
-              labels.push(t('Latest version'))
+        {!props.reviewOnly && (
+          <Combobox
+            aria-label={t('Select version')}
+            value={selectedVersion}
+            disabled={
+              target.plugin.versions.length <= 1 || installMutation.isPending
             }
-            if (
-              target.installState.status !== 'not_installed' &&
-              version.version === target.installState.installedVersion
-            ) {
-              labels.push(t('Active version'))
-            }
-            return { value: version.version, label: labels.join(' · ') }
-          })}
-          onValueChange={(version) => {
-            if (
-              !version ||
-              version === selectedVersion ||
-              installMutation.isPending
-            ) {
-              return
-            }
-            installMutation.reset()
-            setSelectedVersion(version)
-            if (
-              target.installState.status !== 'not_installed' &&
-              reviewTab !== 'changelog'
-            ) {
-              setReviewTab(
-                version === target.installState.installedVersion
-                  ? 'details'
-                  : 'diff'
-              )
-            }
-          }}
-        />
+            options={target.plugin.versions.map((version) => {
+              const labels = [version.version]
+              if (version.version === target.plugin.latest) {
+                labels.push(t('Latest version'))
+              }
+              if (
+                target.installState.status !== 'not_installed' &&
+                version.version === target.installState.installedVersion
+              ) {
+                labels.push(t('Active version'))
+              }
+              return { value: version.version, label: labels.join(' · ') }
+            })}
+            onValueChange={(version) => {
+              if (
+                !version ||
+                version === selectedVersion ||
+                installMutation.isPending
+              ) {
+                return
+              }
+              installMutation.reset()
+              setSelectedVersion(version)
+              if (
+                target.installState.status !== 'not_installed' &&
+                reviewTab !== 'changelog'
+              ) {
+                setReviewTab(
+                  version === target.installState.installedVersion
+                    ? 'details'
+                    : 'diff'
+                )
+              }
+            }}
+          />
+        )}
         {target.installState.status !== 'not_installed' && (
           <p className='text-muted-foreground text-xs'>
             {t('Current v{{from}} → install v{{to}}', {

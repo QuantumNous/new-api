@@ -25,6 +25,7 @@ import {
   deriveInstallState,
   findMarketplaceVersion,
   findRevokedEntry,
+  getMarketplaceUpdates,
   GITHUB_MARKETPLACE_INDEX_URL,
   indexHasIntegrityHashes,
   isStaleFactoryOverride,
@@ -512,6 +513,79 @@ describe('install state derivation', () => {
         installedPlugin('kling', '1.2.0'),
       ]),
       { status: 'not_installed' }
+    )
+  })
+})
+
+describe('bulk update eligibility', () => {
+  const oldHash = 'a'.repeat(64)
+  const newHash = 'b'.repeat(64)
+  const plugin = marketplacePlugin({
+    versions: [
+      { version: '1.0.0', path: 'old.js', sha256: oldHash },
+      { version: '1.2.0', path: 'new.js', sha256: newHash },
+    ],
+  })
+  const index: MarketplaceIndex = {
+    indexVersion: 1,
+    name: 'Test',
+    plugins: [plugin],
+  }
+  const local = installedPlugin('doubao', '1.0.0', {
+    source_hash: oldHash.toUpperCase(),
+  })
+
+  test('includes each eligible key once and leaves current, unlisted and uninstalled plugins alone', () => {
+    const updates = getMarketplaceUpdates(
+      { ...index, plugins: [plugin, plugin] },
+      [local]
+    )
+    assert.deepEqual(
+      updates.map((item) => [item.plugin.key, item.target.version, item.skip]),
+      [['doubao', '1.2.0', undefined]]
+    )
+    for (const installed of [
+      [],
+      [installedPlugin('doubao', '1.2.0')],
+      [installedPlugin('doubao', 'local')],
+    ]) {
+      assert.deepEqual(getMarketplaceUpdates(index, installed), [])
+    }
+  })
+  test('explains why a known version needs individual handling', () => {
+    assert.equal(
+      getMarketplaceUpdates(index, [{ ...local, enabled: false }])[0].skip,
+      'disabled'
+    )
+    assert.equal(
+      getMarketplaceUpdates(index, [
+        { ...local, source_hash: 'c'.repeat(64) },
+      ])[0].skip,
+      'modified'
+    )
+    for (const hash of [oldHash, newHash]) {
+      assert.equal(
+        getMarketplaceUpdates({ ...index, revoked: [{ sha256: hash }] }, [
+          local,
+        ])[0].skip,
+        'revoked'
+      )
+    }
+    for (const entry of plugin.versions) {
+      const versions = plugin.versions.map((v) =>
+        v.version === entry.version ? { ...v, sha256: 'invalid' } : v
+      )
+      assert.equal(
+        getMarketplaceUpdates(
+          { ...index, plugins: [{ ...plugin, versions }] },
+          [local]
+        )[0].skip,
+        'unverified'
+      )
+    }
+    assert.equal(
+      getMarketplaceUpdates(index, [{ ...local, source_hash: '' }])[0].skip,
+      'unverified'
     )
   })
 })
