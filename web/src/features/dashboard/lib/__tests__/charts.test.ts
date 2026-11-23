@@ -206,4 +206,22 @@ describe('processUserChartData user labels', () => {
       rankLabels(result)
     )
   })
+
+  test('never gives two users the same label', () => {
+    const result = processUserChartData(
+      [
+        { username: 'a', display_name: 'Bob', created_at: 0, quota: 3 },
+        { username: 'b', display_name: 'Bob', created_at: 0, quota: 2 },
+        { username: 'c', display_name: 'Bob (a)', created_at: 0, quota: 1 },
+        { username: 'd', display_name: 'b', created_at: 0, quota: 1 },
+      ],
+      'day',
+      undefined,
+      10,
+      'display_name'
+    )
+    const labels = rankLabels(result)
+    expect(new Set(labels).size).toBe(4)
+    expect(labels).toEqual(['a', 'Bob (b)', 'c', 'b'])
+  })
 })

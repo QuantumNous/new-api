@@ -733,6 +733,21 @@ function buildUserLabels(
     const unique = label === username || labelCount.get(label) === 1
     labels.set(username, unique ? label : `${label} (${username})`)
   })
+
+  // A generated label can still match another user's label, for example a
+  // display name that already reads "Bob (alice)". Those users fall back to
+  // their usernames, which are unique, until no label repeats.
+  let hasDuplicate = true
+  while (hasDuplicate) {
+    const owners = new Map<string, number>()
+    labels.forEach((label) => owners.set(label, (owners.get(label) || 0) + 1))
+    hasDuplicate = false
+    labels.forEach((label, username) => {
+      if ((owners.get(label) || 0) < 2 || label === username) return
+      labels.set(username, username)
+      hasDuplicate = true
+    })
+  }
   return labels
 }
 
