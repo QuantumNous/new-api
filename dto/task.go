@@ -4,15 +4,25 @@ import (
 	"encoding/json"
 )
 
+// TaskUpstreamReply is a vendor's non-2xx submit response kept for a route
+// that declares upstreamError passthrough. It is not part of the JSON body
+// the gateway writes for every other task error.
+type TaskUpstreamReply struct {
+	StatusCode int
+	Body       []byte
+	RetryAfter string
+}
+
 type TaskError struct {
 	// NoRetry prevents duplicate upstream work after a response has been accepted.
-	NoRetry    bool   `json:"-"`
-	Code       string `json:"code"`
-	Message    string `json:"message"`
-	Data       any    `json:"data"`
-	StatusCode int    `json:"-"`
-	LocalError bool   `json:"-"`
-	Error      error  `json:"-"`
+	NoRetry       bool               `json:"-"`
+	Code          string             `json:"code"`
+	Message       string             `json:"message"`
+	Data          any                `json:"data"`
+	StatusCode    int                `json:"-"`
+	LocalError    bool               `json:"-"`
+	Error         error              `json:"-"`
+	UpstreamReply *TaskUpstreamReply `json:"-"`
 }
 
 type TaskData interface {

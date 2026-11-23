@@ -24,30 +24,30 @@ export const meta = {
   },
   usageExamples: [{ label: "text to 3D, standard texture", facts: { credits: 20 } }],
   routes: [
-    { method: "POST", path: "/v3/generation/text-to-model", type: "submit", decode: "createTask", render: "taskCreated" },
-    { method: "POST", path: "/v3/generation/image-to-model", type: "submit", decode: "createTask", render: "taskCreated" },
-    { method: "POST", path: "/v3/generation/multiview-to-model", type: "submit", decode: "createTask", render: "taskCreated" },
-    { method: "POST", path: "/v3/generation/image-to-splat", type: "submit", decode: "createTask", render: "taskCreated" },
-    { method: "POST", path: "/v3/generation/text-to-image", type: "submit", decode: "createTask", render: "taskCreated" },
-    { method: "POST", path: "/v3/generation/image-to-image", type: "submit", decode: "createTask", render: "taskCreated" },
-    { method: "POST", path: "/v3/generation/image-to-multiview", type: "submit", decode: "createTask", render: "taskCreated" },
-    { method: "POST", path: "/v3/generation/edit-multiview", type: "submit", decode: "createTask", render: "taskCreated" },
-    { method: "POST", path: "/v3/generation/image-to-depth", type: "submit", decode: "createTask", render: "taskCreated" },
-    { method: "POST", path: "/v3/models/texture", type: "submit", decode: "createTask", render: "taskCreated" },
-    { method: "POST", path: "/v3/models/convert", type: "submit", decode: "createTask", render: "taskCreated" },
-    { method: "POST", path: "/v3/models/import", type: "submit", decode: "createTask", render: "taskCreated" },
-    { method: "POST", path: "/v3/mesh/segment", type: "submit", decode: "createTask", render: "taskCreated" },
-    { method: "POST", path: "/v3/mesh/smartsegment", type: "submit", decode: "createTask", render: "taskCreated" },
-    { method: "POST", path: "/v3/mesh/complete", type: "submit", decode: "createTask", render: "taskCreated" },
-    { method: "POST", path: "/v3/mesh/decimate", type: "submit", decode: "createTask", render: "taskCreated" },
-    { method: "POST", path: "/v3/mesh/uv", type: "submit", decode: "createTask", render: "taskCreated" },
-    { method: "POST", path: "/v3/animations/rig-check", type: "submit", decode: "createTask", render: "taskCreated" },
-    { method: "POST", path: "/v3/animations/rig", type: "submit", decode: "createTask", render: "taskCreated" },
-    { method: "POST", path: "/v3/animations/retarget", type: "submit", decode: "createTask", render: "taskCreated" },
+    { method: "POST", path: "/v3/generation/text-to-model", type: "submit", decode: "createTask", render: "taskCreated", upstreamError: "passthrough" },
+    { method: "POST", path: "/v3/generation/image-to-model", type: "submit", decode: "createTask", render: "taskCreated", upstreamError: "passthrough" },
+    { method: "POST", path: "/v3/generation/multiview-to-model", type: "submit", decode: "createTask", render: "taskCreated", upstreamError: "passthrough" },
+    { method: "POST", path: "/v3/generation/image-to-splat", type: "submit", decode: "createTask", render: "taskCreated", upstreamError: "passthrough" },
+    { method: "POST", path: "/v3/generation/text-to-image", type: "submit", decode: "createTask", render: "taskCreated", upstreamError: "passthrough" },
+    { method: "POST", path: "/v3/generation/image-to-image", type: "submit", decode: "createTask", render: "taskCreated", upstreamError: "passthrough" },
+    { method: "POST", path: "/v3/generation/image-to-multiview", type: "submit", decode: "createTask", render: "taskCreated", upstreamError: "passthrough" },
+    { method: "POST", path: "/v3/generation/edit-multiview", type: "submit", decode: "createTask", render: "taskCreated", upstreamError: "passthrough" },
+    { method: "POST", path: "/v3/generation/image-to-depth", type: "submit", decode: "createTask", render: "taskCreated", upstreamError: "passthrough" },
+    { method: "POST", path: "/v3/models/texture", type: "submit", decode: "createTask", render: "taskCreated", upstreamError: "passthrough" },
+    { method: "POST", path: "/v3/models/convert", type: "submit", decode: "createTask", render: "taskCreated", upstreamError: "passthrough" },
+    { method: "POST", path: "/v3/models/import", type: "submit", decode: "createTask", render: "taskCreated", upstreamError: "passthrough" },
+    { method: "POST", path: "/v3/mesh/segment", type: "submit", decode: "createTask", render: "taskCreated", upstreamError: "passthrough" },
+    { method: "POST", path: "/v3/mesh/smartsegment", type: "submit", decode: "createTask", render: "taskCreated", upstreamError: "passthrough" },
+    { method: "POST", path: "/v3/mesh/complete", type: "submit", decode: "createTask", render: "taskCreated", upstreamError: "passthrough" },
+    { method: "POST", path: "/v3/mesh/decimate", type: "submit", decode: "createTask", render: "taskCreated", upstreamError: "passthrough" },
+    { method: "POST", path: "/v3/mesh/uv", type: "submit", decode: "createTask", render: "taskCreated", upstreamError: "passthrough" },
+    { method: "POST", path: "/v3/animations/rig-check", type: "submit", decode: "createTask", render: "taskCreated", upstreamError: "passthrough" },
+    { method: "POST", path: "/v3/animations/rig", type: "submit", decode: "createTask", render: "taskCreated", upstreamError: "passthrough" },
+    { method: "POST", path: "/v3/animations/retarget", type: "submit", decode: "createTask", render: "taskCreated", upstreamError: "passthrough" },
     { method: "GET", path: "/v3/tasks/:task_id", type: "query", render: "taskStatus" },
-    { method: "POST", path: "/v3/tasks/list", type: "dynamic", decode: "listTasks", render: "taskList" },
-    { method: "POST", path: "/v3/files", type: "submit", decode: "uploadFile", render: "fileResult", retainResult: false },
-    { method: "POST", path: "/v3/files/presign", type: "submit", decode: "presignFile", render: "fileResult", retainResult: false },
+    { method: "POST", path: "/v3/tasks/list", type: "dynamic", decode: "listTasks", render: "taskList", missing: "collect" },
+    { method: "POST", path: "/v3/files", type: "submit", decode: "uploadFile", render: "fileResult", retainResult: false, upstreamError: "passthrough" },
+    { method: "POST", path: "/v3/files/presign", type: "submit", decode: "presignFile", render: "fileResult", retainResult: false, upstreamError: "passthrough" },
   ],
 };
 
@@ -408,13 +408,23 @@ export const native = {
       const envelope = taskEnvelope(task);
       listed[task.task_id] = envelope.data;
     }
-    return { code: 0, data: { tasks: listed, missed: null } };
+    const missed = Array.isArray(ctx && ctx.missedTaskIds) && ctx.missedTaskIds.length > 0 ? ctx.missedTaskIds : null;
+    return { code: 0, data: { tasks: listed, missed: missed } };
   },
   fileResult: function (ctx, task) {
     const data = plainObject(task.data);
     return data || { code: 0, data: {} };
   },
   error: function (ctx, error) {
+    const upstream = plainObject(error && error.upstream);
+    if (upstream) {
+      const status = Number(upstream.status);
+      const reply = { __status: status >= 400 && status <= 599 ? status : 502 };
+      reply.__body = upstream.body === undefined ? null : upstream.body;
+      const retryAfter = trimmed(upstream.retryAfter);
+      if (retryAfter) reply.__headers = { "Retry-After": retryAfter };
+      return reply;
+    }
     const status = Number(error && error.httpStatus);
     return { code: status >= 400 && status <= 599 ? status : 1, message: trimmed(error && error.message) || "request failed" };
   },

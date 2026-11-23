@@ -173,6 +173,41 @@ func TestTripoListAndFileUpload(t *testing.T) {
 	})
 	require.Error(t, err)
 
+	listedTasks := callObject(t, plugin, "native", []string{"taskList"}, map[string]any{
+		"missedTaskIds": []any{"task_missingmissingmissingmissingmiss"},
+	}, []any{
+		map[string]any{"task_id": origin, "status": "SUCCESS", "data": map[string]any{"code": float64(0), "data": map[string]any{"task_id": "upstream-1", "status": "success"}}},
+	})
+	data := listedTasks["data"].(map[string]any)
+	tasks := data["tasks"].(map[string]any)
+	assert.Equal(t, origin, tasks[origin].(map[string]any)["task_id"])
+	assert.Equal(t, []any{"task_missingmissingmissingmissingmiss"}, data["missed"])
+
+	found := callObject(t, plugin, "native", []string{"taskList"}, map[string]any{}, []any{
+		map[string]any{"task_id": origin, "status": "SUCCESS", "data": map[string]any{"code": float64(0), "data": map[string]any{"status": "success"}}},
+	})
+	assert.Nil(t, found["data"].(map[string]any)["missed"])
+
+	passed := callObject(t, plugin, "native", []string{"error"}, map[string]any{}, map[string]any{
+		"httpStatus": float64(502),
+		"message":    "Task request failed",
+		"upstream": map[string]any{
+			"status":     float64(429),
+			"retryAfter": "5",
+			"body":       map[string]any{"code": float64(2000), "status": "error", "message": "slow down"},
+		},
+	})
+	assert.Equal(t, float64(429), passed["__status"])
+	assert.Equal(t, "5", passed["__headers"].(map[string]any)["Retry-After"])
+	assert.Equal(t, "slow down", passed["__body"].(map[string]any)["message"])
+
+	local := callObject(t, plugin, "native", []string{"error"}, map[string]any{}, map[string]any{
+		"httpStatus": float64(400),
+		"message":    "task_ids must be an array",
+	})
+	assert.Equal(t, float64(400), local["code"])
+	assert.Equal(t, "task_ids must be an array", local["message"])
+
 	uploaded := callObject(t, plugin, "native", []string{"uploadFile"}, map[string]any{
 		"body": map[string]any{
 			"kind":  "multipart",

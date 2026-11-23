@@ -21,6 +21,13 @@ const (
 	RouteTypeSubmit  RouteType = "submit"
 	RouteTypeQuery   RouteType = "query"
 	RouteTypeDynamic RouteType = "dynamic"
+
+	// RouteMissingCollect tells a dynamic query to render the tasks it found
+	// and report the public ids it did not, instead of failing the whole request.
+	RouteMissingCollect = "collect"
+	// RouteUpstreamErrorPassthrough tells a submit route to hand the vendor's
+	// non-2xx status, body, and Retry-After to the error presenter.
+	RouteUpstreamErrorPassthrough = "passthrough"
 )
 
 type Route struct {
@@ -40,6 +47,15 @@ type Route struct {
 	// canonical top-level "model" body field before any JS hook runs; empty
 	// means unrestricted. Must be a subset of meta.models.
 	Models []string `json:"models,omitempty"`
+	// Missing is "collect" on a dynamic route whose query renderer should
+	// receive the public ids this caller cannot retrieve. Empty fails the
+	// whole request when any id is missing, which is what every existing
+	// batch query does.
+	Missing string `json:"missing,omitempty"`
+	// UpstreamError is "passthrough" on a submit route whose error presenter
+	// receives the vendor's non-2xx response. Empty keeps the sanitized
+	// gateway error.
+	UpstreamError string `json:"upstreamError,omitempty"`
 }
 
 // ProtocolClaim is one entry of meta.protocols. Models narrows the protocol's
@@ -914,6 +930,12 @@ func validateRoute(route *Route) error {
 		if route.Decode == "" || route.Render == "" || route.TaskIDParam != "" {
 			return fmt.Errorf("submit route %s %s must declare decode and render and must not declare taskIdParam", route.Method, route.Path)
 		}
+		if route.Missing != "" {
+			return fmt.Errorf("submit route %s %s must not declare missing", route.Method, route.Path)
+		}
+		if route.UpstreamError != "" && route.UpstreamError != RouteUpstreamErrorPassthrough {
+			return fmt.Errorf("submit route %s %s has unsupported upstreamError %q", route.Method, route.Path, route.UpstreamError)
+		}
 	case RouteTypeQuery:
 		if route.Decode != "" || strings.TrimSpace(route.Render) == "" {
 			return fmt.Errorf("query route %s %s must declare render and must not declare decode", route.Method, route.Path)
@@ -924,6 +946,9 @@ func validateRoute(route *Route) error {
 		if route.RetainResult != nil {
 			return fmt.Errorf("query route %s %s must not declare retainResult", route.Method, route.Path)
 		}
+		if route.Missing != "" || route.UpstreamError != "" {
+			return fmt.Errorf("query route %s %s must not declare missing or upstreamError", route.Method, route.Path)
+		}
 		if route.TaskIDParam == "" {
 			route.TaskIDParam = "task_id"
 		}
@@ -933,6 +958,12 @@ func validateRoute(route *Route) error {
 	case RouteTypeDynamic:
 		if route.Decode == "" || route.Render == "" || route.TaskIDParam != "" {
 			return fmt.Errorf("dynamic route %s %s must declare decode and render and must not declare taskIdParam", route.Method, route.Path)
+		}
+		if route.UpstreamError != "" {
+			return fmt.Errorf("dynamic route %s %s must not declare upstreamError", route.Method, route.Path)
+		}
+		if route.Missing != "" && route.Missing != RouteMissingCollect {
+			return fmt.Errorf("dynamic route %s %s has unsupported missing %q", route.Method, route.Path, route.Missing)
 		}
 	default:
 		return fmt.Errorf("plugin route %s %s has unsupported type %q", route.Method, route.Path, route.Type)
@@ -983,6 +1014,17 @@ func pathHasParameter(routePath, name string) bool {
 // has no parameter named taskIdParam.
 func (r Route) TaskIDInQuery() bool {
 	return r.Type == RouteTypeQuery && !pathHasParameter(r.Path, r.TaskIDParam)
+}
+
+// PinnedRoutePassesUpstreamError reports whether the request's submit route
+// asked to hand the vendor's non-2xx response to its error presenter.
+func PinnedRoutePassesUpstreamError(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	value, exists := c.Get(ContextKeyPinnedRoute)
+	pinned, ok := value.(PinnedRoute)
+	return exists && ok && pinned.Route.UpstreamError == RouteUpstreamErrorPassthrough
 }
 
 // routeHasOwnPrefix reports whether a declared route already lives under the
