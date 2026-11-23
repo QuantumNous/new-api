@@ -21,6 +21,7 @@ import { dataScheme as vchartDefaultDataScheme } from '@visactor/vchart/esm/them
 import { MAX_CHART_TREND_POINTS } from '@/features/dashboard/constants'
 import type {
   QuotaDataItem,
+  UserChartLabel,
   ProcessedChartData,
   ProcessedUserChartData,
 } from '@/features/dashboard/types'
@@ -706,11 +707,41 @@ const USER_COLORS = [
   '#5D7092',
 ]
 
+// Charts always group by the unique username. In display-name mode the label
+// falls back to the username when the display name is empty, and adds the
+// username when the display name alone would match another user's label.
+function buildUserLabels(
+  data: QuotaDataItem[],
+  userLabel: UserChartLabel
+): Map<string, string> {
+  const displayNameByUser = new Map<string, string>()
+  data.forEach((item) => {
+    const username = item.username || 'unknown'
+    if (displayNameByUser.has(username)) return
+    const displayName =
+      userLabel === 'display_name' ? item.display_name?.trim() : ''
+    displayNameByUser.set(username, displayName || username)
+  })
+
+  const labelCount = new Map<string, number>()
+  displayNameByUser.forEach((label) => {
+    labelCount.set(label, (labelCount.get(label) || 0) + 1)
+  })
+
+  const labels = new Map<string, string>()
+  displayNameByUser.forEach((label, username) => {
+    const unique = label === username || labelCount.get(label) === 1
+    labels.set(username, unique ? label : `${label} (${username})`)
+  })
+  return labels
+}
+
 export function processUserChartData(
   data: QuotaDataItem[],
   timeGranularity: TimeGranularity = 'day',
   t?: TFunction,
-  limit = 10
+  limit = 10,
+  userLabel: UserChartLabel = 'username'
 ): ProcessedUserChartData {
   const tt: TFunction = t ?? ((x) => x)
   const { config } = getCurrencyDisplay()
@@ -766,16 +797,18 @@ export function processUserChartData(
   const topUsers = sorted.slice(0, limit).map(([u]) => u)
   const topUserSet = new Set(topUsers)
   const totalQuota = sorted.slice(0, limit).reduce((s, [, q]) => s + q, 0)
+  const userLabels = buildUserLabels(data, userLabel)
+  const labelOf = (username: string) => userLabels.get(username) ?? username
 
   const rankValues = sorted.slice(0, limit).map(([username, quota]) => ({
-    User: username,
+    User: labelOf(username),
     rawQuota: quota,
     Usage: Number((quota / quotaPerUnit).toFixed(4)),
   }))
 
   const userColorMap = topUsers.reduce<Record<string, string>>(
     (acc, user, i) => {
-      acc[user] = USER_COLORS[i % USER_COLORS.length]
+      acc[labelOf(user)] = USER_COLORS[i % USER_COLORS.length]
       return acc
     },
     {}
@@ -813,7 +846,7 @@ export function processUserChartData(
       const q = timeUserMap.get(time)?.get(user) || 0
       trendValues.push({
         Time: time,
-        User: user,
+        User: labelOf(user),
         rawQuota: q,
         Usage: Number((q / quotaPerUnit).toFixed(4)),
       })

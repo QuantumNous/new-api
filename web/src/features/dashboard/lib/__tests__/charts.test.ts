@@ -154,3 +154,56 @@ describe.each(cases)('dashboard $granularity chart chronology', (scenario) => {
     }
   })
 })
+
+describe('processUserChartData user labels', () => {
+  const data: QuotaDataItem[] = [
+    {
+      username: 'p_2ff8ed3c',
+      display_name: 'Alice',
+      created_at: 0,
+      quota: 300,
+    },
+    { username: 'p_28d72aae', display_name: 'Bob', created_at: 0, quota: 200 },
+    { username: 'p_94647dc5', display_name: 'Bob', created_at: 0, quota: 100 },
+    { username: 'svc_10bf2464', display_name: '', created_at: 0, quota: 50 },
+  ]
+
+  const rankLabels = (result: ReturnType<typeof processUserChartData>) =>
+    result.spec_user_rank.data[0].values.map(
+      (row: { User: string }) => row.User
+    )
+
+  test('keeps usernames by default', () => {
+    expect(rankLabels(processUserChartData(data, 'day'))).toEqual([
+      'p_2ff8ed3c',
+      'p_28d72aae',
+      'p_94647dc5',
+      'svc_10bf2464',
+    ])
+  })
+
+  test('shows display names and keeps users with the same name apart', () => {
+    const result = processUserChartData(
+      data,
+      'day',
+      undefined,
+      10,
+      'display_name'
+    )
+    expect(rankLabels(result)).toEqual([
+      'Alice',
+      'Bob (p_28d72aae)',
+      'Bob (p_94647dc5)',
+      'svc_10bf2464',
+    ])
+    const trendLabels = new Set(
+      result.spec_user_trend.data[0].values.map(
+        (row: { User: string }) => row.User
+      )
+    )
+    expect(trendLabels).toEqual(new Set(rankLabels(result)))
+    expect(Object.keys(result.spec_user_trend.color.specified)).toEqual(
+      rankLabels(result)
+    )
+  })
+})

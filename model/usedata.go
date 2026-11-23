@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -25,6 +26,7 @@ type QuotaData struct {
 	Quota               int    `json:"quota" gorm:"default:0"`
 	CacheReadTokens     int64  `json:"cache_read_tokens" gorm:"default:0"`
 	CacheCreationTokens int64  `json:"cache_creation_tokens" gorm:"default:0"`
+	DisplayName         string `json:"display_name,omitempty" gorm:"-"`
 }
 
 type QuotaDataLogParams struct {
@@ -177,7 +179,49 @@ func GetQuotaDataGroupByUser(startTime int64, endTime int64) (quotaData []*Quota
 		Where("created_at >= ? and created_at <= ?", startTime, endTime).
 		Group("username, created_at").
 		Find(&quotaDatas).Error
-	return quotaDatas, err
+	if err != nil {
+		return nil, err
+	}
+	return quotaDatas, fillQuotaDataDisplayNames(quotaDatas)
+}
+
+// fillQuotaDataDisplayNames attaches each user's current display name, looked
+// up by username, so the user charts can label users by display name.
+func fillQuotaDataDisplayNames(rows []*QuotaData) error {
+	usernameSet := make(map[string]struct{})
+	usernames := make([]string, 0)
+	for _, row := range rows {
+		if row.Username == "" {
+			continue
+		}
+		if _, ok := usernameSet[row.Username]; ok {
+			continue
+		}
+		usernameSet[row.Username] = struct{}{}
+		usernames = append(usernames, row.Username)
+	}
+
+	displayNameByUsername := make(map[string]string, len(usernames))
+	for chunk := range slices.Chunk(usernames, 500) {
+		var users []struct {
+			Username    string `gorm:"column:username"`
+			DisplayName string `gorm:"column:display_name"`
+		}
+		err := DB.Unscoped().Model(&User{}).
+			Select("username, display_name").
+			Where("username IN ?", chunk).
+			Find(&users).Error
+		if err != nil {
+			return err
+		}
+		for _, user := range users {
+			displayNameByUsername[user.Username] = user.DisplayName
+		}
+	}
+	for _, row := range rows {
+		row.DisplayName = displayNameByUsername[row.Username]
+	}
+	return nil
 }
 
 func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaData []*QuotaData, err error) {
