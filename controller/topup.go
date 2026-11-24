@@ -26,11 +26,29 @@ import (
 
 func GetTopUpInfo(c *gin.Context) {
 	complianceConfirmed := operation_setting.IsPaymentComplianceConfirmed()
+	minTopUp := effectiveGatewayMinTopUp(0)
+	stripeMinTopUp := effectiveGatewayMinTopUp(setting.StripeMinTopUp)
+	waffoMinTopUp := effectiveGatewayMinTopUp(setting.WaffoMinTopUp)
+	waffoPancakeMinTopUp := effectiveGatewayMinTopUp(setting.WaffoPancakeMinTopUp)
 
 	// 获取支付方式
-	payMethods := operation_setting.PayMethods
-	if !complianceConfirmed {
-		payMethods = []map[string]string{}
+	payMethods := make([]map[string]string, 0, len(operation_setting.PayMethods)+3)
+	if complianceConfirmed {
+		for _, method := range operation_setting.PayMethods {
+			copied := make(map[string]string, len(method)+1)
+			maps.Copy(copied, method)
+			floorMin := minTopUp
+			switch copied["type"] {
+			case "stripe":
+				floorMin = stripeMinTopUp
+			case model.PaymentMethodWaffoPancake:
+				floorMin = waffoPancakeMinTopUp
+			case model.PaymentMethodWaffo:
+				floorMin = waffoMinTopUp
+			}
+			copied["min_topup"] = resolvePayMethodMinTopUp(copied["min_topup"], floorMin)
+			payMethods = append(payMethods, copied)
+		}
 	}
 
 	// 如果启用了 Stripe 支付，添加到支付方法列表
@@ -49,7 +67,7 @@ func GetTopUpInfo(c *gin.Context) {
 				"name":      "Stripe",
 				"type":      "stripe",
 				"color":     "#635BFF",
-				"min_topup": strconv.Itoa(setting.StripeMinTopUp),
+				"min_topup": strconv.Itoa(stripeMinTopUp),
 			}
 			payMethods = append(payMethods, stripeMethod)
 		}
@@ -71,7 +89,7 @@ func GetTopUpInfo(c *gin.Context) {
 				"name":      "Waffo Pancake",
 				"type":      model.PaymentMethodWaffoPancake,
 				"color":     "#F97316",
-				"min_topup": strconv.Itoa(setting.WaffoPancakeMinTopUp),
+				"min_topup": strconv.Itoa(waffoPancakeMinTopUp),
 			})
 		}
 	}
@@ -92,7 +110,7 @@ func GetTopUpInfo(c *gin.Context) {
 				"name":      "Waffo (Global Payment)",
 				"type":      model.PaymentMethodWaffo,
 				"color":     "#3B82F6",
-				"min_topup": strconv.Itoa(setting.WaffoMinTopUp),
+				"min_topup": strconv.Itoa(waffoMinTopUp),
 			}
 			payMethods = append(payMethods, waffoMethod)
 		}
@@ -115,10 +133,10 @@ func GetTopUpInfo(c *gin.Context) {
 		}(),
 		"creem_products":          setting.CreemProducts,
 		"pay_methods":             payMethods,
-		"min_topup":               operation_setting.MinTopUp,
-		"stripe_min_topup":        setting.StripeMinTopUp,
-		"waffo_min_topup":         setting.WaffoMinTopUp,
-		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
+		"min_topup":               minTopUp,
+		"stripe_min_topup":        stripeMinTopUp,
+		"waffo_min_topup":         waffoMinTopUp,
+		"waffo_pancake_min_topup": waffoPancakeMinTopUp,
 		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
 		"topup_link":              common.TopUpLink,
@@ -201,8 +219,22 @@ func getPayMoney(amount int64, group string) float64 {
 	return payMoney.InexactFloat64()
 }
 
-func getMinTopup() int64 {
-	minTopup := operation_setting.MinTopUp
+func effectiveGatewayMinTopUp(gatewayMin int) int {
+	return max(gatewayMin, operation_setting.MinTopUp, 1)
+}
+
+func resolvePayMethodMinTopUp(raw string, floor int) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed != "" {
+		if parsed, err := decimal.NewFromString(trimmed); err == nil && parsed.GreaterThanOrEqual(decimal.NewFromInt(int64(floor))) {
+			return trimmed
+		}
+	}
+	return strconv.Itoa(floor)
+}
+
+func effectiveGatewayMinTopUpAmount(gatewayMin int) int64 {
+	minTopup := effectiveGatewayMinTopUp(gatewayMin)
 	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
 		dMinTopup := decimal.NewFromInt(int64(minTopup))
 		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
@@ -210,9 +242,13 @@ func getMinTopup() int64 {
 		if err != nil {
 			return common.MaxWalletQuota
 		}
-		minTopup = quota
+		return int64(quota)
 	}
 	return int64(minTopup)
+}
+
+func getMinTopup() int64 {
+	return effectiveGatewayMinTopUpAmount(0)
 }
 
 func getTopUpQuota(amount int64) (int, error) {
