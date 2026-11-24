@@ -26,6 +26,7 @@ import {
   waitFor,
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import i18next from 'i18next'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -41,15 +42,17 @@ import {
 } from '@/stores/system-config-store'
 
 import { adjustSyncPrice } from '../models/upstream-price-adjustment'
+import { SyncPriceCell } from '../models/upstream-price-cells'
 import { UpstreamRatioSync } from '../models/upstream-ratio-sync'
 import {
+  getSyncExpressionPricing,
   getSyncPriceLines,
   type PricingSourceSelections,
 } from '../models/upstream-ratio-sync-helpers'
 import { UpstreamRatioSyncTable } from '../models/upstream-ratio-sync-table'
 import type { PricingSyncModels } from '../types'
 
-const expression = 'tier("base", p * 2 + c * 8 + cr * 0)'
+const expression = 'tier("base", p * 2 + cr * 0 + c * 8)'
 const differences = {
   m: {
     model_ratio: {
@@ -179,7 +182,7 @@ describe('pricing synchronization', () => {
 
   it('shows every parsed tier and falls back to the full expression when pricing cannot be parsed safely', () => {
     const tiered =
-      'len <= 128000 ? tier("base", p * 2 + c * 8 + cr * 0.2) : tier("long", p * 4 + c * 12 + cr * 0.4)'
+      'len <= 272000 ? tier("0_272k", p * 2 + cr * 0.2 + cc * 2.5 + cc12h * 5 + c * 12) : tier("272k_plus", p * 4 + cr * 0.4 + cc * 5 + cc12h * 10 + c * 18)'
     const custom = 'tier("custom", p * 2 + c * 8) * max(1, param("factor"))'
     render(
       <TableFixture
@@ -200,11 +203,79 @@ describe('pricing synchronization', () => {
       />
     )
     expect(screen.queryByText(tiered)).not.toBeInTheDocument()
-    expect(screen.getByText(/128,000/)).toBeVisible()
-    expect(screen.getByText('$0.2')).toBeVisible()
-    expect(screen.getByText('$0.4')).toBeVisible()
+    expect(screen.getByText('Full input length <= 272,000')).toBeVisible()
+    expect(screen.getByText('272k_plus')).toBeVisible()
+    expect(screen.getAllByText('Cache Write (12h)')).toHaveLength(2)
+    expect(
+      screen.getAllByRole('definition').map((cell) => cell.textContent)
+    ).toEqual([
+      '$2',
+      '$12',
+      '$0.2',
+      '$2.5',
+      '$5',
+      '$4',
+      '$18',
+      '$0.4',
+      '$5',
+      '$10',
+    ])
     expect(screen.getByText(custom)).toBeVisible()
   })
+
+  it('shows an explicit zero price only in the tier that defines it', () => {
+    const parsed = getSyncExpressionPricing(
+      'len <= 100 ? tier("short", p * 2 + c * 8 + cr * 0) : tier("long", p * 4 + c * 12)',
+      (key) => key
+    )
+    expect(
+      parsed?.tiers.map((tier) =>
+        tier.lines.filter((line) => line.label === 'Cache Read')
+      )
+    ).toEqual([[{ label: 'Cache Read', value: '$0' }], []])
+  })
+
+  it('updates the tier threshold when the interface language changes', async () => {
+    const billingExpr =
+      'len <= 272000 ? tier("short", p * 1) : tier("long", p * 2)'
+    render(
+      <SyncPriceCell
+        values={{ billing_mode: 'tiered_expr', billing_expr: billingExpr }}
+      />
+    )
+    const thresholds = {
+      en: '272,000',
+      zhCN: '272,000',
+      zhTW: '272,000',
+      fr: '272\u202f000',
+      ja: '272,000',
+      ru: '272\u00a0000',
+      vi: '272.000',
+      'invalid locale': (272000).toLocaleString(),
+    }
+    try {
+      for (const [language, threshold] of Object.entries(thresholds)) {
+        await act(() => i18next.changeLanguage(language))
+        expect(screen.getByText(/^Full input length/).textContent).toBe(
+          `Full input length <= ${threshold}`
+        )
+      }
+    } finally {
+      await act(() => i18next.changeLanguage('en'))
+    }
+  })
+
+  it.each([
+    'tier("invalid", p * 1e309 + c * 8)',
+    'tier("base", p * 2) * (header("speed") == "fast" ? 1e309 : 1)',
+    'len <= 100 ? tier("token", p * 2) : tier("request", fixed(0.1))',
+    'tier("base", p * 2 + c * 8) * image_count',
+  ])(
+    'keeps the source when it cannot be quoted per million tokens: %s',
+    (source) => {
+      expect(getSyncExpressionPricing(source, (key) => key)).toBeNull()
+    }
+  )
 
   it('shows a mobile comparison list and preserves source-wide selection', async () => {
     const original = window.matchMedia

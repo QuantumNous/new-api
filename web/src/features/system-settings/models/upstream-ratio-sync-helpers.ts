@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import i18next from 'i18next'
 import { createContext, useContext } from 'react'
 
 import {
@@ -25,9 +26,12 @@ import {
 } from '@/features/model-pricing/currency'
 import {
   BILLING_PRICING_VARS,
+  parseTiersFromExpr,
   splitBillingExprAndRequestRules,
 } from '@/features/pricing/lib/billing-expr'
-import { tryParseVisualConfig } from '@/features/pricing/lib/tier-expr'
+import { formatBillingCondition } from '@/features/pricing/lib/billing-expression/condition-display'
+import { compileBillingExpression } from '@/features/pricing/lib/billing-expression/parser'
+import { toIntlLocale } from '@/i18n/languages'
 
 import type { PricingSyncValues } from '../types'
 import {
@@ -163,47 +167,46 @@ export function getSyncExpressionPricing(
   t: (key: string) => string,
   currency = USD_PRICING_CURRENCY
 ) {
+  if (compileBillingExpression(expression).status !== 'ready') return null
   const { billingExpr, requestRuleExpr } =
     splitBillingExprAndRequestRules(expression)
-  const config = tryParseVisualConfig(billingExpr)
-  if (!config) return null
-  // Do not turn malformed or overflowing upstream numbers into free prices.
-  const body = billingExpr.replaceAll(/"(?:\\.|[^"\\])*"/g, '')
-  for (const match of body.matchAll(/\*\s*([+\-\d.eE]+)/g)) {
-    if (!Number.isFinite(Number(match[1])) || Number(match[1]) < 0) return null
+  const tiers = parseTiersFromExpr(billingExpr)
+  // Sync metrics quote prices per million tokens, including the currency preview.
+  if (
+    tiers.length === 0 ||
+    tiers.some((tier) => tier.billingUnit === 'request' || tier.imageCount)
+  ) {
+    return null
   }
-  const fields = BILLING_PRICING_VARS.filter(
-    (field) =>
-      field.tierField && new RegExp(`\\b${field.key}\\s*\\*`).test(body)
-  )
   const conditionLabels = {
     p: t('Input tokens'),
     c: t('Output tokens'),
-    len: t('Length'),
+    len: t('Full input length'),
   }
+  const locale = toIntlLocale(i18next.resolvedLanguage || i18next.language)
   return {
     requestRuleExpr,
-    tiers: config.tiers.map((tier) => ({
+    tiers: tiers.map((tier) => ({
       label: tier.label,
-      condition: tier.conditions
-        .map(
-          (condition) =>
-            `${conditionLabels[condition.var]} ${condition.op} ${Number(condition.value).toLocaleString()}`
-        )
-        .join(' ∧ '),
-      lines: fields.flatMap((field) =>
-        field.tierField
-          ? [
-              {
-                label: t(field.shortLabel),
-                value: formatSyncPriceAmount(
-                  Number(tier[field.tierField]),
-                  currency
-                ),
-              },
-            ]
-          : []
-      ),
+      condition: tier.conditionText
+        ? (formatBillingCondition(tier.conditionText, t, locale) ??
+          t(tier.conditionText))
+        : tier.conditions
+            .map(
+              (condition) =>
+                `${conditionLabels[condition.var]} ${condition.op} ${condition.value.toLocaleString(locale)}`
+            )
+            .join(' ∧ '),
+      lines: BILLING_PRICING_VARS.flatMap((variable) => {
+        const price = variable.field && tier[variable.field]
+        if (typeof price !== 'number') return []
+        return [
+          {
+            label: t(variable.shortLabel),
+            value: formatSyncPriceAmount(price, currency),
+          },
+        ]
+      }),
     })),
   }
 }

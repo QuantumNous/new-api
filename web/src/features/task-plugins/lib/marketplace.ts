@@ -553,3 +553,49 @@ export function findRevokedEntry(
   if (!hash) return undefined
   return index?.revoked?.find((entry) => entry.sha256 === hash)
 }
+
+export type MarketplaceUpdate = {
+  plugin: MarketplacePlugin
+  installed: TaskPluginListItem
+  target: MarketplaceIndexVersion
+  skip?: 'disabled' | 'revoked' | 'unverified' | 'modified'
+}
+
+/** Only replace a listed release when the installed bytes still match that release. */
+export function getMarketplaceUpdates(
+  index: MarketplaceIndex,
+  installed: TaskPluginListItem[]
+): MarketplaceUpdate[] {
+  const updates: MarketplaceUpdate[] = []
+  const byKey = new Map(installed.map((item) => [item.meta.key, item]))
+  for (const plugin of index.plugins) {
+    const local = byKey.get(plugin.key)
+    if (!local || local.meta.version === plugin.latest) continue
+    byKey.delete(plugin.key)
+    const current = findMarketplaceVersion(plugin, local.meta.version)
+    const target = findMarketplaceVersion(plugin, plugin.latest)
+    if (!current || !target) continue
+
+    let skip: MarketplaceUpdate['skip']
+    if (
+      findRevokedEntry(index, local.source_hash) ||
+      findRevokedEntry(index, target.sha256)
+    ) {
+      skip = 'revoked'
+    } else if (!local.enabled) {
+      skip = 'disabled'
+    } else if (
+      ![current.sha256, target.sha256, local.source_hash].every(
+        (hash) => hash && /^[0-9a-f]{64}$/i.test(hash)
+      )
+    ) {
+      skip = 'unverified'
+    } else if (
+      local.source_hash.toLowerCase() !== current.sha256?.toLowerCase()
+    ) {
+      skip = 'modified'
+    }
+    updates.push({ plugin, installed: local, target, skip })
+  }
+  return updates
+}
