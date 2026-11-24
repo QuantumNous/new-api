@@ -56,18 +56,21 @@ func useUserCacheMiniRedis(t *testing.T) *miniredis.Miniredis {
 }
 
 func TestUserCacheReadsWithOneConnectionBorrow(t *testing.T) {
-	useUserCacheMiniRedis(t)
+	server := useUserCacheMiniRedis(t)
 	user := &UserBase{
 		Id: 4301, Group: "default", Email: "cache@example.com", Quota: 1000,
 		Status: common.UserStatusEnabled, Role: common.RoleCommonUser,
 		Username: "pipeline-user", Setting: `{"record_ip_log":true}`, AuthVersion: 3,
 	}
 	require.NoError(t, writeUserCache(user, true))
+	expected := *user
+	expected.CacheMAC = server.HGet(getUserCacheKey(user.Id), "CacheMAC")
+	require.NotEmpty(t, expected.CacheMAC)
 	before := common.RDB.PoolStats()
 	got, err := GetUserCache(user.Id)
 	require.NoError(t, err)
 	after := common.RDB.PoolStats()
-	assert.Equal(t, user, got)
+	assert.Equal(t, &expected, got)
 	assert.EqualValues(t, 1, after.Hits+after.Misses-before.Hits-before.Misses)
 
 	// Wallet reads must observe changes after the authentication snapshot.
