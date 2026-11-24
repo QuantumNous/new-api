@@ -172,6 +172,17 @@ func TestHostJSONCodecConformance(t *testing.T) {
 		}
 	})
 
+	t.Run("gemini part keeps explicit empty text through DeepCopy", func(t *testing.T) {
+		input := `{"parts":[{"text":""},{"text":"","thoughtSignature":"c2ln"},{"functionCall":{"name":"f","args":{}},"thoughtSignature":"c2ln"}]}`
+		var content dto.GeminiChatContent
+		require.NoError(t, UnmarshalJsonStr(input, &content))
+		copied, err := DeepCopy(&content)
+		require.NoError(t, err)
+		encoded, err := Marshal(copied)
+		require.NoError(t, err)
+		assert.JSONEq(t, input, string(encoded))
+	})
+
 	t.Run("raw message passthrough", func(t *testing.T) {
 		input := `{"obj":{},"arr":[],"nested":{"k":[1,2]},"str":"x"}`
 		var value rawFields
