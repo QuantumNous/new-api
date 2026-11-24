@@ -1336,6 +1336,118 @@ export function parseTaskResult() { return {status: "SUCCESS"}; }
 	assert.NotContains(t, recorder.Body.String(), "secret")
 }
 
+func TestPrepareTaskPluginDynamicQueryCollectsMissingIDs(t *testing.T) {
+	setupTaskPluginRouteDB(t)
+	source := func(missing string) string {
+		return `
+export const meta = {
+  apiVersion: 1, key: "route-query-miss-test", name: "Query", version: "1.0.0",
+  author: {name: "Test"},
+  models: ["query-model"], fetchMode: "per_task",
+  routes: [{method: "POST", path: "/vendor/query", type: "dynamic", decode: "decodeQuery", render: "renderQuery"` + missing + `}],
+};
+export const native = {
+  decodeQuery: function() { return {kind: "query", taskIds: ["task-b", "missing-task", "missing-task", "foreign-task", "discarded-task"]}; },
+  renderQuery: function(ctx, tasks) {
+    return {ids: tasks.map(function(task) { return task.task_id; }), missed: ctx.missedTaskIds || null};
+  },
+};
+export function buildSubmitRequest() { return {url: "https://example.com"}; }
+export function parseSubmitResponse() { return {taskId: "one"}; }
+export function buildQueryRequest() { return {url: "https://example.com"}; }
+export function parseTaskResult() { return {status: "SUCCESS"}; }
+`
+	}
+	insertTaskPluginRouteTask(t, &model.Task{
+		TaskID: "task-b", UserId: 7, Platform: constant.TaskPlatform("route-query-miss-test"),
+		Status: model.TaskStatusSuccess,
+	})
+	insertTaskPluginRouteTask(t, &model.Task{
+		TaskID: "foreign-task", UserId: 8, Platform: constant.TaskPlatform("route-query-miss-test"),
+	})
+	insertTaskPluginRouteTask(t, &model.Task{
+		TaskID: "discarded-task", UserId: 7, Platform: constant.TaskPlatform("route-query-miss-test"),
+		Status: model.TaskStatusSuccess, PrivateData: model.TaskPrivateData{ResultDiscarded: true},
+	})
+
+	serve := func(plugin *jsplugin.LoadedPlugin) *httptest.ResponseRecorder {
+		router := gin.New()
+		router.POST("/vendor/query",
+			pinTaskPluginRoute(plugin, 0),
+			func(c *gin.Context) {
+				c.Set("id", 7)
+				c.Next()
+			},
+			PrepareTaskPluginRoute(),
+		)
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodPost, "/vendor/query", strings.NewReader(`{}`))
+		request.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(recorder, request)
+		return recorder
+	}
+
+	plain := compileTaskRoutePlugin(t, source(""))
+	missingAll := serve(plain)
+	assert.Equal(t, http.StatusNotFound, missingAll.Code)
+
+	collected := serve(compileTaskRoutePlugin(t, source(`, missing: "collect"`)))
+	assert.Equal(t, http.StatusOK, collected.Code)
+	assert.JSONEq(t, `{"ids":["task-b"],"missed":["missing-task","foreign-task","discarded-task"]}`, collected.Body.String())
+}
+
+func TestRespondTaskPluginErrorPassesUpstreamReply(t *testing.T) {
+	plugin := compileTaskRoutePlugin(t, `
+export const meta = {apiVersion:1,key:"upstream-error",name:"Upstream",version:"1.0.0",author:{name:"Test"},models:["model"],fetchMode:"per_task",routes:[{method:"POST",path:"/vendor/submit",type:"submit",decode:"decode",render:"created",upstreamError:"passthrough"}]};
+export const native = {
+  decode: function() { return {kind:"submit", model:"model", requestBody:{}}; },
+  created: function() { return {}; },
+  error: function(ctx, error) {
+    if (error.upstream) {
+      const reply = {__status: error.upstream.status, __body: error.upstream.body};
+      if (error.upstream.retryAfter) reply.__headers = {"Retry-After": error.upstream.retryAfter};
+      return reply;
+    }
+    return {leaked: false, code: error.httpStatus, message: error.message};
+  }
+};
+export function buildSubmitRequest(){return {}} export function parseSubmitResponse(){return {taskId:"one"}} export function buildQueryRequest(){return {}} export function parseTaskResult(){return {status:"SUCCESS"}}
+`)
+	taskErr := &dto.TaskError{
+		Code:       "fail_to_fetch_task",
+		Message:    `{"code":2000,"status":"error","message":"slow down"}`,
+		StatusCode: http.StatusTooManyRequests,
+		UpstreamReply: &dto.TaskUpstreamReply{
+			StatusCode: http.StatusTooManyRequests,
+			Body:       []byte(`{"code":2000,"status":"error","message":"slow down"}`),
+			RetryAfter: "5",
+		},
+	}
+	call := func(passthrough bool) *httptest.ResponseRecorder {
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest(http.MethodPost, "/vendor/submit", nil)
+		route := plugin.Meta.Routes[0]
+		if !passthrough {
+			route.UpstreamError = ""
+		}
+		c.Set(jsplugin.ContextKeyPinnedRoute, jsplugin.PinnedRoute{Plugin: plugin, Route: route})
+		c.Set(jsplugin.ContextKeyRouteRequest, jsplugin.RouteRequestContext{Method: http.MethodPost, Path: "/vendor/submit"})
+		require.True(t, RespondTaskPluginError(c, taskErr))
+		return recorder
+	}
+
+	passed := call(true)
+	assert.Equal(t, http.StatusTooManyRequests, passed.Code)
+	assert.Equal(t, "5", passed.Header().Get("Retry-After"))
+	assert.JSONEq(t, `{"code":2000,"status":"error","message":"slow down"}`, passed.Body.String())
+
+	kept := call(false)
+	assert.Equal(t, http.StatusTooManyRequests, kept.Code)
+	assert.Empty(t, kept.Header().Get("Retry-After"))
+	assert.JSONEq(t, `{"leaked":false,"code":429,"message":"{\"code\":2000,\"status\":\"error\",\"message\":\"slow down\"}"}`, kept.Body.String())
+}
+
 func TestPrepareTaskPluginDynamicDecoderRejectsRendererField(t *testing.T) {
 	plugin := compileTaskRoutePlugin(t, `
 export const meta = {apiVersion:1,key:"dynamic-renderer",name:"Dynamic",version:"1.0.0",author:{name:"Test"},models:["model"],fetchMode:"per_task",routes:[{method:"POST",path:"/vendor/query",type:"dynamic",decode:"decode",render:"show"}]};

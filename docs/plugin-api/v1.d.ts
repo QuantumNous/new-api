@@ -67,7 +67,7 @@ export interface ProtocolDecodeContext extends NativeDecodeContext {protocol: Pr
 export type SubmitIntent = {kind: "submit"; model: string; action?: string; requestBody?: unknown; originTaskIds?: readonly string[]};
 export type QueryIntent = {kind: "query"; taskIds: readonly string[]};
 export type TaskIntent = SubmitIntent | QueryIntent;
-export interface NativeRoute {method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; /** The vendor's own path; the host also serves it under /{key} unless its first segment is the key or a proper prefix of it. */ path: string; type: "submit" | "query" | "dynamic"; action?: string; /** Query routes: the path parameter carrying the gateway task id or, when the path has none, the query-string parameter of that name. Default "task_id". */ taskIdParam?: string; decode?: string; render: string; models?: readonly string[]; retainResult?: boolean}
+export interface NativeRoute {method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; /** The vendor's own path; the host also serves it under /{key} unless its first segment is the key or a proper prefix of it. */ path: string; type: "submit" | "query" | "dynamic"; action?: string; /** Query routes: the path parameter carrying the gateway task id or, when the path has none, the query-string parameter of that name. Default "task_id". */ taskIdParam?: string; decode?: string; render: string; models?: readonly string[]; retainResult?: boolean; /** Dynamic routes only. "collect" renders found tasks and reports the rest on ctx.missedTaskIds. */ missing?: "collect"; /** Submit routes only. "passthrough" gives the error presenter the vendor's non-2xx status, body, and Retry-After. */ upstreamError?: "passthrough"}
 export type ProtocolName = "openai_responses" | "openai_video" | "openai_image";
 export type ResponsesMode = "stream" | "sync" | "background";
 export type ProtocolClaim =
@@ -124,11 +124,11 @@ export interface UpstreamResponse {statusCode: number; headers: Readonly<Record<
 export interface NormalizedTaskResult {taskId?: string; status: "NOT_START" | "SUBMITTED" | "QUEUED" | "IN_PROGRESS" | "SUCCESS" | "FAILURE" | "UNKNOWN"; progress?: string; reason?: string; url?: string; remoteUrl?: string; completionTokens?: number; totalTokens?: number}
 export interface TaskArtifact {key: string; type: "video" | "audio" | "image" | "file"; mimeType?: string}
 export declare const meta: Meta;
-/** A query presenter's context: artifacts holds the gateway download addresses of one task in SUCCESS (from listArtifacts) and is empty otherwise. Throwing "artifact_not_found" answers 404. */
-export interface NativeQueryContext extends NativeDecodeContext {artifacts: Readonly<Record<string, {key: string; type: string; url: string; mimeType?: string}>>}
+/** A query presenter's context: artifacts holds the gateway download addresses of one task in SUCCESS (from listArtifacts) and is empty otherwise. Throwing "artifact_not_found" answers 404. missedTaskIds is set only for a dynamic route that declares missing: "collect". */
+export interface NativeQueryContext extends NativeDecodeContext {artifacts: Readonly<Record<string, {key: string; type: string; url: string; mimeType?: string}>>; missedTaskIds?: readonly string[]}
 /** A native presenter's reply with the vendor's own HTTP status (200–599); only Location and Retry-After may be set, and a reply without __body has no body. Any other value is the JSON body of a 200 reply, or of the host's status for the error presenter. */
 export type NativeReply = {__status: number; __headers?: {Location?: string; "Retry-After"?: string}; __body?: unknown};
-export declare const native: Record<string, ((ctx: NativeDecodeContext) => TaskIntent) | ((ctx: NativeQueryContext, task: TaskView | readonly TaskView[]) => unknown | NativeReply)> & {error?: (ctx: NativeDecodeContext, error: {code: string; message: string; httpStatus: number; retryable: boolean; requestId: string}) => unknown | NativeReply};
+export declare const native: Record<string, ((ctx: NativeDecodeContext) => TaskIntent) | ((ctx: NativeQueryContext, task: TaskView | readonly TaskView[]) => unknown | NativeReply)> & {error?: (ctx: NativeDecodeContext, error: {code: string; message: string; httpStatus: number; retryable: boolean; requestId: string; upstream?: {status: number; body: unknown; retryAfter?: string}}) => unknown | NativeReply};
 export declare const protocols: {
   openai_responses?: {decodeRequest(ctx: ProtocolDecodeContext): SubmitIntent; renderEvents?(ctx: unknown, task: TaskView, previousState: unknown): unknown; renderFinal?(ctx: unknown, task: TaskView): unknown};
   openai_video?: {decodeRequest(ctx: ProtocolDecodeContext): SubmitIntent; render(ctx: unknown, task: TaskView): unknown};

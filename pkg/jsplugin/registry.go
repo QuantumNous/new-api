@@ -2279,7 +2279,7 @@ func decodeRoutes(value any) ([]Route, error) {
 		}
 		for key := range object {
 			switch key {
-			case "method", "path", "type", "action", "decode", "render", "taskIdParam", "models", "retainResult":
+			case "method", "path", "type", "action", "decode", "render", "taskIdParam", "models", "retainResult", "missing", "upstreamError":
 			default:
 				return nil, fmt.Errorf("plugin meta route %d has unknown field %q", index, key)
 			}
@@ -2323,6 +2323,20 @@ func decodeRoutes(value any) ([]Route, error) {
 				return nil, fmt.Errorf("plugin meta route %d retainResult must be a boolean", index)
 			}
 			route.RetainResult = &retain
+		}
+		if value, exists := object["missing"]; exists {
+			text, ok := value.(string)
+			if !ok || text != RouteMissingCollect {
+				return nil, fmt.Errorf("plugin meta route %d missing must be %q", index, RouteMissingCollect)
+			}
+			route.Missing = text
+		}
+		if value, exists := object["upstreamError"]; exists {
+			text, ok := value.(string)
+			if !ok || text != RouteUpstreamErrorPassthrough {
+				return nil, fmt.Errorf("plugin meta route %d upstreamError must be %q", index, RouteUpstreamErrorPassthrough)
+			}
+			route.UpstreamError = text
 		}
 		routes = append(routes, route)
 	}

@@ -1478,20 +1478,30 @@ func renderTaskPluginQuery(
 	for _, task := range tasks {
 		tasksByID[task.TaskID] = task
 	}
+	collectMissing := multiple && pinned.Route.Missing == pluginruntime.RouteMissingCollect
 	views := make([]dto.TaskView, 0, len(taskIDs))
+	var missed []string
+	seenMissed := map[string]struct{}{}
 	for _, taskID := range taskIDs {
 		task := tasksByID[taskID]
 		if task == nil || !task.ResultRetrievable() {
-			logger.LogDebug(
-				c,
-				"task_plugin subsystem=query event=lookup_failed generation=%d plugin=%q reason=task_not_found requested=%d found=%d",
-				generation,
-				pinned.Plugin.Meta.Key,
-				len(taskIDs),
-				len(tasks),
-			)
-			abortTaskPluginRouteError(c, http.StatusNotFound)
-			return
+			if !collectMissing {
+				logger.LogDebug(
+					c,
+					"task_plugin subsystem=query event=lookup_failed generation=%d plugin=%q reason=task_not_found requested=%d found=%d",
+					generation,
+					pinned.Plugin.Meta.Key,
+					len(taskIDs),
+					len(tasks),
+				)
+				abortTaskPluginRouteError(c, http.StatusNotFound)
+				return
+			}
+			if _, seen := seenMissed[taskID]; !seen {
+				seenMissed[taskID] = struct{}{}
+				missed = append(missed, taskID)
+			}
+			continue
 		}
 		view, viewErr := service.BuildTaskPluginView(task)
 		if viewErr != nil {
@@ -1523,6 +1533,12 @@ func renderTaskPluginQuery(
 		}
 	}
 	presenterContext["artifacts"] = artifacts
+	if collectMissing {
+		if missed == nil {
+			missed = []string{}
+		}
+		presenterContext["missedTaskIds"] = missed
+	}
 	renderStarted := time.Now()
 	result, err := pinned.Plugin.Engine.CallPath(c.Request.Context(), "native", []string{renderer}, presenterContext, pluginruntime.RawJSON(encoded))
 	if err != nil {
@@ -1629,6 +1645,20 @@ func WriteNativeReply(c *gin.Context, status int, value any) error {
 	return nil
 }
 
+// taskUpstreamErrorValue is the vendor response a passthrough submit route's
+// error presenter reads. A JSON body stays a value; anything else stays text.
+func taskUpstreamErrorValue(reply *dto.TaskUpstreamReply) map[string]any {
+	var body any
+	if len(strings.TrimSpace(string(reply.Body))) > 0 && common.Unmarshal(reply.Body, &body) != nil {
+		body = string(reply.Body)
+	}
+	value := map[string]any{"status": reply.StatusCode, "body": body}
+	if reply.RetryAfter != "" {
+		value["retryAfter"] = reply.RetryAfter
+	}
+	return value
+}
+
 // RespondTaskPluginError gives a pinned plugin a sanitized error DTO and writes
 // its native error body with the host's status, unless the body is a reply
 // wrapper that answers with the vendor's own status.
@@ -1652,13 +1682,17 @@ func RespondTaskPluginError(c *gin.Context, taskErr *dto.TaskError) bool {
 	requestValue, exists := c.Get(pluginruntime.ContextKeyRouteRequest)
 	requestContext, ok := requestValue.(pluginruntime.RouteRequestContext)
 	if err == nil && hasRenderer && exists && ok {
-		body, callErr := pinned.Plugin.Engine.CallMember(c.Request.Context(), "native", "error", requestContext.JSValue(), map[string]any{
+		errorValue := map[string]any{
 			"code":       sanitized.Code,
 			"message":    sanitized.Message,
 			"httpStatus": sanitized.HTTPStatus,
 			"retryable":  sanitized.Retryable,
 			"requestId":  requestID,
-		})
+		}
+		if pinned.Route.UpstreamError == pluginruntime.RouteUpstreamErrorPassthrough && taskErr.UpstreamReply != nil {
+			errorValue["upstream"] = taskUpstreamErrorValue(taskErr.UpstreamReply)
+		}
+		body, callErr := pinned.Plugin.Engine.CallMember(c.Request.Context(), "native", "error", requestContext.JSValue(), errorValue)
 		if callErr == nil {
 			callErr = WriteNativeReply(c, sanitized.HTTPStatus, body)
 		}

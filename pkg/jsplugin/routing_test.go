@@ -468,6 +468,69 @@ func TestRouteRetainResultDecodeAndValidation(t *testing.T) {
 	}
 }
 
+func TestRouteMissingAndUpstreamError(t *testing.T) {
+	routeExports := `export const native = {
+		decodeJob: function(ctx) { return {kind: "submit", model: "gpt-5.5", requestBody: ctx.body.value}; },
+		decodeQuery: function() { return {kind: "query", taskIds: ["task_a"]}; },
+		jobCreated: function(ctx, task) { return task; },
+		jobStatus: function(ctx, task) { return task; }
+	};`
+	tests := []struct {
+		name        string
+		metaFields  string
+		missing     string
+		upstream    string
+		errContains string
+	}{
+		{
+			name:       "dynamic query collects missing ids",
+			metaFields: `routes: [{method: "POST", path: "/v1/batch", type: "dynamic", decode: "decodeQuery", render: "jobStatus", missing: "collect"}],`,
+			missing:    RouteMissingCollect,
+		},
+		{
+			name:       "submit route passes upstream errors",
+			metaFields: `routes: [{method: "POST", path: "/v1/batch", type: "submit", decode: "decodeJob", render: "jobCreated", upstreamError: "passthrough"}],`,
+			upstream:   RouteUpstreamErrorPassthrough,
+		},
+		{
+			name:        "submit route rejects missing",
+			metaFields:  `routes: [{method: "POST", path: "/v1/batch", type: "submit", decode: "decodeJob", render: "jobCreated", missing: "collect"}],`,
+			errContains: "must not declare missing",
+		},
+		{
+			name:        "query route rejects both",
+			metaFields:  `routes: [{method: "GET", path: "/v1/batch/:task_id", type: "query", render: "jobStatus", upstreamError: "passthrough"}],`,
+			errContains: "must not declare missing or upstreamError",
+		},
+		{
+			name:        "dynamic route rejects upstreamError",
+			metaFields:  `routes: [{method: "POST", path: "/v1/batch", type: "dynamic", decode: "decodeQuery", render: "jobStatus", upstreamError: "passthrough"}],`,
+			errContains: "must not declare upstreamError",
+		},
+		{
+			name:        "unknown missing value",
+			metaFields:  `routes: [{method: "POST", path: "/v1/batch", type: "dynamic", decode: "decodeQuery", render: "jobStatus", missing: "ignore"}],`,
+			errContains: `missing must be "collect"`,
+		},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			plugin, err := CompilePlugin(
+				routingTestPluginSource("route-opt-in", 0, `["gpt-5.5"]`, testCase.metaFields, routeExports),
+				Options{},
+			)
+			if testCase.errContains != "" {
+				require.ErrorContains(t, err, testCase.errContains)
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, plugin.Meta.Routes, 1)
+			assert.Equal(t, testCase.missing, plugin.Meta.Routes[0].Missing)
+			assert.Equal(t, testCase.upstream, plugin.Meta.Routes[0].UpstreamError)
+		})
+	}
+}
+
 func TestRouteRequestContextKeepsFormAndMultipartValuesAcrossDecoderWrites(t *testing.T) {
 	plugin, err := CompilePlugin(routingTestPluginSource("route-request-writes", 0, `["gpt-5.5"]`, "", `
 export function decodeJob(ctx) {
