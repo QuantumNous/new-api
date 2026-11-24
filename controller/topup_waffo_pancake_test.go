@@ -30,6 +30,8 @@ func TestFormatWaffoPancakeAmount_UsesDisplayPriceString(t *testing.T) {
 
 func TestGetWaffoPancakePayMoney(t *testing.T) {
 	originalUnitPrice := setting.WaffoPancakeUnitPrice
+	originalWaffoUnitPrice := setting.WaffoUnitPrice
+	originalPrice := operation_setting.Price
 	originalQuotaDisplayType := operation_setting.GetGeneralSetting().QuotaDisplayType
 	originalDiscounts := make(map[int]float64, len(operation_setting.GetPaymentSetting().AmountDiscount))
 	maps.Copy(originalDiscounts, operation_setting.GetPaymentSetting().AmountDiscount)
@@ -37,16 +39,22 @@ func TestGetWaffoPancakePayMoney(t *testing.T) {
 
 	t.Cleanup(func() {
 		setting.WaffoPancakeUnitPrice = originalUnitPrice
+		setting.WaffoUnitPrice = originalWaffoUnitPrice
+		operation_setting.Price = originalPrice
 		operation_setting.GetGeneralSetting().QuotaDisplayType = originalQuotaDisplayType
 		operation_setting.GetPaymentSetting().AmountDiscount = originalDiscounts
 		require.NoError(t, common.UpdateTopupGroupRatioByJSONString(originalTopupGroupRatio))
 	})
 
 	setting.WaffoPancakeUnitPrice = 2.5
+	setting.WaffoUnitPrice = 1.0
+	operation_setting.Price = 1.0
 	operation_setting.GetPaymentSetting().AmountDiscount = map[int]float64{
+		5:                            0,
 		10:                           0.8,
+		100:                          0.95,
+		200:                          0.90,
 		int(common.QuotaPerUnit * 3): 0.5,
-		20:                           0,
 	}
 	require.NoError(t, common.UpdateTopupGroupRatioByJSONString(`{"default":1,"vip":1.2}`))
 
@@ -73,10 +81,10 @@ func TestGetWaffoPancakePayMoney(t *testing.T) {
 		},
 		{
 			name:             "non-positive discount falls back to no discount",
-			amount:           20,
+			amount:           5,
 			group:            "default",
 			quotaDisplayType: operation_setting.QuotaDisplayTypeUSD,
-			expected:         50,
+			expected:         12.5,
 		},
 	}
 
@@ -87,4 +95,16 @@ func TestGetWaffoPancakePayMoney(t *testing.T) {
 			require.InDelta(t, tc.expected, actual, 0.000001)
 		})
 	}
+
+	t.Run("tiered discount applies across epay, waffo, and waffo pancake", func(t *testing.T) {
+		operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeUSD
+		require.InDelta(t, 9.0, getPayMoney(9, "default"), 1e-6)
+		require.InDelta(t, 79.2, getPayMoney(99, "default"), 1e-6)
+		require.InDelta(t, 99.75, getPayMoney(105, "default"), 1e-6)
+		require.InDelta(t, 99.75, getWaffoPayMoney(105, "default"), 1e-6)
+		require.InDelta(t, 249.375, getWaffoPancakePayMoney(105, "default"), 1e-6)
+		require.InDelta(t, 225.0, getPayMoney(250, "default"), 1e-6)
+		require.InDelta(t, 225.0, getWaffoPayMoney(250, "default"), 1e-6)
+		require.InDelta(t, 562.5, getWaffoPancakePayMoney(250, "default"), 1e-6)
+	})
 }

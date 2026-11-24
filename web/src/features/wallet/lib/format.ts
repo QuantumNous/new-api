@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { TFunction } from 'i18next'
 
-import { DEFAULT_DISCOUNT_RATE } from '../constants'
+import { DEFAULT_DISCOUNT_RATE, PAYMENT_TYPES } from '../constants'
 
 // ============================================================================
 // Wallet-specific Formatting Functions
@@ -64,13 +64,74 @@ export function formatCurrency(amount: number | string): string {
 }
 
 /**
+ * Match the highest discount tier whose threshold is <= amount.
+ */
+export function getMatchedAmountDiscount(
+  amount: number,
+  discounts?: Record<number, number> | null
+): number {
+  if (!Number.isFinite(amount) || amount <= 0 || !discounts) {
+    return DEFAULT_DISCOUNT_RATE
+  }
+
+  let bestThreshold = 0
+  let bestRate = DEFAULT_DISCOUNT_RATE
+
+  for (const [rawThreshold, rawRate] of Object.entries(discounts)) {
+    const threshold = Number(rawThreshold)
+    const rate = Number(rawRate)
+    if (
+      !Number.isFinite(threshold) ||
+      threshold <= 0 ||
+      threshold > amount ||
+      !Number.isFinite(rate) ||
+      rate <= 0
+    ) {
+      continue
+    }
+
+    if (threshold > bestThreshold) {
+      bestThreshold = threshold
+      bestRate = rate
+    }
+  }
+
+  return bestRate
+}
+
+/**
+ * Resolve discount rate by payment method: Stripe quotes still use exact-key
+ * discount lookup, while other gateways use tiered threshold matching.
+ */
+export function getDiscountRateForPaymentType(
+  amount: number,
+  discounts?: Record<number, number> | null,
+  paymentType?: string
+): number {
+  if (paymentType === PAYMENT_TYPES.STRIPE) {
+    if (!Number.isFinite(amount) || amount <= 0 || !discounts) {
+      return DEFAULT_DISCOUNT_RATE
+    }
+    const exactRate = Number(discounts[amount])
+    return Number.isFinite(exactRate) && exactRate > 0
+      ? exactRate
+      : DEFAULT_DISCOUNT_RATE
+  }
+
+  return getMatchedAmountDiscount(amount, discounts)
+}
+
+/**
  * Get discount label for display (e.g., "20% OFF")
  */
 export function getDiscountLabel(discount: number, t: TFunction): string {
-  if (discount >= DEFAULT_DISCOUNT_RATE) {
+  if (discount <= 0 || discount >= DEFAULT_DISCOUNT_RATE) {
     return ''
   }
   const off = Math.round((1 - discount) * 100)
+  if (off <= 0) {
+    return ''
+  }
   return t('{{percent}}% OFF', { percent: off })
 }
 

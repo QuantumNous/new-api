@@ -27,6 +27,11 @@ import zh from '@/i18n/locales/zh.json'
 import { api } from '@/lib/api'
 
 import { RechargeFormCard } from '../components/recharge-form-card'
+import {
+  getDiscountRateForPaymentType,
+  getMatchedAmountDiscount,
+  mergePresetAmounts,
+} from '../lib'
 
 const i18n = createInstance()
 
@@ -125,3 +130,153 @@ it.each([
     expect(screen.getByPlaceholderText('Minimum 1')).toBeVisible()
   }
 )
+
+it('selects the highest qualifying positive discount threshold', () => {
+  const discounts = { 100: 0.95, 200: 0.9, 50: 0 }
+  expect(getMatchedAmountDiscount(99, discounts)).toBe(1)
+  expect(getMatchedAmountDiscount(100, discounts)).toBe(0.95)
+  expect(getMatchedAmountDiscount(105, discounts)).toBe(0.95)
+  expect(getMatchedAmountDiscount(250, discounts)).toBe(0.9)
+})
+
+it('keeps exact-key lookup for Stripe and tiered thresholds for other methods', () => {
+  const discounts = { 100: 0.95, 200: 0.9 }
+  expect(getDiscountRateForPaymentType(100, discounts, 'stripe')).toBe(0.95)
+  expect(getDiscountRateForPaymentType(105, discounts, 'stripe')).toBe(1)
+  expect(getDiscountRateForPaymentType(105, discounts, 'waffo_pancake')).toBe(
+    0.95
+  )
+  expect(getDiscountRateForPaymentType(250, discounts, 'waffo')).toBe(0.9)
+})
+
+it('applies tiered thresholds when merging preset amounts', () => {
+  expect(mergePresetAmounts([50, 105, 200], { 100: 0.95 })).toEqual([
+    { value: 50, discount: 1 },
+    { value: 105, discount: 0.95 },
+    { value: 200, discount: 0.95 },
+  ])
+})
+
+it('displays tiered discount savings on recharge preset cards', () => {
+  render(
+    <I18nextProvider i18n={i18n}>
+      <RechargeFormCard
+        topupInfo={{
+          enable_online_topup: true,
+          enable_stripe_topup: false,
+          pay_methods: [],
+          min_topup: 1,
+          stripe_min_topup: 1,
+          amount_options: [200],
+          discount: { 100: 0.95 },
+        }}
+        presetAmounts={[{ value: 200, discount: 1 }]}
+        selectedPreset={null}
+        topupAmount={105}
+        paymentAmount={99.75}
+        priceRatio={1}
+        calculating={false}
+        paymentLoading={null}
+        redemptionCode=''
+        redeeming={false}
+        onSelectPreset={vi.fn()}
+        onTopupAmountChange={vi.fn()}
+        onPaymentMethodSelect={vi.fn()}
+        onRedemptionCodeChange={vi.fn()}
+        onRedeem={vi.fn()}
+      />
+    </I18nextProvider>
+  )
+
+  expect(screen.getByRole('button', { name: /^200 / })).toHaveTextContent(
+    '优惠 5%支付 190 • 节省 10'
+  )
+})
+
+it('suppresses threshold-only savings on preset cards when Stripe is the only enabled gateway', () => {
+  render(
+    <I18nextProvider i18n={i18n}>
+      <RechargeFormCard
+        topupInfo={{
+          enable_online_topup: false,
+          enable_stripe_topup: true,
+          pay_methods: [],
+          min_topup: 1,
+          stripe_min_topup: 1,
+          amount_options: [100, 200],
+          discount: { 100: 0.95 },
+        }}
+        presetAmounts={[
+          { value: 100, discount: 0.95 },
+          { value: 200, discount: 0.95 },
+        ]}
+        selectedPreset={null}
+        topupAmount={200}
+        paymentAmount={200}
+        priceRatio={1}
+        calculating={false}
+        paymentLoading={null}
+        redemptionCode=''
+        redeeming={false}
+        onSelectPreset={vi.fn()}
+        onTopupAmountChange={vi.fn()}
+        onPaymentMethodSelect={vi.fn()}
+        onRedemptionCodeChange={vi.fn()}
+        onRedeem={vi.fn()}
+      />
+    </I18nextProvider>
+  )
+
+  expect(screen.getByRole('button', { name: /^100 / })).toHaveTextContent(
+    '优惠 5%支付 95 • 节省 5'
+  )
+  expect(screen.getByRole('button', { name: /^200 / })).toHaveTextContent(
+    '支付 200'
+  )
+})
+
+it('gates threshold-only savings on preset cards when Stripe is the active payment method in multi-gateway mode', () => {
+  render(
+    <I18nextProvider i18n={i18n}>
+      <RechargeFormCard
+        topupInfo={{
+          enable_online_topup: true,
+          enable_stripe_topup: true,
+          pay_methods: [
+            { name: 'Stripe', type: 'stripe' },
+            { name: 'Waffo Pancake', type: 'waffo_pancake' },
+          ],
+          min_topup: 1,
+          stripe_min_topup: 1,
+          amount_options: [100, 200],
+          discount: { 100: 0.95 },
+        }}
+        presetAmounts={[
+          { value: 100, discount: 0.95 },
+          { value: 200, discount: 0.95 },
+        ]}
+        selectedPreset={null}
+        topupAmount={200}
+        paymentAmount={200}
+        priceRatio={1}
+        calculating={false}
+        paymentLoading={null}
+        redemptionCode=''
+        redeeming={false}
+        activePaymentType='stripe'
+        onSelectPreset={vi.fn()}
+        onTopupAmountChange={vi.fn()}
+        onPaymentMethodSelect={vi.fn()}
+        onRedemptionCodeChange={vi.fn()}
+        onRedeem={vi.fn()}
+      />
+    </I18nextProvider>
+  )
+
+  expect(screen.getByRole('button', { name: /^100 / })).toHaveTextContent(
+    '优惠 5%支付 95 • 节省 5'
+  )
+  expect(screen.getByRole('button', { name: /^200 / })).toHaveTextContent(
+    '支付 200'
+  )
+})
