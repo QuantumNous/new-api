@@ -263,7 +263,10 @@ func PrepareTaskPluginRoute() gin.HandlerFunc {
 					abortTaskPluginRouteError(c, http.StatusInternalServerError)
 					return
 				}
-				ownsQuery := true
+				// An empty batch retrieves nothing, so no shared candidate
+				// answers it. A non-empty batch still needs every id, unless
+				// the collect branch below relaxes that.
+				ownsQuery := len(retrievable) > 0
 				for _, taskID := range intent.taskIDs {
 					if _, found := retrievable[taskID]; !found {
 						ownsQuery = false

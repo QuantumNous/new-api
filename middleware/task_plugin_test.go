@@ -2762,8 +2762,10 @@ func TestPrepareTaskPluginSharedDynamicQueryCollectsUnknownIDs(t *testing.T) {
 			want: `{"by":"share-beta","tasks":["task_beta"],"missed":["missing-task"]}`},
 		{name: "split batch stays not found", router: both, status: http.StatusNotFound, body: `{"ids":["task_alpha","task_beta"]}`, want: notFound},
 		{name: "nothing retrievable stays not found", router: both, status: http.StatusNotFound, body: `{"ids":["missing-a","missing-b"]}`, want: notFound},
+		{name: "empty batch stays not found with collect", router: both, status: http.StatusNotFound, body: `{"ids":[]}`, want: notFound},
 		{name: "collect does not take another plugin's task", router: alphaOnly, status: http.StatusNotFound, body: `{"ids":["task_alpha","task_beta"]}`, want: notFound},
 		{name: "without collect a missing id is not found", router: neither, status: http.StatusNotFound, body: `{"ids":["task_alpha","missing-task"]}`, want: notFound},
+		{name: "empty batch stays not found without collect", router: neither, status: http.StatusNotFound, body: `{"ids":[]}`, want: notFound},
 		{name: "without collect the owner still answers", router: neither, status: http.StatusOK, body: `{"ids":["task_beta"]}`,
 			want: `{"by":"share-beta","tasks":["task_beta"],"missed":null}`},
 	} {
