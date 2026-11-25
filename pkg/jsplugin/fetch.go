@@ -13,9 +13,9 @@ import (
 	"github.com/MoeForge/moejs"
 )
 
-// Fetcher sends one utils.fetch request for the hook call whose context
-// carries it. The host binds it to the executing channel; the engine passes a
-// context already bounded by the call's fetch budget, so the fetcher only sends.
+// Fetcher sends one utils.fetch request with the network deadline in ctx.
+// It reads at most request.ResponseBodyLimit()+1 bytes and returns any
+// bytes it read before an error so the engine can count them.
 type Fetcher func(ctx context.Context, request FetchRequest) (FetchResponse, error)
 
 type FetchRequest struct {
@@ -30,6 +30,13 @@ type FetchRequest struct {
 	// bytes long.
 	BodyStream io.Reader
 	BodySize   int64
+	// priorResponseBytes counts the bytes read by earlier fetches in this hook.
+	priorResponseBytes int64
+}
+
+// ResponseBodyLimit is the number of response bytes this fetch can accept.
+func (r FetchRequest) ResponseBodyLimit() int64 {
+	return min(maxFetchResponseBytes, maxFetchResponseBytesPerCall-r.priorResponseBytes)
 }
 
 type FetchResponse struct {
@@ -39,15 +46,19 @@ type FetchResponse struct {
 }
 
 // The utils.fetch limits are part of the published plugin contract
-// (docs/plugin-api/v1.md). A fetcher reads at most MaxFetchBodyBytes+1 bytes
-// so that the engine can reject a longer body.
+// (docs/plugin-api/v1.md). MaxFetchBodyBytes applies to the POST body
+// before the host expands media references.
 const (
-	maxFetchesPerCall   = 4
-	fetchTimeout        = 15 * time.Second
-	maxFetchTimePerCall = 30 * time.Second
-	MaxFetchBodyBytes   = 1 << 20
-	maxFetchURLBytes    = 64 << 10
+	maxFetchesPerCall            = 4
+	fetchTimeout                 = 15 * time.Second
+	maxFetchTimePerCall          = 30 * time.Second
+	MaxFetchBodyBytes            = 1 << 20
+	maxFetchResponseBytes        = 4 << 20
+	maxFetchResponseBytesPerCall = 8 << 20
+	maxFetchURLBytes             = 64 << 10
 )
+
+var errFetchResponseBudget = fmt.Errorf("utils.fetch allows at most %d response bytes per hook call", maxFetchResponseBytesPerCall)
 
 type fetcherContextKey struct{}
 
@@ -74,10 +85,11 @@ type runtimeCall struct {
 	watchdog  *runtimeWatchdog
 	// holdsSlot and parked are what the call holds of the engine's
 	// semaphore and parked tokens; release returns exactly that.
-	holdsSlot bool
-	parked    bool
-	fetches   int
-	fetchTime time.Duration
+	holdsSlot          bool
+	parked             bool
+	fetches            int
+	fetchTime          time.Duration
+	fetchResponseBytes int64
 }
 
 func (c *runtimeCall) release() {
@@ -107,6 +119,11 @@ func (c *runtimeCall) fetch(r *moejs.Realm, argument moejs.Value) (moejs.Value, 
 	if c.fetches >= maxFetchesPerCall {
 		return moejs.Undefined(), fmt.Errorf("utils.fetch allows at most %d requests per hook call", maxFetchesPerCall)
 	}
+	remainingBytes := maxFetchResponseBytesPerCall - c.fetchResponseBytes
+	if remainingBytes == 0 {
+		return moejs.Undefined(), errFetchResponseBudget
+	}
+	request.priorResponseBytes = c.fetchResponseBytes
 	remaining := maxFetchTimePerCall - c.fetchTime
 	if remaining <= 0 {
 		return moejs.Undefined(), fmt.Errorf("utils.fetch requests used up their %s per hook call", maxFetchTimePerCall)
@@ -139,6 +156,9 @@ func (c *runtimeCall) fetch(r *moejs.Realm, argument moejs.Value) (moejs.Value, 
 		return moejs.Undefined(), interrupted
 	}
 
+	// Partial and oversized responses also consume the hook's byte budget.
+	size := int64(len(response.Body))
+	c.fetchResponseBytes += min(size, remainingBytes)
 	if err != nil {
 		var transportErr *url.Error
 		if errors.As(err, &transportErr) {
@@ -146,8 +166,11 @@ func (c *runtimeCall) fetch(r *moejs.Realm, argument moejs.Value) (moejs.Value, 
 		}
 		return moejs.Undefined(), fmt.Errorf("utils.fetch to %s failed: %v", host, err)
 	}
-	if len(response.Body) > MaxFetchBodyBytes {
-		return moejs.Undefined(), fmt.Errorf("utils.fetch response from %s exceeds %d bytes", host, MaxFetchBodyBytes)
+	if size > maxFetchResponseBytes {
+		return moejs.Undefined(), fmt.Errorf("utils.fetch response from %s exceeds %d bytes", host, maxFetchResponseBytes)
+	}
+	if size > remainingBytes {
+		return moejs.Undefined(), errFetchResponseBudget
 	}
 	// The result is built from JavaScript objects, not a host map: a hook may
 	// return it, or part of it, as it is.

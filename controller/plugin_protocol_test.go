@@ -1736,6 +1736,7 @@ func TestServeTaskPluginImageProtocolAppliesChannelOverrides(t *testing.T) {
 		prompts            []string
 		multipart          bool
 		async              bool
+		inlineImage        string
 		wantParameters     map[string]any
 		wantB64            bool
 		wantCount          float64
@@ -1764,6 +1765,7 @@ func TestServeTaskPluginImageProtocolAppliesChannelOverrides(t *testing.T) {
 		{name: "return error stops submission", overrides: []string{`{"operations":[{"mode":"return_error","value":{"message":"blocked by image rule","status_code":429,"code":"image_rule_blocked"}}]}`}, wantStatus: 429, wantCode: "image_rule_blocked", wantNoRetry: true},
 		{name: "alibaba/no overrides preserves URL", pluginKey: "alibaba", overrides: []string{`{}`}},
 		{name: "alibaba/client Base64 without overrides", pluginKey: "alibaba", clientFormat: "b64_json", overrides: []string{`{}`}, wantB64: true},
+		{name: "alibaba/large inline image", pluginKey: "alibaba", clientFormat: "b64_json", overrides: []string{`{}`}, inlineImage: strings.Repeat("QUFB", (1<<18)+1)},
 		{name: "alibaba/Seedream condition does not match", pluginKey: "alibaba", overrides: []string{force}},
 		{name: "alibaba/original alias condition", pluginKey: "alibaba", model: "bailian-image", overrides: []string{bailian}, wantB64: true},
 		{name: "alibaba/mapped model condition", pluginKey: "alibaba", model: "bailian-image", overrides: []string{strings.Replace(strings.Replace(force, `"original_model"`, `"model"`, 1), `"value":"seedream"`, `"value":"qwen-image"`, 1)}, wantB64: true},
@@ -1901,6 +1903,9 @@ func TestServeTaskPluginImageProtocolAppliesChannelOverrides(t *testing.T) {
 				task.SetData(map[string]any{"data": []any{map[string]any{"url": "https://cdn.example/image.png"}}})
 				if pluginKey == "alibaba" {
 					result := `{"request_id":"request_image","output":{"choices":[{"message":{"content":[{"image":"https://cdn.example/image.png"}]}}]},"usage":{"output_image_count":1}}`
+					if tc.inlineImage != "" {
+						result = strings.Replace(result, "https://cdn.example/image.png", "data:image/png;base64,"+tc.inlineImage, 1)
+					}
 					if tc.async {
 						result = `{"output":{"task_id":"upstream_image","task_status":"PENDING"}}`
 					}
@@ -1970,13 +1975,15 @@ func TestServeTaskPluginImageProtocolAppliesChannelOverrides(t *testing.T) {
 			}
 			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
 			require.Len(t, response.Data, 1)
-			wantB64, wantDownloads := "", 0
-			if tc.wantB64 {
+			wantURL, wantB64, wantDownloads := "https://cdn.example/image.png", "", 0
+			if tc.inlineImage != "" {
+				wantURL, wantB64 = "", tc.inlineImage
+			} else if tc.wantB64 {
 				wantB64, wantDownloads = "QUFB", 1
 			}
 			assert.Equal(t, wantDownloads, downloads)
 			assert.Equal(t, wantB64, response.Data[0].B64)
-			assert.Equal(t, "https://cdn.example/image.png", response.Data[0].URL)
+			assert.Equal(t, wantURL, response.Data[0].URL)
 			if pluginKey == "alibaba" {
 				assert.Contains(t, response.Metadata, "output", "vendor metadata remains available with Base64 output")
 				usage, ok := response.Metadata["usage"].(map[string]any)
@@ -2100,6 +2107,7 @@ func TestServeTaskPluginImageProtocolSubmissionErrorUsesOpenAIEnvelope(t *testin
 // cancel that call or refund a durable result: the task row, its settlement
 // and its consume log stay, and nothing is written to the closed connection.
 func TestServeTaskPluginImageProtocolDisconnectDuringSubmissionKeepsDurableSettlement(t *testing.T) {
+	image := "data:image/png;base64," + strings.Repeat("QUFB", (1<<18)+1)
 	events := make([]string, 0, 3)
 	database := setupTaskSubmissionDatabase(t, true, &events)
 	previousLogConsumeEnabled := common.LogConsumeEnabled
@@ -2139,8 +2147,8 @@ func TestServeTaskPluginImageProtocolDisconnectDuringSubmissionKeepsDurableSettl
 				UpstreamTaskID: "task_image_disconnect",
 				Platform:       constant.TaskPlatform(pinned.Plugin.Meta.Key),
 				Quota:          7,
-				TaskData:       []byte(`{"images":["https://cdn.example/1.png"]}`),
-				Immediate:      &relaycommon.TaskInfo{Status: model.TaskStatusSuccess, Progress: "100%"},
+				TaskData:       []byte(`{"images":["` + image + `"]}`),
+				Immediate:      &relaycommon.TaskInfo{Status: model.TaskStatusSuccess, Progress: "100%", Url: image},
 			}, nil
 		})
 	}
@@ -2169,6 +2177,8 @@ func TestServeTaskPluginImageProtocolDisconnectDuringSubmissionKeepsDurableSettl
 	assert.Equal(t, model.TaskStatus(model.TaskStatusSuccess), persisted.Status)
 	assert.Equal(t, 7, persisted.Quota)
 	assert.True(t, persisted.PrivateData.ResultDiscarded, "the inline image result is not retained after the barrier")
+	assert.Empty(t, persisted.Data)
+	assert.Empty(t, persisted.PrivateData.ResultURL)
 	assert.Zero(t, polls, "an immediate result is never polled")
 	assert.False(t, c.Writer.Written())
 	assert.Empty(t, recorder.Body.String())

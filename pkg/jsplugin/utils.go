@@ -48,7 +48,7 @@ func injectGlobals(runtime *moejs.Runtime, identity func() string, now func() ti
 			if moejs.Arg(args, 0).IsUndefined() {
 				return moejs.Undefined(), r.TypeError("json.clone requires a JSON value")
 			}
-			budget := &jsonStateBudget{ctx: context.Background(), bytes: MaxJSONToolBytes, nodes: maxJSONToolNodes, realm: r}
+			budget := &jsonStateBudget{ctx: context.Background(), bytes: maxJSONCloneBytes, nodes: maxJSONToolNodes, realm: r}
 			value, err := newJSONStateNode(moejs.Arg(args, 0), 0, budget)
 			if err != nil {
 				var exception *moejs.Exception

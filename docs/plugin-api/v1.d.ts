@@ -8,7 +8,7 @@ export interface UpstreamContext {kind: UpstreamKind}
 export type MutableJSON<T> = T extends readonly (infer Item)[] ? MutableJSON<Item>[] : T extends object ? {-readonly [Key in keyof T]: MutableJSON<T[Key]>} : T;
 export interface HostUtils {
   hasCapability(name: string): boolean;
-  /** Independent native JS containers; at most 1 MiB encoded JSON, depth 32 and 32,768 nodes. */
+  /** Returns a JSON value with independent, mutable JS objects and arrays. Limits are 4 MiB of encoded JSON, 32 levels below the root and 32,768 nodes. */
   json: {clone<T extends JSONValue>(value: T): MutableJSON<T>};
   unixNow(): number;
   uuid(): string;
@@ -23,7 +23,12 @@ export interface HostUtils {
   base64URL(value: string): string;
   base64URLDecode(value: string): string;
   volcSignV4(request: {method: string; url: string; headers?: Record<string, string>; body?: string; accessKey: string; secretKey: string; region?: string; service?: string; timestamp?: number}): Record<string, string>;
-  /** Synchronous request. Driver hooks address the channel Base URL host or allowedHosts, read-only outside login, refresh, revoke, exchangeKey and scheduled. ingress, egress, reply and report address allowedHosts and the hosts of the instance's url config values, and may POST. At most 4 per hook call, 15 s each, 30 s in total, 1 MiB per body; redirects are returned, not followed. In a stage hook, each JSON string value of body that equals a "[media:N]" ref of the call is sent as that file's data URL, streamed from the request: at most 8 refs and 32 MiB of file data per body. */
+  /** Sends a synchronous request and returns redirects to the caller.
+   * Driver hooks can read from the channel Base URL host and allowedHosts. login, refresh, revoke, exchangeKey and scheduled can also POST.
+   * ingress, egress, reply and report may POST to allowedHosts and the hosts of the instance's url config values.
+   * Each hook call allows up to 4 fetches, 15 s per fetch and 30 s in total.
+   * Response bodies may use up to 4 MiB each and 8 MiB in total, including bytes read from failed responses.
+   * In a stage hook, the host streams each "[media:N]" ref used as a JSON string value in the body as that file's data URL, up to 8 refs and 32 MiB of file data per body. */
   fetch(request: FetchRequest): FetchResponse;
   /** new-api only: outbound hooks only, runs the new-api channel parameter override language on body, with conditions reading ctx. A return_error operation comes back as reject. On a host without it, it is missing or throws "utils.paramOverride is not available on this host". */
   paramOverride?(body: Readonly<Record<string, JSONValue>>, override: Readonly<Record<string, JSONValue>>): {body: Record<string, JSONValue>; headers?: {set?: Record<string, string>; remove?: string[]}} | {reject: {code: string; message: string}};
@@ -145,6 +150,7 @@ export interface SubmitEventDeltaResult {changes: readonly JSONChange[]; state: 
 /** With submit-sse-delta@1, state is small control data; changes build the separate response body. */
 export declare function parseSubmitEventDelta(ctx: DriverContext, event: SubmitEvent, previousState: JSONValue | null): SubmitEventDeltaResult;
 export declare function parseSubmitEvent(ctx: DriverContext, event: SubmitEvent, previousState: JSONValue | null): {state: JSONValue; done: boolean};
+/** Retained taskData and plugin state each have a 1 MiB limit. Immediate terminal taskData on openai_image or a native route with retainResult: false may reach MAX_FILE_DOWNLOAD_MB (default 64 MiB). */
 export declare function parseSubmitResponse(ctx: DriverContext, response: UpstreamResponse): {taskId: string; taskData?: unknown; immediate?: NormalizedTaskResult; state?: unknown};
 /** Query redirects retain credentials only within the channel host and meta.allowedHosts; SSRF checks and HTTPS downgrade protection still apply. */
 export declare function buildQueryRequest(ctx: TaskQueryContext): RequestDescriptor;

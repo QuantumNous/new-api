@@ -672,15 +672,11 @@ func relaysSubmitEvents(c *gin.Context) bool {
 	return native
 }
 
-// submitReplyLimit bounds the submit reply and each of its SSE events. A
-// native route that declares retainResult: false delivers the reply once and
-// never persists it, so it may be as large as a downloaded file, which lets a
-// vendor return Base64 images.
+// submitReplyLimit allows inline Base64 images in the submit reply and its
+// SSE events on routes that discard immediate results.
 func submitReplyLimit(c *gin.Context) int64 {
-	if value, exists := c.Get(pluginruntime.ContextKeyPinnedRoute); exists {
-		if pinned, ok := value.(pluginruntime.PinnedRoute); ok && pinned.Route.RetainResult != nil && !*pinned.Route.RetainResult {
-			return max(maxInlineFileBytes(), maxTaskPluginPersistedJSONBytes)
-		}
+	if pluginruntime.DiscardsImmediateResult(c) {
+		return max(maxInlineFileBytes(), maxTaskPluginPersistedJSONBytes)
 	}
 	return maxTaskPluginPersistedJSONBytes
 }

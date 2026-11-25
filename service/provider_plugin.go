@@ -122,9 +122,9 @@ func sendPluginFetch(ctx context.Context, plugin *jsplugin.LoadedPlugin, client 
 		return jsplugin.FetchResponse{}, err
 	}
 	defer resp.Body.Close()
-	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, jsplugin.MaxFetchBodyBytes+1))
+	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, request.ResponseBodyLimit()+1))
 	if err != nil {
-		return jsplugin.FetchResponse{}, err
+		return jsplugin.FetchResponse{Body: responseBody}, err
 	}
 	headers := make(map[string]string, len(resp.Header))
 	for name, values := range resp.Header {
