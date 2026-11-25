@@ -70,6 +70,7 @@ type ClaudeConvertInfo struct {
 	LastMessagesType string
 	Index            int
 	Usage            *dto.Usage
+	ClientUsage      *dto.ClaudeUsage
 	FinishReason     string
 	Done             bool
 

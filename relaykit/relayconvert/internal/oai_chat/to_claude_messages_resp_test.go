@@ -216,6 +216,7 @@ func TestStreamResponseOpenAI2ClaudeClosesTextThinkingAndToolBlocks(t *testing.T
 			TotalTokens:      10,
 		},
 	}, info)
+	finishResponses = append(finishResponses, FinalizeStreamResponseOpenAI2Claude(info)...)
 	require.Len(t, finishResponses, 3)
 	assert.Equal(t, "content_block_stop", finishResponses[0].Type)
 	assert.Equal(t, 2, finishResponses[0].GetIndex())
@@ -279,6 +280,7 @@ func TestStreamResponseOpenAI2ClaudeMessageDeltaCorrectsEstimatedFirstFrame(t *t
 		}},
 		Usage: &dto.Usage{PromptTokens: 29, CompletionTokens: 4, TotalTokens: 33},
 	}, info)
+	finish = append(finish, FinalizeStreamResponseOpenAI2Claude(info)...)
 	var delta *dto.ClaudeResponse
 	for _, resp := range finish {
 		if resp.Type == "message_delta" {
@@ -329,6 +331,7 @@ func TestStreamResponseOpenAI2ClaudeMessageDeltaDoesNotZeroFirstFrameCache(t *te
 		}},
 		Usage: &dto.Usage{PromptTokens: 29, CompletionTokens: 4, TotalTokens: 33},
 	}, info)
+	finish = append(finish, FinalizeStreamResponseOpenAI2Claude(info)...)
 	var delta *dto.ClaudeResponse
 	for _, resp := range finish {
 		if resp.Type == "message_delta" {
@@ -396,6 +399,7 @@ func TestStreamResponseOpenAI2ClaudeGeminiBillingUsageOnStartAndDelta(t *testing
 			}),
 		},
 	}, info)
+	finish = append(finish, FinalizeStreamResponseOpenAI2Claude(info)...)
 	var delta *dto.ClaudeResponse
 	for _, resp := range finish {
 		if resp.Type == "message_delta" {
@@ -427,4 +431,134 @@ func TestNormalizeCacheCreationSplit(t *testing.T) {
 
 func ptr[T any](value T) *T {
 	return &value
+}
+
+func TestOpenAIThinkingUsageMapping(t *testing.T) {
+	cases := []struct {
+		name, usage string
+		want        *int
+	}{
+		{"native", `{"completion_tokens_details":{"reasoning_tokens":66}}`, ptr(66)},
+		{"absent", `{}`, nil},
+		{"empty details", `{"completion_tokens_details":{}}`, nil},
+		{"null", `{"completion_tokens_details":{"reasoning_tokens":null}}`, nil},
+		{"zero", `{"completion_tokens_details":{"reasoning_tokens":0}}`, ptr(0)},
+		{"snapshot", `{"billing_usage":{"source":"oai_chat","semantic":"openai","openai_usage":{"completion_tokens":80,"completion_tokens_details":{"reasoning_tokens":66}}}}`, ptr(66)},
+		{"native wins", `{"completion_tokens_details":{"reasoning_tokens":12},"billing_usage":{"source":"oai_chat","openai_usage":{"completion_tokens_details":{"reasoning_tokens":66}}}}`, ptr(12)},
+		{"native zero wins", `{"completion_tokens_details":{"reasoning_tokens":0},"billing_usage":{"source":"oai_chat","openai_usage":{"completion_tokens_details":{"reasoning_tokens":66}}}}`, ptr(0)},
+		{"unrecognized snapshot", `{"billing_usage":{"source":"unknown","openai_usage":{"completion_tokens_details":{"reasoning_tokens":66}}}}`, nil},
+		{"estimated snapshot", `{"billing_usage":{"source":"oai_chat","estimated":true,"openai_usage":{"completion_tokens_details":{"reasoning_tokens":66}}}}`, nil},
+		{"negative", `{"completion_tokens_details":{"reasoning_tokens":-1}}`, ptr(0)},
+		{"exceeds total", `{"completion_tokens_details":{"reasoning_tokens":99}}`, ptr(80)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var usage dto.Usage
+			require.NoError(t, kitutil.UnmarshalJsonStr(tc.usage, &usage))
+			usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens = 100, 80, 180
+			usage.PromptTokensDetails.CachedTokens = 20
+			usage.PromptTokensDetails.CachedCreationTokens = 10
+			usage.ClaudeCacheCreation5mTokens, usage.ClaudeCacheCreation1hTokens = 4, 6
+			before, err := kitutil.Marshal(usage)
+			require.NoError(t, err)
+			response := ResponseOpenAI2Claude(&dto.OpenAITextResponse{Usage: usage}, nil)
+			assert.Equal(t, 80, response.Usage.OutputTokens)
+			assert.Equal(t, 70, response.Usage.InputTokens)
+			assert.Equal(t, 20, response.Usage.CacheReadInputTokens)
+			assert.Equal(t, 10, response.Usage.CacheCreationInputTokens)
+			assert.Equal(t, 4, response.Usage.GetCacheCreation5mTokens())
+			assert.Equal(t, 6, response.Usage.GetCacheCreation1hTokens())
+			if tc.want == nil {
+				assert.Nil(t, response.Usage.OutputTokensDetails)
+			} else {
+				require.NotNil(t, response.Usage.OutputTokensDetails)
+				assert.Equal(t, *tc.want, response.Usage.OutputTokensDetails.ThinkingTokens)
+			}
+			after, err := kitutil.Marshal(usage)
+			require.NoError(t, err)
+			assert.Equal(t, string(before), string(after), "mapping must not mutate accounting or the raw snapshot")
+			if usage.BillingUsage != nil {
+				assert.Equal(t, usage.BillingUsage, response.Usage.BillingUsage)
+			} else {
+				assert.Equal(t, usage.CompletionTokenDetails, response.Usage.BillingUsage.OpenAIUsage.CompletionTokenDetails)
+			}
+		})
+	}
+}
+
+func TestOpenAIThinkingCumulativeStreamUsage(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		updates []string
+		want    *int
+	}{
+		{"usage only after finish", []string{`{"completion_tokens_details":{"reasoning_tokens":66}}`}, ptr(66)},
+		{"snapshot only", []string{`{"billing_usage":{"source":"oai_chat","openai_usage":{"completion_tokens":80,"completion_tokens_details":{"reasoning_tokens":66}}}}`}, ptr(66)},
+		{"missing", []string{`{}`, `{"completion_tokens_details":{}}`}, nil},
+		{"omitted later", []string{`{"completion_tokens_details":{"reasoning_tokens":66}}`, `{}`}, ptr(66)},
+		{"explicit zero", []string{`{"completion_tokens_details":{"reasoning_tokens":66}}`, `{"completion_tokens_details":{"reasoning_tokens":0}}`, `{}`}, ptr(0)},
+		{"updated not summed", []string{`{"completion_tokens_details":{"reasoning_tokens":66}}`, `{"completion_tokens_details":{"reasoning_tokens":70}}`}, ptr(70)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			info := &convmeta.Values{SendResponseCount: 1}
+			start := StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+				Id: "chat-test", Model: "gpt-test",
+				Choices: []dto.ChatCompletionsStreamResponseChoice{{Delta: dto.ChatCompletionsStreamResponseChoiceDelta{Content: ptr("answer")}}},
+				Usage:   &dto.Usage{PromptTokens: 100, CompletionTokens: 80, TotalTokens: 180},
+			}, info)
+			require.Equal(t, "message_start", start[0].Type)
+			info.SendResponseCount++
+			finish := StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+				Choices: []dto.ChatCompletionsStreamResponseChoice{{FinishReason: ptr("stop")}},
+			}, info)
+			assert.Empty(t, finish, "finish_reason must not close the stream before final usage")
+			for _, raw := range tc.updates {
+				var usage dto.Usage
+				require.NoError(t, kitutil.UnmarshalJsonStr(raw, &usage))
+				info.SendResponseCount++
+				assert.Empty(t, StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{Usage: &usage}, info))
+			}
+			final := FinalizeStreamResponseOpenAI2Claude(info)
+			require.Len(t, final, 3)
+			assert.Equal(t, "content_block_stop", final[0].Type)
+			assert.Equal(t, "message_delta", final[1].Type)
+			assert.Equal(t, "end_turn", *final[1].Delta.StopReason)
+			assert.Equal(t, "message_stop", final[2].Type)
+			usage := final[1].Usage
+			require.NotNil(t, usage)
+			assert.Equal(t, 80, usage.OutputTokens)
+			if tc.want == nil {
+				assert.Nil(t, usage.OutputTokensDetails)
+			} else {
+				require.NotNil(t, usage.OutputTokensDetails)
+				assert.Equal(t, *tc.want, usage.OutputTokensDetails.ThinkingTokens)
+			}
+			assert.Empty(t, FinalizeStreamResponseOpenAI2Claude(info), "single terminal sequence")
+		})
+	}
+}
+
+func TestThinkingStreamBoundsFollowFinalTotal(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		totals []int
+		want   int
+	}{
+		{"late total", []int{0, 80}, 66},
+		{"corrected total", []int{80, 40}, 40},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			info := &convmeta.Values{SendResponseCount: 1}
+			first := &dto.Usage{CompletionTokens: tc.totals[0], CompletionTokenDetails: dto.OutputTokenDetails{ReasoningTokens: 66}}
+			StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{Usage: first}, info)
+			info.SendResponseCount++
+			StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{Usage: &dto.Usage{CompletionTokens: tc.totals[1]}}, info)
+			final := FinalizeStreamResponseOpenAI2Claude(info)
+			require.Len(t, final, 2)
+			assert.Equal(t, tc.totals[1], final[0].Usage.OutputTokens)
+			require.NotNil(t, final[0].Usage.OutputTokensDetails)
+			assert.Equal(t, tc.want, final[0].Usage.OutputTokensDetails.ThinkingTokens)
+			assert.Equal(t, 66, final[0].Usage.BillingUsage.OpenAIUsage.CompletionTokenDetails.ReasoningTokens)
+		})
+	}
 }

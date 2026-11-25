@@ -42,9 +42,6 @@ func handleClaudeFormat(c *gin.Context, data string, info *relaycommon.RelayInfo
 		return err
 	}
 
-	if streamResponse.Usage != nil {
-		info.EnsureClaudeConvertInfo().Usage = streamResponse.Usage
-	}
 	result, err := service.ConvertStreamResponse(c, info, types.RelayFormatClaude, &streamResponse)
 	if err != nil {
 		return err
@@ -210,8 +207,13 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 			return
 		}
 
-		info.ClaudeConvertInfo.Usage = usage
-
+		// The converter retains every upstream usage snapshot. Do not replace
+		// it with the last chunk's partial accounting usage at stream close.
+		state := info.EnsureClaudeConvertInfo()
+		if state.Usage == nil {
+			state.Usage = usage
+		}
+		info.SendResponseCount++
 		result, err := service.ConvertStreamResponse(c, info, types.RelayFormatClaude, &streamResponse)
 		if err != nil {
 			common.SysLog(common.LogText("error converting Claude stream response: %s", err.Error()))
@@ -225,7 +227,9 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 		for _, resp := range claudeResponses {
 			_ = helper.ClaudeData(c, *resp)
 		}
-		info.ClaudeConvertInfo.Done = true
+		for _, resp := range relayconvert.FinalizeStreamResponseOpenAI2Claude(info) {
+			_ = helper.ClaudeData(c, *resp)
+		}
 
 	case types.RelayFormatGemini:
 		var streamResponse dto.ChatCompletionsStreamResponse

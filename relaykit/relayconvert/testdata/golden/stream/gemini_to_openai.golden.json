@@ -29,8 +29,7 @@
         "completion_tokens_details": {
           "text_tokens": 0,
           "audio_tokens": 0,
-          "image_tokens": 0,
-          "reasoning_tokens": 0
+          "image_tokens": 0
         },
         "input_tokens": 0,
         "output_tokens": 0,
@@ -83,8 +82,7 @@
         "completion_tokens_details": {
           "text_tokens": 0,
           "audio_tokens": 0,
-          "image_tokens": 0,
-          "reasoning_tokens": 0
+          "image_tokens": 0
         },
         "input_tokens": 0,
         "output_tokens": 0,
@@ -135,8 +133,7 @@
         "completion_tokens_details": {
           "text_tokens": 0,
           "audio_tokens": 0,
-          "image_tokens": 0,
-          "reasoning_tokens": 0
+          "image_tokens": 0
         },
         "input_tokens": 0,
         "output_tokens": 0,

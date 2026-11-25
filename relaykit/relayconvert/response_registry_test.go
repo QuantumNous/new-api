@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -799,5 +800,26 @@ func TestConvertResponseToResponsesRestoresRecordedCustomTools(t *testing.T) {
 				`response.output_item.done custom_tool_call "ls"`,
 			}, toolEvents)
 		})
+	}
+}
+
+func TestThinkingUsageGatewayRoundTrip(t *testing.T) {
+	for _, raw := range []string{`{}`, `{"reasoning_tokens":0}`, `{"reasoning_tokens":66}`} {
+		var details dto.OutputTokenDetails
+		require.NoError(t, kitutil.UnmarshalJsonStr(raw, &details))
+		original := dto.Usage{PromptTokens: 100, CompletionTokens: 80, TotalTokens: 180, CompletionTokenDetails: details}
+		visible := original
+		for range 3 {
+			messages := ResponseOpenAI2Claude(&dto.OpenAITextResponse{Usage: visible}, nil)
+			encoded, err := kitutil.Marshal(messages)
+			require.NoError(t, err)
+			var decoded dto.ClaudeResponse
+			require.NoError(t, kitutil.Unmarshal(encoded, &decoded))
+			visible = *UsageFromClaudeAPIUsage(decoded.Usage)
+			assert.Nil(t, visible.BillingUsage.OpenAIUsage.BillingUsage, "sidecar must remain one level deep")
+			assert.Equal(t, 80, visible.CompletionTokens)
+			assert.Equal(t, details.HasReasoningTokens(), visible.CompletionTokenDetails.HasReasoningTokens())
+			assert.Equal(t, details.ReasoningTokens, visible.CompletionTokenDetails.ReasoningTokens)
+		}
 	}
 }

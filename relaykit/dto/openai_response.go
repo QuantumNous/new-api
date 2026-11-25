@@ -357,6 +357,43 @@ type OutputTokenDetails struct {
 	AudioTokens     int `json:"audio_tokens"`
 	ImageTokens     int `json:"image_tokens"`
 	ReasoningTokens int `json:"reasoning_tokens"`
+	// ReasoningTokensPresent records explicit zero; non-zero values imply presence.
+	// Keep the int API for provider adaptors that assign non-zero counts directly.
+	ReasoningTokensPresent bool `json:"-"`
+}
+
+func (d OutputTokenDetails) HasReasoningTokens() bool {
+	return d.ReasoningTokensPresent || d.ReasoningTokens != 0
+}
+
+func (d *OutputTokenDetails) UnmarshalJSON(data []byte) error {
+	type plain OutputTokenDetails
+	var decoded struct {
+		plain
+		ReasoningTokens *int `json:"reasoning_tokens"`
+	}
+	if err := kitutil.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*d = OutputTokenDetails(decoded.plain)
+	if decoded.ReasoningTokens != nil {
+		d.ReasoningTokens = *decoded.ReasoningTokens
+		d.ReasoningTokensPresent = d.ReasoningTokens == 0
+	}
+	return nil
+}
+
+// Do not turn an absent count into an explicit zero on another gateway hop.
+func (d OutputTokenDetails) MarshalJSON() ([]byte, error) {
+	type plain OutputTokenDetails
+	var reasoning *int
+	if d.HasReasoningTokens() {
+		reasoning = &d.ReasoningTokens
+	}
+	return kitutil.Marshal(struct {
+		plain
+		ReasoningTokens *int `json:"reasoning_tokens,omitempty"`
+	}{plain(d), reasoning})
 }
 
 type OpenAIResponsesResponse struct {

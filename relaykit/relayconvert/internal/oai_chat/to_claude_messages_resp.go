@@ -91,18 +91,35 @@ func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage) *dto.ClaudeUsage {
 }
 
 func clientVisibleClaudeStreamUsage(state *convmeta.ClaudeConvertInfo, incoming *dto.Usage) *dto.ClaudeUsage {
-	prior := buildClaudeUsageFromOpenAIUsage(state.Usage)
-	converted := buildClaudeUsageFromOpenAIUsage(incoming)
-	if incoming != nil {
-		state.Usage = dto.MergeUsageNonZero(state.Usage, incoming)
+	if state.ClientUsage == nil {
+		state.ClientUsage = buildClaudeUsageFromOpenAIUsage(state.Usage)
 	}
-	if prior == nil {
-		return converted
+	if incoming == nil {
+		return state.ClientUsage
 	}
-	if converted == nil {
-		return prior
+	// A partial cumulative frame can report reasoning without repeating its
+	// output total. Use the known total for display bounds only.
+	visible := *incoming
+	if visible.CompletionTokens == 0 && state.Usage != nil {
+		visible.CompletionTokens = state.Usage.CompletionTokens
 	}
-	return dto.MergeClaudeUsageNonZero(prior, converted)
+	converted := buildClaudeUsageFromOpenAIUsage(&visible)
+	state.Usage = dto.MergeUsageNonZero(state.Usage, incoming)
+	if state.ClientUsage == nil {
+		state.ClientUsage = converted
+	} else {
+		state.ClientUsage = dto.MergeClaudeUsageNonZero(state.ClientUsage, converted)
+	}
+	// Bound against the latest known total, including when reasoning arrives
+	// before that total or a later frame corrects only the total.
+	state.ClientUsage.OutputTokensDetails = sharedclaude.OutputTokensDetailsFromOpenAI(state.Usage)
+	// Keep one complete cumulative snapshot across gateway hops; never nest it.
+	if state.Usage.BillingUsage != nil {
+		state.ClientUsage.BillingUsage = dto.CloneBillingUsage(state.Usage.BillingUsage)
+	} else {
+		state.ClientUsage.BillingUsage = dto.NewOpenAIChatBillingUsage(state.Usage)
+	}
+	return state.ClientUsage
 }
 
 func NormalizeCacheCreationSplit(totalTokens int, tokens5m int, tokens1h int) (int, int) {
@@ -185,9 +202,9 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 	}
 	if info.GetSendResponseCount() == 1 {
 		// Client-visible Claude stream usage matches billing merge: first
-		// frame records first, a later non-zero field overrides, and a later
-		// zero/missing field never erases a first-frame positive. Anthropic
-		// clients treat message_delta as authoritative for the fields it
+		// frame records first; later cumulative counts replace reported fields.
+		// Missing reasoning counts retain the prior value; explicit zero replaces it.
+		// Anthropic clients treat message_delta as authoritative for the fields it
 		// carries, including a corrected input_tokens.
 		startUsage := &dto.ClaudeUsage{
 			InputTokens:  info.GetEstimatePromptTokens(),
@@ -213,27 +230,11 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 		})
 	}
 
+	clientVisibleClaudeStreamUsage(state, openAIResponse.Usage)
 	if len(openAIResponse.Choices) == 0 {
-		// Some OpenAI-compatible upstreams end with a usage-only SSE chunk.
-		oaiUsage := clientVisibleClaudeStreamUsage(state, openAIResponse.Usage)
-		if oaiUsage != nil {
-			appendStopOpenBlocks()
-			stopReason := stopReasonOpenAI2Claude(state.FinishReason)
-			if stopReason == "" {
-				stopReason = "end_turn"
-			}
-			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-				Type:  "message_delta",
-				Usage: oaiUsage,
-				Delta: &dto.ClaudeMediaMessage{
-					StopReason: kitutil.GetPointer[string](stopReason),
-				},
-			})
-			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-				Type: "message_stop",
-			})
-			state.Done = true
-		}
+		// Usage-only chunks are cumulative updates, not a transport terminator.
+		// Emit the authoritative Messages usage at EOF/[DONE] so later updates
+		// cannot land after message_stop and disappear from the client result.
 		return claudeResponses
 	} else {
 		chosenChoice := openAIResponse.Choices[0]
@@ -390,29 +391,6 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 		}
 
 		appendCitationDeltas(chosenChoice.Delta.Annotations)
-
-		if doneChunk || state.Done {
-			oaiUsage := clientVisibleClaudeStreamUsage(state, openAIResponse.Usage)
-			if oaiUsage == nil {
-				// Some upstreams emit finish_reason first, then send a final usage-only chunk.
-				// Keep content blocks open until usage is available so the terminal message_delta
-				// can carry both usage and the final stop reason.
-				return claudeResponses
-			}
-			appendStopOpenBlocks()
-			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-				Type:  "message_delta",
-				Usage: oaiUsage,
-				Delta: &dto.ClaudeMediaMessage{
-					StopReason: kitutil.GetPointer[string](stopReasonOpenAI2Claude(state.FinishReason)),
-				},
-			})
-			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-				Type: "message_stop",
-			})
-			state.Done = true
-			return claudeResponses
-		}
 	}
 
 	return claudeResponses

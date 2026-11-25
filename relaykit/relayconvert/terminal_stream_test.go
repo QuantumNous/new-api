@@ -200,8 +200,10 @@ func TestClaudeTargetStatefulStreamTerminalTail(t *testing.T) {
 			require.NoError(t, err)
 			if tt.wantFinalizerTerminals {
 				require.Len(t, finalResults, 3)
-			} else {
+			} else if tt.from == types.RelayFormatOpenAIResponses {
 				assert.Empty(t, finalResults)
+			} else {
+				assert.Len(t, finalResults, 3, "Claude terminal usage waits for all upstream chunks")
 			}
 			results = append(results, finalResults...)
 

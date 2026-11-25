@@ -308,6 +308,7 @@ func UsageFromClaudeAPIUsage(usage *dto.ClaudeUsage) *dto.Usage {
 	semanticUsage.ClaudeCacheCreation5mTokens = usage.GetCacheCreation5mTokens()
 	semanticUsage.ClaudeCacheCreation1hTokens = usage.GetCacheCreation1hTokens()
 	semanticUsage.CompletionTokenDetails.ReasoningTokens = usage.GetThinkingTokens()
+	semanticUsage.CompletionTokenDetails.ReasoningTokensPresent = usage.OutputTokensDetails != nil && semanticUsage.CompletionTokenDetails.ReasoningTokens == 0
 	return UsageFromClaudeUsage(semanticUsage)
 }
 
@@ -517,6 +518,7 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 			claudeInfo.Usage.ClaudeCacheCreation1hTokens = messageUsage.GetCacheCreation1hTokens()
 			claudeInfo.Usage.CompletionTokens = messageUsage.OutputTokens
 			claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens = messageUsage.GetThinkingTokens()
+			claudeInfo.Usage.CompletionTokenDetails.ReasoningTokensPresent = messageUsage.OutputTokensDetails != nil && claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens == 0
 			updateClaudeStreamBillingUsage(messageUsage, claudeInfo, false)
 		}
 	} else if claudeResponse.Type == "content_block_delta" {
@@ -556,6 +558,7 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 			// replaces the earlier count; an absent one keeps it.
 			if claudeResponse.Usage.OutputTokensDetails != nil {
 				claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens = claudeResponse.Usage.GetThinkingTokens()
+				claudeInfo.Usage.CompletionTokenDetails.ReasoningTokensPresent = claudeResponse.Usage.OutputTokensDetails != nil && claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens == 0
 			}
 			claudeInfo.Usage.TotalTokens = claudeInfo.Usage.PromptTokens + claudeInfo.Usage.CompletionTokens
 			updateClaudeStreamBillingUsage(claudeResponse.Usage, claudeInfo, true)

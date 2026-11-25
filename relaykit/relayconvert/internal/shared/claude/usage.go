@@ -1,6 +1,12 @@
 package claude
 
-import "github.com/QuantumNous/new-api/relaykit/dto"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+)
 
 func UsageFromOpenAI(usage *dto.Usage) *dto.ClaudeUsage {
 	if usage == nil {
@@ -42,6 +48,7 @@ func UsageFromOpenAI(usage *dto.Usage) *dto.ClaudeUsage {
 		CacheReadInputTokens:     usage.PromptTokensDetails.CachedTokens,
 		BillingUsage:             billingUsage,
 	}
+	result.OutputTokensDetails = OutputTokensDetailsFromOpenAI(usage)
 	if cacheCreation5m > 0 || cacheCreation1h > 0 {
 		result.CacheCreation = &dto.ClaudeCacheCreationUsage{
 			Ephemeral5mInputTokens: cacheCreation5m,
@@ -49,4 +56,39 @@ func UsageFromOpenAI(usage *dto.Usage) *dto.ClaudeUsage {
 		}
 	}
 	return result
+}
+
+// OutputTokensDetailsFromOpenAI maps reported reasoning only. It does not
+// alter totals, canonicalize accounting, or mutate the provider snapshot.
+func OutputTokensDetailsFromOpenAI(usage *dto.Usage) *dto.ClaudeOutputTokensDetails {
+	if usage == nil {
+		return nil
+	}
+	// Native Chat fields win, including explicit zero. Only a recognized,
+	// non-estimated OpenAI sidecar may fill a missing reasoning count. Never
+	// canonicalize the full usage here: that would change totals and billing.
+	details := usage.CompletionTokenDetails
+	snapshot := usage.BillingUsage
+	if snapshot != nil && !snapshot.Estimated && snapshot.OpenAIUsage != nil &&
+		(strings.EqualFold(snapshot.Source, dto.BillingUsageSourceOAIChat) ||
+			strings.EqualFold(snapshot.Source, dto.BillingUsageSourceOAIResponses) ||
+			strings.EqualFold(snapshot.Semantic, dto.BillingUsageSemanticOpenAI)) {
+		fallback := snapshot.OpenAIUsage.CompletionTokenDetails
+		if details.HasReasoningTokens() && fallback.HasReasoningTokens() && details.ReasoningTokens != fallback.ReasoningTokens {
+			kitutil.LogError(fmt.Sprintf("OpenAI reasoning usage conflict: native=%d snapshot=%d; native wins (billing snapshot preserved)", details.ReasoningTokens, fallback.ReasoningTokens))
+		}
+		if !details.HasReasoningTokens() {
+			details = fallback
+		}
+	}
+	if details.HasReasoningTokens() {
+		// Match Claude's existing bounds convention, but report the anomaly
+		// and retain the unmodified upstream count in the billing sidecar.
+		thinkingTokens := min(max(details.ReasoningTokens, 0), max(usage.CompletionTokens, 0))
+		if thinkingTokens != details.ReasoningTokens {
+			kitutil.LogError(fmt.Sprintf("OpenAI reasoning usage out of range: reasoning_tokens=%d completion_tokens=%d; thinking_tokens bounded to %d (billing snapshot preserved)", details.ReasoningTokens, usage.CompletionTokens, thinkingTokens))
+		}
+		return &dto.ClaudeOutputTokensDetails{ThinkingTokens: thinkingTokens}
+	}
+	return nil
 }

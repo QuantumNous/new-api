@@ -44,8 +44,7 @@
         "completion_tokens_details": {
           "text_tokens": 0,
           "audio_tokens": 0,
-          "image_tokens": 0,
-          "reasoning_tokens": 0
+          "image_tokens": 0
         },
         "input_tokens": 10,
         "output_tokens": 5,
@@ -63,8 +62,7 @@
     "completion_tokens_details": {
       "text_tokens": 0,
       "audio_tokens": 0,
-      "image_tokens": 0,
-      "reasoning_tokens": 0
+      "image_tokens": 0
     },
     "input_tokens": 10,
     "output_tokens": 5,

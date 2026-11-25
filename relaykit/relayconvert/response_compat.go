@@ -208,3 +208,9 @@ func FinalizeResponsesToChatStream(state *ResponsesToChatStreamState) []dto.Chat
 func NewResponsesBufferedAccumulator() *ResponsesBufferedAccumulator {
 	return oairesponses.NewResponsesBufferedAccumulator()
 }
+
+// FinalizeStreamResponseOpenAI2Claude closes the Messages stream only after
+// all upstream usage chunks have been processed.
+func FinalizeStreamResponseOpenAI2Claude(info convmeta.Meta) []*dto.ClaudeResponse {
+	return oaichat.FinalizeStreamResponseOpenAI2Claude(info)
+}
