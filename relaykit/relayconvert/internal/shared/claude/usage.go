@@ -20,6 +20,11 @@ func UsageFromOpenAI(usage *dto.Usage) *dto.ClaudeUsage {
 		(existingBillingUsage.Source == dto.BillingUsageSourceClaudeMessages || existingBillingUsage.Semantic == dto.BillingUsageSemanticAnthropic) {
 		result := existingBillingUsage.ClaudeUsage
 		result.BillingUsage = dto.CloneBillingUsage(usage.BillingUsage)
+		if result.OutputTokensDetails == nil {
+			// A stream-synthesized snapshot has no breakdown; the reasoning
+			// count mapped from that same Claude usage still does.
+			result.OutputTokensDetails = OutputTokensDetailsFromOpenAI(usage)
+		}
 		return result
 	}
 	billingUsage := existingBillingUsage

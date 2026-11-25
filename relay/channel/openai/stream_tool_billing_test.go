@@ -60,11 +60,15 @@ func TestMessagesThinkingUsageHTTPHandlers(t *testing.T) {
 		stream bool
 		body   string
 		want   int
+		// cutShort: the upstream ended without finish_reason or [DONE].
+		cutShort bool
 	}{
-		{"JSON", false, `{"id":"test","model":"gpt-4o","choices":[{"message":{"role":"assistant","content":"answer"},"finish_reason":"stop"}],"usage":{"prompt_tokens":100,"completion_tokens":80,"total_tokens":180,"completion_tokens_details":{"reasoning_tokens":66}}}`, 66},
-		{"JSON prompt fallback", false, `{"id":"test","model":"gpt-4o","choices":[{"message":{"role":"assistant","content":"answer"},"finish_reason":"stop"}],"usage":{"completion_tokens":80,"completion_tokens_details":{"reasoning_tokens":66}}}`, 66},
-		{"SSE late usage and omitted details", true, "data: {\"id\":\"test\",\"choices\":[{\"delta\":{\"content\":\"answer\"}}],\"usage\":{\"prompt_tokens\":100,\"completion_tokens\":80,\"total_tokens\":180,\"completion_tokens_details\":{\"reasoning_tokens\":66}}}\n\ndata: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: {\"choices\":[],\"usage\":{\"prompt_tokens\":100,\"completion_tokens\":80,\"total_tokens\":180}}\n\ndata: [DONE]\n\n", 66},
-		{"SSE explicit zero", true, "data: {\"id\":\"test\",\"choices\":[{\"delta\":{\"content\":\"answer\"}}],\"usage\":{\"prompt_tokens\":100,\"completion_tokens\":80,\"total_tokens\":180,\"completion_tokens_details\":{\"reasoning_tokens\":66}}}\n\ndata: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: {\"choices\":[],\"usage\":{\"prompt_tokens\":100,\"completion_tokens\":80,\"total_tokens\":180,\"completion_tokens_details\":{\"reasoning_tokens\":0}}}\n\ndata: [DONE]\n\n", 0},
+		{"JSON", false, `{"id":"test","model":"gpt-4o","choices":[{"message":{"role":"assistant","content":"answer"},"finish_reason":"stop"}],"usage":{"prompt_tokens":100,"completion_tokens":80,"total_tokens":180,"completion_tokens_details":{"reasoning_tokens":66}}}`, 66, false},
+		{"JSON prompt fallback", false, `{"id":"test","model":"gpt-4o","choices":[{"message":{"role":"assistant","content":"answer"},"finish_reason":"stop"}],"usage":{"completion_tokens":80,"completion_tokens_details":{"reasoning_tokens":66}}}`, 66, false},
+		{"SSE late usage and omitted details", true, "data: {\"id\":\"test\",\"choices\":[{\"delta\":{\"content\":\"answer\"}}],\"usage\":{\"prompt_tokens\":100,\"completion_tokens\":80,\"total_tokens\":180,\"completion_tokens_details\":{\"reasoning_tokens\":66}}}\n\ndata: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: {\"choices\":[],\"usage\":{\"prompt_tokens\":100,\"completion_tokens\":80,\"total_tokens\":180}}\n\ndata: [DONE]\n\n", 66, false},
+		{"SSE explicit zero", true, "data: {\"id\":\"test\",\"choices\":[{\"delta\":{\"content\":\"answer\"}}],\"usage\":{\"prompt_tokens\":100,\"completion_tokens\":80,\"total_tokens\":180,\"completion_tokens_details\":{\"reasoning_tokens\":66}}}\n\ndata: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: {\"choices\":[],\"usage\":{\"prompt_tokens\":100,\"completion_tokens\":80,\"total_tokens\":180,\"completion_tokens_details\":{\"reasoning_tokens\":0}}}\n\ndata: [DONE]\n\n", 0, false},
+		{"SSE cut short stays unterminated", true, "data: {\"id\":\"test\",\"choices\":[{\"delta\":{\"content\":\"ans\"}}]}\n\ndata: {\"choices\":[{\"delta\":{\"content\":\"wer\"}}],\"usage\":{\"prompt_tokens\":100,\"completion_tokens\":80,\"total_tokens\":180}}\n\n", 0, true},
+		{"SSE [DONE] without finish_reason terminates", true, "data: {\"id\":\"test\",\"choices\":[{\"delta\":{\"content\":\"answer\"}}],\"usage\":{\"prompt_tokens\":100,\"completion_tokens\":80,\"total_tokens\":180,\"completion_tokens_details\":{\"reasoning_tokens\":0}}}\n\ndata: [DONE]\n\n", 0, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			recorder := httptest.NewRecorder()
@@ -109,6 +113,11 @@ func TestMessagesThinkingUsageHTTPHandlers(t *testing.T) {
 					if event.Type == "message_stop" {
 						stops++
 					}
+				}
+				if tc.cutShort {
+					assert.Zero(t, stops, "a cut-short stream must not look complete")
+					assert.NotContains(t, recorder.Body.String(), "message_delta")
+					return
 				}
 				assert.Equal(t, 1, stops)
 			} else {

@@ -544,17 +544,19 @@ func TestClaudeThinkingTokensMapToOpenAIReasoningTokens(t *testing.T) {
 	t.Run("stream message_delta reported zero replaces, absent keeps", func(t *testing.T) {
 		for _, tc := range []struct {
 			name    string
+			output  int
 			details *dto.ClaudeOutputTokensDetails
 			want    int
 		}{
-			{name: "explicit zero", details: &dto.ClaudeOutputTokensDetails{ThinkingTokens: 0}, want: 0},
-			{name: "absent", details: nil, want: 40},
+			{name: "explicit zero", output: 120, details: &dto.ClaudeOutputTokensDetails{ThinkingTokens: 0}, want: 0},
+			{name: "absent", output: 120, details: nil, want: 40},
+			{name: "absent with lowered total", output: 30, details: nil, want: 30},
 		} {
 			claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{PromptTokens: 4, CompletionTokens: 50}}
 			claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens = 40
 			require.True(t, FormatClaudeResponseInfo(&dto.ClaudeResponse{
 				Type:  "message_delta",
-				Usage: &dto.ClaudeUsage{OutputTokens: 120, OutputTokensDetails: tc.details},
+				Usage: &dto.ClaudeUsage{OutputTokens: tc.output, OutputTokensDetails: tc.details},
 			}, nil, claudeInfo))
 			assert.Equal(t, tc.want, claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens, tc.name)
 		}

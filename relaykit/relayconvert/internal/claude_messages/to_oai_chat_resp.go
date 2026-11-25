@@ -559,6 +559,9 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 			if claudeResponse.Usage.OutputTokensDetails != nil {
 				claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens = claudeResponse.Usage.GetThinkingTokens()
 				claudeInfo.Usage.CompletionTokenDetails.ReasoningTokensPresent = claudeResponse.Usage.OutputTokensDetails != nil && claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens == 0
+			} else {
+				// A retained count stays bounded by a lowered cumulative total.
+				claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens = min(claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens, max(claudeInfo.Usage.CompletionTokens, 0))
 			}
 			claudeInfo.Usage.TotalTokens = claudeInfo.Usage.PromptTokens + claudeInfo.Usage.CompletionTokens
 			updateClaudeStreamBillingUsage(claudeResponse.Usage, claudeInfo, true)

@@ -227,6 +227,12 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 		for _, resp := range claudeResponses {
 			_ = helper.ClaudeData(c, *resp)
 		}
+		// Without finish_reason or [DONE] the upstream stream was cut short.
+		// Leave it unterminated so the client cannot take a partial message
+		// (or tool input) for a completed end_turn.
+		if state.FinishReason == "" && info.StreamStatus != nil && info.StreamStatus.EndReason != relaycommon.StreamEndReasonDone {
+			return
+		}
 		for _, resp := range relayconvert.FinalizeStreamResponseOpenAI2Claude(info) {
 			_ = helper.ClaudeData(c, *resp)
 		}

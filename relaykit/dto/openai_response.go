@@ -372,6 +372,9 @@ func (d *OutputTokenDetails) UnmarshalJSON(data []byte) error {
 		plain
 		ReasoningTokens *int `json:"reasoning_tokens"`
 	}
+	// Seed with the current value: like a plain struct, decoding into a reused
+	// object changes only the fields present in data.
+	decoded.plain = plain(*d)
 	if err := kitutil.Unmarshal(data, &decoded); err != nil {
 		return err
 	}

@@ -822,4 +822,28 @@ func TestThinkingUsageGatewayRoundTrip(t *testing.T) {
 			assert.Equal(t, details.ReasoningTokens, visible.CompletionTokenDetails.ReasoningTokens)
 		}
 	}
+
+	// A Claude stream synthesizes its snapshot without the breakdown; the next
+	// Messages hop must still report the thinking count mapped from it.
+	streamed := &ClaudeResponseInfo{Usage: &dto.Usage{}}
+	require.True(t, FormatClaudeResponseInfo(&dto.ClaudeResponse{Type: "message_delta", Usage: &dto.ClaudeUsage{
+		InputTokens: 4, OutputTokens: 120, OutputTokensDetails: &dto.ClaudeOutputTokensDetails{ThinkingTokens: 40},
+	}}, nil, streamed))
+	encoded, err := kitutil.Marshal(UsageFromClaudeUsage(streamed.Usage))
+	require.NoError(t, err)
+	var hop dto.Usage
+	require.NoError(t, kitutil.Unmarshal(encoded, &hop))
+	require.NotNil(t, hop.BillingUsage.ClaudeUsage)
+	messages := ResponseOpenAI2Claude(&dto.OpenAITextResponse{Usage: hop}, nil)
+	assert.Equal(t, 120, messages.Usage.OutputTokens)
+	require.NotNil(t, messages.Usage.OutputTokensDetails)
+	assert.Equal(t, 40, messages.Usage.OutputTokensDetails.ThinkingTokens)
+	assert.Nil(t, messages.Usage.BillingUsage.ClaudeUsage.OutputTokensDetails, "snapshot stays as received")
+
+	// Decoding into a reused object changes only the fields present in the JSON.
+	reused := dto.OutputTokenDetails{AudioTokens: 5, ReasoningTokens: 66}
+	require.NoError(t, kitutil.UnmarshalJsonStr(`{"text_tokens":3,"reasoning_tokens":null}`, &reused))
+	assert.Equal(t, dto.OutputTokenDetails{TextTokens: 3, AudioTokens: 5, ReasoningTokens: 66}, reused)
+	require.NoError(t, kitutil.UnmarshalJsonStr(`{"reasoning_tokens":0}`, &reused))
+	assert.Equal(t, dto.OutputTokenDetails{TextTokens: 3, AudioTokens: 5, ReasoningTokensPresent: true}, reused)
 }
