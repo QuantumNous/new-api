@@ -72,7 +72,7 @@ func shouldSkipClaudeMessageDeltaUsagePatch(info *relaycommon.RelayInfo) bool {
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled {
 		return true
 	}
-	if info == nil {
+	if info == nil || info.ChannelMeta == nil {
 		return false
 	}
 	return info.ChannelSetting.PassThroughBodyEnabled
@@ -121,6 +121,7 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 			// 解决 AWS Bedrock 等上游返回的 message_delta 缺少这些字段的问题
 			if !shouldSkipClaudeMessageDeltaUsagePatch(info) {
 				data = patchClaudeMessageDeltaUsageData(data, buildMessageDeltaPatchUsage(&claudeResponse, claudeInfo))
+				data = relayconvert.PatchClaudeThinkingTokensData(data, claudeResponse.Usage)
 			}
 		}
 		countClaudeStreamBillableTools(info, &claudeResponse)
@@ -383,7 +384,7 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		claudeInfo.Usage.ClaudeCacheCreation5mTokens = claudeResponse.Usage.GetCacheCreation5mTokens()
 		claudeInfo.Usage.ClaudeCacheCreation1hTokens = claudeResponse.Usage.GetCacheCreation1hTokens()
 		claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens = claudeResponse.Usage.GetThinkingTokens()
-		claudeInfo.Usage.CompletionTokenDetails.ReasoningTokensPresent = claudeResponse.Usage.OutputTokensDetails != nil && claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens == 0
+		claudeInfo.Usage.CompletionTokenDetails.ReasoningTokensPresent = claudeResponse.Usage.ReportedThinkingDetails() != nil && claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens == 0
 	}
 	var responseData []byte
 	switch info.RelayFormat {
@@ -412,6 +413,9 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		}
 	case types.RelayFormatClaude:
 		responseData = data
+		if !shouldSkipClaudeMessageDeltaUsagePatch(info) {
+			responseData = []byte(relayconvert.PatchClaudeThinkingTokensData(string(data), claudeResponse.Usage))
+		}
 	case types.RelayFormatGemini:
 		{
 			convertResult, convertErr := service.ConvertResponse(c, info, types.RelayFormatGemini, &claudeResponse)

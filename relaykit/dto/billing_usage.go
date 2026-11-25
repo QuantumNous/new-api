@@ -220,6 +220,25 @@ func newGeminiChatBillingUsage(metadata *GeminiUsageMetadata, estimated bool) *B
 	}
 }
 
+// ReportedOpenAIReasoning returns the reasoning count of a recognized,
+// non-estimated OpenAI snapshot. Another gateway hop may keep the upstream
+// count only here; ok is false when the snapshot did not report one.
+func (usage *BillingUsage) ReportedOpenAIReasoning() (reasoningTokens int, ok bool) {
+	if usage == nil || usage.Estimated || usage.OpenAIUsage == nil {
+		return 0, false
+	}
+	if !strings.EqualFold(usage.Source, BillingUsageSourceOAIChat) &&
+		!strings.EqualFold(usage.Source, BillingUsageSourceOAIResponses) &&
+		!strings.EqualFold(usage.Semantic, BillingUsageSemanticOpenAI) {
+		return 0, false
+	}
+	details := usage.OpenAIUsage.CompletionTokenDetails
+	if !details.HasReasoningTokens() {
+		return 0, false
+	}
+	return details.ReasoningTokens, true
+}
+
 func CloneBillingUsage(usage *BillingUsage) *BillingUsage {
 	if usage == nil {
 		return nil

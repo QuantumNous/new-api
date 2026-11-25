@@ -716,13 +716,30 @@ func (u *ClaudeUsage) GetCacheCreation1hTokens() int {
 	return u.CacheCreation.Ephemeral1hInputTokens
 }
 
+// ReportedThinkingDetails returns the reported thinking breakdown: the native
+// output_tokens_details first, otherwise the count a recognized OpenAI
+// billing snapshot carries from an earlier gateway hop. Nil means unreported.
+func (u *ClaudeUsage) ReportedThinkingDetails() *ClaudeOutputTokensDetails {
+	if u == nil {
+		return nil
+	}
+	if u.OutputTokensDetails != nil {
+		return u.OutputTokensDetails
+	}
+	if reasoningTokens, ok := u.BillingUsage.ReportedOpenAIReasoning(); ok {
+		return &ClaudeOutputTokensDetails{ThinkingTokens: reasoningTokens}
+	}
+	return nil
+}
+
 // GetThinkingTokens returns the reported reasoning tokens, bounded by
 // output_tokens so the OpenAI reasoning_tokens never exceeds completion_tokens.
 func (u *ClaudeUsage) GetThinkingTokens() int {
-	if u == nil || u.OutputTokensDetails == nil {
+	details := u.ReportedThinkingDetails()
+	if details == nil {
 		return 0
 	}
-	return min(max(u.OutputTokensDetails.ThinkingTokens, 0), max(u.OutputTokens, 0))
+	return min(max(details.ThinkingTokens, 0), max(u.OutputTokens, 0))
 }
 
 func (u *ClaudeUsage) GetCacheCreationTotalTokens() int {

@@ -526,6 +526,58 @@ func TestClaudeThinkingTokensMapToOpenAIReasoningTokens(t *testing.T) {
 		assert.Equal(t, 40, resp.Usage.CompletionTokenDetails.ReasoningTokens)
 	})
 
+	// An upstream Messages endpoint that is itself a gateway may keep the
+	// reasoning count only in billing_usage.openai_usage. Every downstream
+	// protocol reads it from its standard field; totals stay unchanged.
+	t.Run("billing snapshot only", func(t *testing.T) {
+		snapshotUsage := `"usage":{"input_tokens":105,"output_tokens":316,"billing_usage":{"source":"oai_chat","semantic":"openai",` +
+			`"openai_usage":{"prompt_tokens":105,"completion_tokens":316,"total_tokens":421,"completion_tokens_details":{"reasoning_tokens":266}}}}`
+		body := `{"id":"msg_1","type":"message","role":"assistant","model":"kimi-k3.1-pro",` +
+			`"content":[{"type":"thinking","thinking":"t"},{"type":"text","text":"hi"}],"stop_reason":"end_turn",` + snapshotUsage + `}`
+		for _, tc := range []struct {
+			format types.RelayFormat
+			path   string
+		}{
+			{types.RelayFormatClaude, "usage.output_tokens_details.thinking_tokens"},
+			{types.RelayFormatOpenAI, "usage.completion_tokens_details.reasoning_tokens"},
+			{types.RelayFormatOpenAIResponses, "usage.output_tokens_details.reasoning_tokens"},
+		} {
+			info := &relaycommon.RelayInfo{RelayFormat: tc.format, ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "kimi-k3.1-pro"}}
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+			claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{}}
+			require.Nil(t, HandleClaudeResponseData(c, info, claudeInfo, nil, []byte(body)))
+			var resp map[string]any
+			require.NoError(t, common.Unmarshal(w.Body.Bytes(), &resp))
+			value := any(resp)
+			for key := range strings.SplitSeq(tc.path, ".") {
+				object, ok := value.(map[string]any)
+				require.True(t, ok, "%s: missing %s", tc.format, tc.path)
+				value = object[key]
+			}
+			assert.EqualValues(t, 266, value, tc.format)
+			assert.Equal(t, 316, claudeInfo.Usage.CompletionTokens, "settlement output is unchanged")
+		}
+
+		// Streamed Messages: the final message_delta gets the same top-level field.
+		info := &relaycommon.RelayInfo{RelayFormat: types.RelayFormatClaude, ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "kimi-k3.1-pro"}, StreamStatus: relaycommon.NewStreamStatus()}
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+		claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{}}
+		require.Nil(t, HandleStreamResponseData(c, info, claudeInfo, `{"type":"message_delta","delta":{"stop_reason":"end_turn"},`+snapshotUsage+`}`))
+		assert.Contains(t, w.Body.String(), `"output_tokens_details":{"thinking_tokens":266}`)
+
+		// A native body without the snapshot is forwarded byte for byte.
+		native := `{"id":"msg_1","type":"message","role":"assistant","model":"m","content":[],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":2}}`
+		w = httptest.NewRecorder()
+		c, _ = gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+		require.Nil(t, HandleClaudeResponseData(c, &relaycommon.RelayInfo{RelayFormat: types.RelayFormatClaude, ChannelMeta: &relaycommon.ChannelMeta{}}, &ClaudeResponseInfo{Usage: &dto.Usage{}}, nil, []byte(native)))
+		assert.Equal(t, native, w.Body.String())
+	})
+
 	t.Run("stream message_delta", func(t *testing.T) {
 		claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{PromptTokens: 4, CompletionTokens: 2}}
 		ok := FormatClaudeResponseInfo(&dto.ClaudeResponse{

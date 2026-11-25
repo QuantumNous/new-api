@@ -2,7 +2,6 @@ package claude
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
@@ -73,17 +72,12 @@ func OutputTokensDetailsFromOpenAI(usage *dto.Usage) *dto.ClaudeOutputTokensDeta
 	// non-estimated OpenAI sidecar may fill a missing reasoning count. Never
 	// canonicalize the full usage here: that would change totals and billing.
 	details := usage.CompletionTokenDetails
-	snapshot := usage.BillingUsage
-	if snapshot != nil && !snapshot.Estimated && snapshot.OpenAIUsage != nil &&
-		(strings.EqualFold(snapshot.Source, dto.BillingUsageSourceOAIChat) ||
-			strings.EqualFold(snapshot.Source, dto.BillingUsageSourceOAIResponses) ||
-			strings.EqualFold(snapshot.Semantic, dto.BillingUsageSemanticOpenAI)) {
-		fallback := snapshot.OpenAIUsage.CompletionTokenDetails
-		if details.HasReasoningTokens() && fallback.HasReasoningTokens() && details.ReasoningTokens != fallback.ReasoningTokens {
-			kitutil.LogError(fmt.Sprintf("OpenAI reasoning usage conflict: native=%d snapshot=%d; native wins (billing snapshot preserved)", details.ReasoningTokens, fallback.ReasoningTokens))
+	if fallback, ok := usage.BillingUsage.ReportedOpenAIReasoning(); ok {
+		if details.HasReasoningTokens() && details.ReasoningTokens != fallback {
+			kitutil.LogError(fmt.Sprintf("OpenAI reasoning usage conflict: native=%d snapshot=%d; native wins (billing snapshot preserved)", details.ReasoningTokens, fallback))
 		}
 		if !details.HasReasoningTokens() {
-			details = fallback
+			details = dto.OutputTokenDetails{ReasoningTokens: fallback, ReasoningTokensPresent: fallback == 0}
 		}
 	}
 	if details.HasReasoningTokens() {

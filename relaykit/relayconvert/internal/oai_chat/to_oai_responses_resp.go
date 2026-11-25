@@ -31,6 +31,8 @@ const (
 	responsesEventReasoningSummaryDelta     = "response.reasoning_summary_text.delta"
 	responsesEventReasoningSummaryDone      = "response.reasoning_summary_text.done"
 	responsesEventReasoningSummaryPartDone  = "response.reasoning_summary_part.done"
+	responsesEventContentPartAdded          = "response.content_part.added"
+	responsesEventContentPartDone           = "response.content_part.done"
 	responsesOutputTypeFunctionCall         = "function_call"
 	responsesOutputTypeCustomToolCall       = "custom_tool_call"
 	responsesOutputTypeMessage              = "message"
@@ -181,21 +183,25 @@ func UsageFromChatUsage(src *dto.Usage) *dto.Usage {
 	} else {
 		usage.TotalTokens = usage.InputTokens + usage.OutputTokens
 	}
-	if src.PromptTokensDetails.CachedTokens != 0 ||
-		src.PromptTokensDetails.ImageTokens != 0 ||
-		src.PromptTokensDetails.AudioTokens != 0 ||
-		src.PromptTokensDetails.CachedCreationTokens != 0 ||
-		src.PromptTokensDetails.CacheWriteTokens != 0 ||
-		src.PromptTokensDetails.CacheCreationInputTokens != 0 ||
-		src.PromptTokensDetails.TextTokens != 0 {
-		details := src.PromptTokensDetails.Clone()
-		usage.InputTokensDetails = &details
+	// Responses clients read input_tokens_details.cached_tokens as an object,
+	// so it is always present; its counts are the Chat prompt details.
+	inputDetails := src.PromptTokensDetails.Clone()
+	usage.InputTokensDetails = &inputDetails
+	completionDetails := src.CompletionTokenDetails
+	if fallback, ok := src.BillingUsage.ReportedOpenAIReasoning(); ok && !completionDetails.HasReasoningTokens() {
+		// Another gateway hop may keep the upstream count only in its snapshot.
+		completionDetails.ReasoningTokens = fallback
+		completionDetails.ReasoningTokensPresent = fallback == 0
 	}
-	if src.CompletionTokenDetails.ReasoningTokens != 0 ||
-		src.CompletionTokenDetails.TextTokens != 0 ||
-		src.CompletionTokenDetails.AudioTokens != 0 ||
-		src.CompletionTokenDetails.ImageTokens != 0 {
-		usage.CompletionTokenDetails = src.CompletionTokenDetails
+	if completionDetails.HasReasoningTokens() ||
+		completionDetails.TextTokens != 0 ||
+		completionDetails.AudioTokens != 0 ||
+		completionDetails.ImageTokens != 0 {
+		usage.CompletionTokenDetails = completionDetails
+		// output_tokens_details is the Responses field for the same breakdown.
+		// An unreported reasoning count stays omitted rather than becoming 0.
+		outputDetails := completionDetails
+		usage.OutputTokensDetails = &outputDetails
 	}
 	usage.ClaudeCacheCreation5mTokens = src.ClaudeCacheCreation5mTokens
 	usage.ClaudeCacheCreation1hTokens = src.ClaudeCacheCreation1hTokens

@@ -619,9 +619,12 @@ type ResponsesOutputContent struct {
 	Annotations []any  `json:"annotations"`
 }
 
+// ResponsesReasoningSummaryPart is also the part of content_part events;
+// output_text parts set Annotations, summary_text parts leave it empty.
 type ResponsesReasoningSummaryPart struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
+	Type        string          `json:"type"`
+	Text        string          `json:"text"`
+	Annotations json.RawMessage `json:"annotations,omitempty"`
 }
 
 const (

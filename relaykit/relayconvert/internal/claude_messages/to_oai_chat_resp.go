@@ -308,7 +308,7 @@ func UsageFromClaudeAPIUsage(usage *dto.ClaudeUsage) *dto.Usage {
 	semanticUsage.ClaudeCacheCreation5mTokens = usage.GetCacheCreation5mTokens()
 	semanticUsage.ClaudeCacheCreation1hTokens = usage.GetCacheCreation1hTokens()
 	semanticUsage.CompletionTokenDetails.ReasoningTokens = usage.GetThinkingTokens()
-	semanticUsage.CompletionTokenDetails.ReasoningTokensPresent = usage.OutputTokensDetails != nil && semanticUsage.CompletionTokenDetails.ReasoningTokens == 0
+	semanticUsage.CompletionTokenDetails.ReasoningTokensPresent = usage.ReportedThinkingDetails() != nil && semanticUsage.CompletionTokenDetails.ReasoningTokens == 0
 	return UsageFromClaudeUsage(semanticUsage)
 }
 
@@ -478,6 +478,23 @@ func PatchClaudeMessageDeltaUsageData(data string, usage *dto.ClaudeUsage) strin
 	return data
 }
 
+// PatchClaudeThinkingTokensData exposes a thinking count that another gateway
+// hop left only in the OpenAI billing snapshot as top-level
+// usage.output_tokens_details.thinking_tokens. A native breakdown is kept.
+func PatchClaudeThinkingTokensData(data string, usage *dto.ClaudeUsage) string {
+	if data == "" || usage == nil || usage.OutputTokensDetails != nil || usage.ReportedThinkingDetails() == nil {
+		return data
+	}
+	if ojson.Get(data, "usage.output_tokens_details").Exists() {
+		return data
+	}
+	patchedData, err := ojson.Set(data, "usage.output_tokens_details.thinking_tokens", usage.GetThinkingTokens())
+	if err != nil {
+		return data
+	}
+	return patchedData
+}
+
 func setMessageDeltaUsageInt(data string, path string, localValue int) string {
 	if localValue <= 0 {
 		return data
@@ -518,7 +535,7 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 			claudeInfo.Usage.ClaudeCacheCreation1hTokens = messageUsage.GetCacheCreation1hTokens()
 			claudeInfo.Usage.CompletionTokens = messageUsage.OutputTokens
 			claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens = messageUsage.GetThinkingTokens()
-			claudeInfo.Usage.CompletionTokenDetails.ReasoningTokensPresent = messageUsage.OutputTokensDetails != nil && claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens == 0
+			claudeInfo.Usage.CompletionTokenDetails.ReasoningTokensPresent = messageUsage.ReportedThinkingDetails() != nil && claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens == 0
 			updateClaudeStreamBillingUsage(messageUsage, claudeInfo, false)
 		}
 	} else if claudeResponse.Type == "content_block_delta" {
@@ -556,9 +573,9 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 			}
 			// message_delta usage is cumulative: a reported breakdown (even 0)
 			// replaces the earlier count; an absent one keeps it.
-			if claudeResponse.Usage.OutputTokensDetails != nil {
+			if claudeResponse.Usage.ReportedThinkingDetails() != nil {
 				claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens = claudeResponse.Usage.GetThinkingTokens()
-				claudeInfo.Usage.CompletionTokenDetails.ReasoningTokensPresent = claudeResponse.Usage.OutputTokensDetails != nil && claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens == 0
+				claudeInfo.Usage.CompletionTokenDetails.ReasoningTokensPresent = claudeResponse.Usage.ReportedThinkingDetails() != nil && claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens == 0
 			} else {
 				// A retained count stays bounded by a lowered cumulative total.
 				claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens = min(claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens, max(claudeInfo.Usage.CompletionTokens, 0))

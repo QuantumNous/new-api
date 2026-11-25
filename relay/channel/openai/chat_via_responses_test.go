@@ -258,13 +258,18 @@ func TestOaiChatToResponsesStreamHandlerConvertsSSEOrderAndUsage(t *testing.T) {
 	require.Contains(t, got, `event: response.completed`)
 	require.Contains(t, got, `"input_tokens":2`)
 	require.Contains(t, got, `"output_tokens":3`)
+	// Output items are sequential: the message item finishes before the
+	// function call item starts.
 	requireOrderedSubstrings(t, got,
 		`event: response.created`,
 		`event: response.output_item.added`,
+		`event: response.content_part.added`,
 		`event: response.output_text.delta`,
+		`event: response.output_text.done`,
+		`event: response.content_part.done`,
+		`event: response.output_item.done`,
 		`event: response.output_item.added`,
 		`event: response.function_call_arguments.delta`,
-		`event: response.output_text.done`,
 		`event: response.function_call_arguments.done`,
 		`event: response.completed`,
 	)

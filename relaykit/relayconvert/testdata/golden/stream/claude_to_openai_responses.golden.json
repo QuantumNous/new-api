@@ -45,6 +45,20 @@
       }
     },
     {
+      "Type": "response.content_part.added",
+      "Payload": {
+        "type": "response.content_part.added",
+        "output_index": 0,
+        "content_index": 0,
+        "item_id": "stream_fixed_msg_0",
+        "part": {
+          "type": "output_text",
+          "text": "",
+          "annotations": []
+        }
+      }
+    },
+    {
       "Type": "response.output_text.delta",
       "Payload": {
         "type": "response.output_text.delta",
@@ -61,6 +75,20 @@
         "output_index": 0,
         "content_index": 0,
         "item_id": "stream_fixed_msg_0"
+      }
+    },
+    {
+      "Type": "response.content_part.done",
+      "Payload": {
+        "type": "response.content_part.done",
+        "output_index": 0,
+        "content_index": 0,
+        "item_id": "stream_fixed_msg_0",
+        "part": {
+          "type": "output_text",
+          "text": "Hello world",
+          "annotations": []
+        }
       }
     },
     {
@@ -154,7 +182,12 @@
             },
             "input_tokens": 0,
             "output_tokens": 2,
-            "input_tokens_details": null,
+            "input_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 0,
+              "audio_tokens": 0,
+              "image_tokens": 0
+            },
             "claude_cache_creation_5_m_tokens": 0,
             "claude_cache_creation_1_h_tokens": 0
           },
