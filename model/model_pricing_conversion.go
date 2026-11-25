@@ -314,7 +314,7 @@ func PreviewModelPricingConversion(name string, draft PricingValues) (*ModelPric
 				}
 			case constant.EndpointTypeOpenAIVideo:
 				return &ModelPricingConversion{UnsupportedReason: "Video pricing must be converted manually."}, nil
-			case constant.EndpointTypeOpenAI, constant.EndpointTypeOpenAIResponse, constant.EndpointTypeAnthropic, constant.EndpointTypeGemini, constant.EndpointTypeEmbeddings, constant.EndpointTypeJinaRerank:
+			case constant.EndpointTypeOpenAI, constant.EndpointTypeOpenAIResponse, constant.EndpointTypeAnthropic, constant.EndpointTypeGemini, constant.EndpointTypeEmbeddings, constant.EndpointTypeJinaRerank, constant.EndpointTypeAudioTranscription, constant.EndpointTypeAudioTranslation:
 				// These endpoints use the ordinary token/fixed-request settlement.
 			}
 		}

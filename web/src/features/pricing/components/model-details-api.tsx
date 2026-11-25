@@ -423,6 +423,72 @@ function buildImageSample(lang: Lang, ctx: SampleContext): string {
   ].join('\n')
 }
 
+function buildTranscriptionSample(lang: Lang, ctx: SampleContext): string {
+  const url = `${ctx.baseUrl}${ctx.endpointPath}`
+
+  if (lang === 'curl') {
+    return [
+      `curl ${url} \\`,
+      `  -H "Authorization: Bearer $${ctx.apiKeyEnv}" \\`,
+      `  -F model="${ctx.modelName}" \\`,
+      `  -F file="@/path/to/audio.wav" \\`,
+      `  -F response_format="json"`,
+    ].join('\n')
+  }
+  if (lang === 'python') {
+    return [
+      'from openai import OpenAI',
+      '',
+      `client = OpenAI(base_url="${ctx.baseUrl}/v1", api_key="<YOUR_API_KEY>")`,
+      '',
+      'with open("/path/to/audio.wav", "rb") as audio_file:',
+      '    response = client.audio.transcriptions.create(',
+      `        model="${ctx.modelName}",`,
+      '        file=audio_file,',
+      '        response_format="json",',
+      '    )',
+      '',
+      'print(response.text)',
+    ].join('\n')
+  }
+  if (lang === 'typescript') {
+    return [
+      `import fs from 'node:fs'`,
+      `import OpenAI from 'openai'`,
+      '',
+      `const client = new OpenAI({`,
+      `  baseURL: '${ctx.baseUrl}/v1',`,
+      `  apiKey: process.env.${ctx.apiKeyEnv},`,
+      `})`,
+      '',
+      `const response = await client.audio.transcriptions.create({`,
+      `  model: '${ctx.modelName}',`,
+      `  file: fs.createReadStream('/path/to/audio.wav'),`,
+      `  response_format: 'json',`,
+      `})`,
+      '',
+      `console.log(response.text)`,
+    ].join('\n')
+  }
+  return [
+    `const form = new FormData()`,
+    `form.append('model', '${ctx.modelName}')`,
+    `form.append('file', audioFile)`,
+    `form.append('response_format', 'json')`,
+    '',
+    `const response = await fetch('${url}', {`,
+    `  method: 'POST',`,
+    `  headers: {`,
+    `    Authorization: \`Bearer \${process.env.${ctx.apiKeyEnv}}\`,`,
+    `  },`,
+    `  body: form,`,
+    `})`,
+    '',
+    `const data = await response.json()`,
+    `console.log(data.text)`,
+  ].join('\n')
+}
+
 function buildSample(
   lang: Lang,
   endpointType: string,
@@ -433,6 +499,12 @@ function buildSample(
   if (endpointType === 'embeddings' || endpointType === 'jina-rerank')
     return buildEmbeddingSample(lang, ctx)
   if (endpointType === 'image-generation') return buildImageSample(lang, ctx)
+  if (
+    endpointType === 'audio-transcription' ||
+    endpointType === 'audio-translation'
+  ) {
+    return buildTranscriptionSample(lang, ctx)
+  }
   return buildChatSample(lang, ctx)
 }
 

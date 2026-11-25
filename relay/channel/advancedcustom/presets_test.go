@@ -34,7 +34,15 @@ func TestSGLangChannelProtocols(t *testing.T) {
 	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeSGLang, ChannelBaseUrl: "https://inference.example/prefix", ApiKey: "test-key"}}
 	info.ChannelOtherSettings.AdvancedCustom = common.GetAdvancedCustomPreset(constant.ChannelTypeSGLang)
 	adaptor.Init(info)
-	for _, path := range []string{"/v1/chat/completions", "/v1/completions", "/v1/embeddings", "/v1/responses", "/v1/messages"} {
+	for _, path := range []string{
+		"/v1/chat/completions",
+		"/v1/completions",
+		"/v1/embeddings",
+		"/v1/responses",
+		"/v1/messages",
+		"/v1/audio/transcriptions",
+		"/v1/audio/translations",
+	} {
 		info.RequestURLPath = path
 		adaptor = &advancedcustom.Adaptor{}
 		adaptor.Init(info)
@@ -42,6 +50,9 @@ func TestSGLangChannelProtocols(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "https://inference.example/prefix"+path, url)
 	}
+	assert.Contains(t, common.GetEndpointTypesByChannelType(constant.ChannelTypeSGLang, "served-model"), constant.EndpointTypeAudioTranscription)
+	assert.Contains(t, common.GetEndpointTypesByChannelType(constant.ChannelTypeSGLang, "served-model"), constant.EndpointTypeAudioTranslation)
+	assert.Contains(t, common.GetEndpointTypesByChannelType(constant.ChannelTypeVLLM, "whisper-1"), constant.EndpointTypeAudioTranscription)
 	for _, format := range []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatClaude} {
 		info.RelayFormat = format
 		info.RequestURLPath = "/v1/messages"

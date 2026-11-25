@@ -1,6 +1,7 @@
 package common
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -16,6 +17,30 @@ import (
 	"github.com/tcolgate/mp3"
 	"github.com/yapingcat/gomedia/go-codec"
 )
+
+// MinimalWAV builds a valid 16-bit PCM mono WAV with the given number of sample frames.
+func MinimalWAV(sampleRate uint32, frames int) []byte {
+	const numChannels = 1
+	const bitsPerSample = 16
+	dataSize := frames * numChannels * (bitsPerSample / 8)
+	buf := &bytes.Buffer{}
+	buf.WriteString("RIFF")
+	_ = binary.Write(buf, binary.LittleEndian, uint32(36+dataSize))
+	buf.WriteString("WAVE")
+	buf.WriteString("fmt ")
+	_ = binary.Write(buf, binary.LittleEndian, uint32(16))
+	_ = binary.Write(buf, binary.LittleEndian, uint16(1)) // PCM
+	_ = binary.Write(buf, binary.LittleEndian, uint16(numChannels))
+	_ = binary.Write(buf, binary.LittleEndian, sampleRate)
+	byteRate := sampleRate * numChannels * (bitsPerSample / 8)
+	_ = binary.Write(buf, binary.LittleEndian, byteRate)
+	_ = binary.Write(buf, binary.LittleEndian, uint16(numChannels*(bitsPerSample/8)))
+	_ = binary.Write(buf, binary.LittleEndian, uint16(bitsPerSample))
+	buf.WriteString("data")
+	_ = binary.Write(buf, binary.LittleEndian, uint32(dataSize))
+	buf.Write(make([]byte, dataSize))
+	return buf.Bytes()
+}
 
 // GetAudioDuration 使用纯 Go 库获取音频文件的时长（秒）。
 // 它不再依赖外部的 ffmpeg 或 ffprobe 程序。

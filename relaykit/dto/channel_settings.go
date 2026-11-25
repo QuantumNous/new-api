@@ -237,6 +237,8 @@ const (
 	advancedCustomEndpointPathJinaRerank             = "/v1/rerank"
 	advancedCustomEndpointPathImageGeneration        = "/v1/images/generations"
 	advancedCustomEndpointPathEmbeddings             = "/v1/embeddings"
+	advancedCustomEndpointPathAudioTranscription     = "/v1/audio/transcriptions"
+	advancedCustomEndpointPathAudioTranslation       = "/v1/audio/translations"
 )
 
 const (
@@ -376,6 +378,10 @@ func advancedCustomEndpointTypeFromIncomingPath(incomingPath string) (types.Endp
 		return types.EndpointTypeImageGeneration, true
 	case advancedCustomEndpointPathEmbeddings:
 		return types.EndpointTypeEmbeddings, true
+	case advancedCustomEndpointPathAudioTranscription:
+		return types.EndpointTypeAudioTranscription, true
+	case advancedCustomEndpointPathAudioTranslation:
+		return types.EndpointTypeAudioTranslation, true
 	default:
 		if isAdvancedCustomGeminiIncomingPath(incomingPath) {
 			return types.EndpointTypeGemini, true

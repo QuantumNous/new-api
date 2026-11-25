@@ -41,3 +41,14 @@ func TestDeepSeekToolRoutingNamesReportTheirEndpoint(t *testing.T) {
 		constant.EndpointTypeAnthropic,
 	}, common.GetEndpointTypesByChannelType(constant.ChannelTypeDeepSeek, "deepseek-flash"))
 }
+
+func TestAudioTranscriptionModelEndpointHeuristic(t *testing.T) {
+	for _, name := range []string{"whisper-1", "faster-whisper", "qwen-asr", "speech-transcription"} {
+		t.Run(name, func(t *testing.T) {
+			assert.True(t, common.IsAudioTranscriptionModel(name))
+			assert.Contains(t, common.GetEndpointTypesByChannelType(constant.ChannelTypeOpenAI, name), constant.EndpointTypeAudioTranscription)
+		})
+	}
+	assert.False(t, common.IsAudioTranscriptionModel("gpt-4o"))
+	assert.NotContains(t, common.GetEndpointTypesByChannelType(constant.ChannelTypeOpenAI, "gpt-4o"), constant.EndpointTypeAudioTranscription)
+}
