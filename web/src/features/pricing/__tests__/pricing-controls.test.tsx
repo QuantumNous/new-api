@@ -362,6 +362,28 @@ describe('pricing controls', () => {
     expect(props.onSortChange).toHaveBeenCalledWith('input-price-low')
   })
 
+  it('lists the model order sorts above the name and price sorts', async () => {
+    const props = { ...toolbarProps(), sortBy: 'recommended' }
+    const user = userEvent.setup()
+    render(<PricingToolbar {...props} />)
+    await user.click(screen.getByRole('button', { name: 'Recommended' }))
+    const [orderGroup, otherGroup] = within(
+      await screen.findByRole('menu')
+    ).getAllByRole('group')
+    expect(
+      within(orderGroup)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent)
+    ).toEqual(['Recommended', 'Most requests', 'Most tokens'])
+    expect(within(otherGroup).getAllByRole('menuitem')[0]).toHaveTextContent(
+      'Name'
+    )
+    await user.click(
+      within(orderGroup).getByRole('menuitem', { name: 'Most requests' })
+    )
+    expect(props.onSortChange).toHaveBeenCalledWith('requests')
+  })
+
   it('opens mobile filters from the left, selects a group, and restores focus on close', async () => {
     const props = toolbarProps()
     const user = userEvent.setup()

@@ -525,6 +525,7 @@
   "failed to invalidate tokens cache for user %d: %s": "清除用户 %d 的令牌缓存失败: %s",
   "failed to invalidate user cache after hard deleting user %d: %v": "永久删除用户 %d 后清除用户缓存失败: %v",
   "failed to load custom OAuth providers: %s": "加载自定义 OAuth 提供商失败: %s",
+  "failed to load model usage for the model square: %s": "加载模型广场的模型用量失败: %s",
   "failed to load options from database: %s": "从数据库加载设置失败: %s",
   "failed to load tool prices, using hardcoded fallbacks: %s": "加载工具价格失败，将使用硬编码兜底: %s",
   "failed to marshal gemini response: %s": "序列化 Gemini 响应失败: %s",
