@@ -239,6 +239,14 @@ func (usage *BillingUsage) ReportedOpenAIReasoning() (reasoningTokens int, ok bo
 	return details.ReasoningTokens, true
 }
 
+// BoundedReasoningTokens bounds a reported reasoning count for display by
+// the output total it is shown beside. It never changes totals or snapshots;
+// bounded reports whether the upstream value was out of range.
+func BoundedReasoningTokens(reasoningTokens int, outputTokens int) (shown int, bounded bool) {
+	shown = min(max(reasoningTokens, 0), max(outputTokens, 0))
+	return shown, shown != reasoningTokens
+}
+
 func CloneBillingUsage(usage *BillingUsage) *BillingUsage {
 	if usage == nil {
 		return nil

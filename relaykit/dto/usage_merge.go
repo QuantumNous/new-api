@@ -173,7 +173,7 @@ func MergeClaudeUsageNonZero(current *ClaudeUsage, incoming *ClaudeUsage) *Claud
 	if incoming.OutputTokens > 0 {
 		merged.OutputTokens = incoming.OutputTokens
 	}
-	if incoming.OutputTokensDetails != nil {
+	if incoming.OutputTokensDetails.HasThinkingTokens() {
 		details := *incoming.OutputTokensDetails
 		merged.OutputTokensDetails = &details
 	}

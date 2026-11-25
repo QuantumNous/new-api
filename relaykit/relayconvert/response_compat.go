@@ -117,8 +117,8 @@ func PatchClaudeMessageDeltaUsageData(data string, usage *dto.ClaudeUsage) strin
 	return claudemessages.PatchClaudeMessageDeltaUsageData(data, usage)
 }
 
-func PatchClaudeThinkingTokensData(data string, usage *dto.ClaudeUsage) string {
-	return claudemessages.PatchClaudeThinkingTokensData(data, usage)
+func PatchClaudeThinkingTokensData(data string, usagePath string, known *dto.Usage) string {
+	return claudemessages.PatchClaudeThinkingTokensData(data, usagePath, known)
 }
 
 func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *dto.ChatCompletionsStreamResponse, claudeInfo *ClaudeResponseInfo) bool {

@@ -1,6 +1,7 @@
 package relayconvert
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -846,4 +847,61 @@ func TestThinkingUsageGatewayRoundTrip(t *testing.T) {
 	assert.Equal(t, dto.OutputTokenDetails{TextTokens: 3, AudioTokens: 5, ReasoningTokens: 66}, reused)
 	require.NoError(t, kitutil.UnmarshalJsonStr(`{"reasoning_tokens":0}`, &reused))
 	assert.Equal(t, dto.OutputTokenDetails{TextTokens: 3, AudioTokens: 5, ReasoningTokensPresent: true}, reused)
+
+	// thinking_tokens presence is per field: an empty or null breakdown is
+	// unreported and lets a recognized snapshot fill it; explicit 0 wins.
+	// The result survives two JSON hops (Messages -> Chat -> Messages).
+	snapshot := `"billing_usage":{"source":"oai_chat","semantic":"openai","openai_usage":{"completion_tokens":80,"completion_tokens_details":{"reasoning_tokens":66}}}`
+	for _, tc := range []struct {
+		name, details string
+		snapshot      bool
+		want          *int
+	}{
+		{"empty object", `{}`, false, nil},
+		{"null", `{"thinking_tokens":null}`, false, nil},
+		{"explicit zero", `{"thinking_tokens":0}`, false, ptrInt(0)},
+		{"empty object with snapshot", `{}`, true, ptrInt(66)},
+		{"explicit zero over snapshot", `{"thinking_tokens":0}`, true, ptrInt(0)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			raw := `{"output_tokens":80,"output_tokens_details":` + tc.details
+			if tc.snapshot {
+				raw += `,` + snapshot
+			}
+			var claudeUsage dto.ClaudeUsage
+			require.NoError(t, kitutil.UnmarshalJsonStr(raw+`}`, &claudeUsage))
+			chat := UsageFromClaudeAPIUsage(&claudeUsage)
+			encoded, err := kitutil.Marshal(chat)
+			require.NoError(t, err)
+			var hop dto.Usage
+			require.NoError(t, kitutil.Unmarshal(encoded, &hop))
+			messages := ResponseOpenAI2Claude(&dto.OpenAITextResponse{Usage: hop}, nil)
+			encoded, err = kitutil.Marshal(messages.Usage)
+			require.NoError(t, err)
+			assert.Equal(t, 80, messages.Usage.OutputTokens)
+			if tc.want == nil {
+				assert.False(t, chat.CompletionTokenDetails.HasReasoningTokens())
+				assert.NotContains(t, string(encoded), `"thinking_tokens"`, "an unreported count must not become 0")
+				return
+			}
+			assert.Equal(t, *tc.want, chat.CompletionTokenDetails.ReasoningTokens)
+			assert.True(t, chat.CompletionTokenDetails.HasReasoningTokens())
+			assert.Contains(t, string(encoded), fmt.Sprintf(`"output_tokens_details":{"thinking_tokens":%d}`, *tc.want))
+		})
+	}
+
+	// A restored Claude snapshot owns output_tokens: the mapped thinking count
+	// is bounded by that returned total, not by the outer Chat total.
+	for _, chatTotal := range []int{120, 40} {
+		restored := ResponseOpenAI2Claude(&dto.OpenAITextResponse{Usage: dto.Usage{
+			CompletionTokens:       chatTotal,
+			CompletionTokenDetails: dto.OutputTokenDetails{ReasoningTokens: 100},
+			BillingUsage:           dto.NewClaudeMessagesBillingUsage(&dto.ClaudeUsage{OutputTokens: 80}),
+		}}, nil)
+		assert.Equal(t, 80, restored.Usage.OutputTokens)
+		require.NotNil(t, restored.Usage.OutputTokensDetails)
+		assert.Equal(t, 80, restored.Usage.OutputTokensDetails.ThinkingTokens, "chat total %d", chatTotal)
+	}
 }
+
+func ptrInt(v int) *int { return &v }

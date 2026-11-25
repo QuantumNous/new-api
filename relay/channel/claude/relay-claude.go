@@ -116,12 +116,17 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 			if claudeResponse.Message != nil {
 				info.UpstreamModelName = claudeResponse.Message.Model
 			}
+			if !shouldSkipClaudeMessageDeltaUsagePatch(info) {
+				data = relayconvert.PatchClaudeThinkingTokensData(data, "message.usage", claudeInfo.Usage)
+			}
 		} else if claudeResponse.Type == "message_delta" {
 			// 确保 message_delta 的 usage 包含完整的 input_tokens 和 cache 相关字段
 			// 解决 AWS Bedrock 等上游返回的 message_delta 缺少这些字段的问题
 			if !shouldSkipClaudeMessageDeltaUsagePatch(info) {
 				data = patchClaudeMessageDeltaUsageData(data, buildMessageDeltaPatchUsage(&claudeResponse, claudeInfo))
-				data = relayconvert.PatchClaudeThinkingTokensData(data, claudeResponse.Usage)
+				// The accumulated count also covers a snapshot that arrived
+				// only with message_start.
+				data = relayconvert.PatchClaudeThinkingTokensData(data, "usage", claudeInfo.Usage)
 			}
 		}
 		countClaudeStreamBillableTools(info, &claudeResponse)
@@ -414,7 +419,7 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	case types.RelayFormatClaude:
 		responseData = data
 		if !shouldSkipClaudeMessageDeltaUsagePatch(info) {
-			responseData = []byte(relayconvert.PatchClaudeThinkingTokensData(string(data), claudeResponse.Usage))
+			responseData = []byte(relayconvert.PatchClaudeThinkingTokensData(string(data), "usage", claudeInfo.Usage))
 		}
 	case types.RelayFormatGemini:
 		{

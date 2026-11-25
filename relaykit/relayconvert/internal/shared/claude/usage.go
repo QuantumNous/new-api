@@ -19,10 +19,11 @@ func UsageFromOpenAI(usage *dto.Usage) *dto.ClaudeUsage {
 		(existingBillingUsage.Source == dto.BillingUsageSourceClaudeMessages || existingBillingUsage.Semantic == dto.BillingUsageSemanticAnthropic) {
 		result := existingBillingUsage.ClaudeUsage
 		result.BillingUsage = dto.CloneBillingUsage(usage.BillingUsage)
-		if result.OutputTokensDetails == nil {
+		if !result.OutputTokensDetails.HasThinkingTokens() {
 			// A stream-synthesized snapshot has no breakdown; the reasoning
-			// count mapped from that same Claude usage still does.
-			result.OutputTokensDetails = OutputTokensDetailsFromOpenAI(usage)
+			// count mapped from that same usage still does. The restored
+			// snapshot owns output_tokens, so bound against that total.
+			result.OutputTokensDetails = outputTokensDetailsWithin(usage, result.OutputTokens)
 		}
 		return result
 	}
@@ -68,6 +69,15 @@ func OutputTokensDetailsFromOpenAI(usage *dto.Usage) *dto.ClaudeOutputTokensDeta
 	if usage == nil {
 		return nil
 	}
+	return outputTokensDetailsWithin(usage, usage.CompletionTokens)
+}
+
+// outputTokensDetailsWithin maps the reported reasoning count and bounds it
+// by outputTokens, the total returned beside it.
+func outputTokensDetailsWithin(usage *dto.Usage, outputTokens int) *dto.ClaudeOutputTokensDetails {
+	if usage == nil {
+		return nil
+	}
 	// Native Chat fields win, including explicit zero. Only a recognized,
 	// non-estimated OpenAI sidecar may fill a missing reasoning count. Never
 	// canonicalize the full usage here: that would change totals and billing.
@@ -83,11 +93,11 @@ func OutputTokensDetailsFromOpenAI(usage *dto.Usage) *dto.ClaudeOutputTokensDeta
 	if details.HasReasoningTokens() {
 		// Match Claude's existing bounds convention, but report the anomaly
 		// and retain the unmodified upstream count in the billing sidecar.
-		thinkingTokens := min(max(details.ReasoningTokens, 0), max(usage.CompletionTokens, 0))
-		if thinkingTokens != details.ReasoningTokens {
-			kitutil.LogError(fmt.Sprintf("OpenAI reasoning usage out of range: reasoning_tokens=%d completion_tokens=%d; thinking_tokens bounded to %d (billing snapshot preserved)", details.ReasoningTokens, usage.CompletionTokens, thinkingTokens))
+		thinkingTokens, bounded := dto.BoundedReasoningTokens(details.ReasoningTokens, outputTokens)
+		if bounded {
+			kitutil.LogError(fmt.Sprintf("OpenAI reasoning usage out of range: reasoning_tokens=%d output_tokens=%d; thinking_tokens bounded to %d (billing snapshot preserved)", details.ReasoningTokens, outputTokens, thinkingTokens))
 		}
-		return &dto.ClaudeOutputTokensDetails{ThinkingTokens: thinkingTokens}
+		return &dto.ClaudeOutputTokensDetails{ThinkingTokens: thinkingTokens, ThinkingTokensPresent: thinkingTokens == 0}
 	}
 	return nil
 }

@@ -695,6 +695,42 @@ type ClaudeUsage struct {
 
 type ClaudeOutputTokensDetails struct {
 	ThinkingTokens int `json:"thinking_tokens"`
+	// ThinkingTokensPresent records an explicit 0; a non-zero count implies
+	// presence. An empty or null thinking_tokens is not a reported count.
+	ThinkingTokensPresent bool `json:"-"`
+}
+
+func (d *ClaudeOutputTokensDetails) HasThinkingTokens() bool {
+	return d != nil && (d.ThinkingTokensPresent || d.ThinkingTokens != 0)
+}
+
+func (d *ClaudeOutputTokensDetails) UnmarshalJSON(data []byte) error {
+	type plain ClaudeOutputTokensDetails
+	var decoded struct {
+		plain
+		ThinkingTokens *int `json:"thinking_tokens"`
+	}
+	decoded.plain = plain(*d)
+	if err := kitutil.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*d = ClaudeOutputTokensDetails(decoded.plain)
+	if decoded.ThinkingTokens != nil {
+		d.ThinkingTokens = *decoded.ThinkingTokens
+		d.ThinkingTokensPresent = d.ThinkingTokens == 0
+	}
+	return nil
+}
+
+// Do not turn an absent count into an explicit zero on another gateway hop.
+func (d ClaudeOutputTokensDetails) MarshalJSON() ([]byte, error) {
+	var thinking *int
+	if d.HasThinkingTokens() {
+		thinking = &d.ThinkingTokens
+	}
+	return kitutil.Marshal(struct {
+		ThinkingTokens *int `json:"thinking_tokens,omitempty"`
+	}{thinking})
 }
 
 type ClaudeCacheCreationUsage struct {
@@ -723,11 +759,11 @@ func (u *ClaudeUsage) ReportedThinkingDetails() *ClaudeOutputTokensDetails {
 	if u == nil {
 		return nil
 	}
-	if u.OutputTokensDetails != nil {
+	if u.OutputTokensDetails.HasThinkingTokens() {
 		return u.OutputTokensDetails
 	}
 	if reasoningTokens, ok := u.BillingUsage.ReportedOpenAIReasoning(); ok {
-		return &ClaudeOutputTokensDetails{ThinkingTokens: reasoningTokens}
+		return &ClaudeOutputTokensDetails{ThinkingTokens: reasoningTokens, ThinkingTokensPresent: reasoningTokens == 0}
 	}
 	return nil
 }
@@ -739,7 +775,8 @@ func (u *ClaudeUsage) GetThinkingTokens() int {
 	if details == nil {
 		return 0
 	}
-	return min(max(details.ThinkingTokens, 0), max(u.OutputTokens, 0))
+	thinkingTokens, _ := BoundedReasoningTokens(details.ThinkingTokens, u.OutputTokens)
+	return thinkingTokens
 }
 
 func (u *ClaudeUsage) GetCacheCreationTotalTokens() int {

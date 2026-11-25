@@ -112,6 +112,11 @@ func TestUsageFromChatUsageWritesResponsesTokenDetails(t *testing.T) {
 		{"explicit zero", `{"completion_tokens_details":{"reasoning_tokens":0}}`, `"output_tokens_details":{"text_tokens":0,"audio_tokens":0,"image_tokens":0,"reasoning_tokens":0}`},
 		{"snapshot only", `{"billing_usage":{"source":"oai_chat","semantic":"openai","openai_usage":{"completion_tokens":80,"completion_tokens_details":{"reasoning_tokens":66}}}}`, `"reasoning_tokens":66}`},
 		{"absent", `{}`, ``},
+		// Snapshot fallback is bounded for display by the returned output
+		// total; the snapshot keeps the original value.
+		{"snapshot above total", `{"billing_usage":{"source":"oai_chat","semantic":"openai","openai_usage":{"completion_tokens":200,"completion_tokens_details":{"reasoning_tokens":150}}}}`, `"output_tokens_details":{"text_tokens":0,"audio_tokens":0,"image_tokens":0,"reasoning_tokens":80}`},
+		{"snapshot negative", `{"billing_usage":{"source":"oai_chat","semantic":"openai","openai_usage":{"completion_tokens":80,"completion_tokens_details":{"reasoning_tokens":-3}}}}`, `"output_tokens_details":{"text_tokens":0,"audio_tokens":0,"image_tokens":0,"reasoning_tokens":0}`},
+		{"native zero over snapshot", `{"completion_tokens_details":{"reasoning_tokens":0},"billing_usage":{"source":"oai_chat","semantic":"openai","openai_usage":{"completion_tokens":80,"completion_tokens_details":{"reasoning_tokens":66}}}}`, `"output_tokens_details":{"text_tokens":0,"audio_tokens":0,"image_tokens":0,"reasoning_tokens":0}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var usage dto.Usage
@@ -130,6 +135,9 @@ func TestUsageFromChatUsageWritesResponsesTokenDetails(t *testing.T) {
 			}
 			require.NotNil(t, converted.OutputTokensDetails)
 			assert.Contains(t, string(encoded), tc.want)
+			if usage.BillingUsage != nil {
+				assert.Equal(t, usage.BillingUsage.OpenAIUsage.CompletionTokenDetails, converted.BillingUsage.OpenAIUsage.CompletionTokenDetails, "snapshot keeps the original count")
+			}
 		})
 	}
 }

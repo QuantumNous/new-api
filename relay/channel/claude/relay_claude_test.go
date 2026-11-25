@@ -569,6 +569,32 @@ func TestClaudeThinkingTokensMapToOpenAIReasoningTokens(t *testing.T) {
 		require.Nil(t, HandleStreamResponseData(c, info, claudeInfo, `{"type":"message_delta","delta":{"stop_reason":"end_turn"},`+snapshotUsage+`}`))
 		assert.Contains(t, w.Body.String(), `"output_tokens_details":{"thinking_tokens":266}`)
 
+		// The snapshot may arrive only with message_start; later events
+		// omit it. Every usage event still exposes the known count.
+		info = &relaycommon.RelayInfo{RelayFormat: types.RelayFormatClaude, ChannelMeta: &relaycommon.ChannelMeta{}, StreamStatus: relaycommon.NewStreamStatus()}
+		w = httptest.NewRecorder()
+		c, _ = gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+		claudeInfo = &ClaudeResponseInfo{Usage: &dto.Usage{}}
+		for _, event := range []string{
+			`{"type":"message_start","message":{"id":"m","type":"message","role":"assistant","model":"m","content":[],` + snapshotUsage + `}}`,
+			`{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":316}}`,
+			`{"type":"message_stop"}`,
+		} {
+			require.Nil(t, HandleStreamResponseData(c, info, claudeInfo, event))
+		}
+		var deltaUsage map[string]any
+		for line := range strings.SplitSeq(w.Body.String(), "\n") {
+			if strings.HasPrefix(line, "data: ") && strings.Contains(line, `"message_delta"`) {
+				var event map[string]any
+				require.NoError(t, common.UnmarshalJsonStr(strings.TrimPrefix(line, "data: "), &event))
+				deltaUsage = event["usage"].(map[string]any)
+			}
+		}
+		require.NotNil(t, deltaUsage)
+		assert.EqualValues(t, map[string]any{"thinking_tokens": float64(266)}, deltaUsage["output_tokens_details"])
+		assert.EqualValues(t, 316, deltaUsage["output_tokens"])
+
 		// A native body without the snapshot is forwarded byte for byte.
 		native := `{"id":"msg_1","type":"message","role":"assistant","model":"m","content":[],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":2}}`
 		w = httptest.NewRecorder()
@@ -600,7 +626,9 @@ func TestClaudeThinkingTokensMapToOpenAIReasoningTokens(t *testing.T) {
 			details *dto.ClaudeOutputTokensDetails
 			want    int
 		}{
-			{name: "explicit zero", output: 120, details: &dto.ClaudeOutputTokensDetails{ThinkingTokens: 0}, want: 0},
+			{name: "explicit zero", output: 120, details: &dto.ClaudeOutputTokensDetails{ThinkingTokens: 0, ThinkingTokensPresent: true}, want: 0},
+			// An empty breakdown object is not a reported count.
+			{name: "empty breakdown keeps", output: 120, details: &dto.ClaudeOutputTokensDetails{}, want: 40},
 			{name: "absent", output: 120, details: nil, want: 40},
 			{name: "absent with lowered total", output: 30, details: nil, want: 30},
 		} {

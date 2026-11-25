@@ -189,9 +189,15 @@ func UsageFromChatUsage(src *dto.Usage) *dto.Usage {
 	usage.InputTokensDetails = &inputDetails
 	completionDetails := src.CompletionTokenDetails
 	if fallback, ok := src.BillingUsage.ReportedOpenAIReasoning(); ok && !completionDetails.HasReasoningTokens() {
-		// Another gateway hop may keep the upstream count only in its snapshot.
-		completionDetails.ReasoningTokens = fallback
-		completionDetails.ReasoningTokensPresent = fallback == 0
+		// Another gateway hop may keep the upstream count only in its
+		// snapshot. Bound it for display by the returned output total and
+		// log the anomaly; the snapshot keeps the original value.
+		shown, bounded := dto.BoundedReasoningTokens(fallback, src.CompletionTokens)
+		if bounded {
+			kitutil.LogError(fmt.Sprintf("OpenAI reasoning snapshot out of range: reasoning_tokens=%d output_tokens=%d; reasoning_tokens bounded to %d (billing snapshot preserved)", fallback, src.CompletionTokens, shown))
+		}
+		completionDetails.ReasoningTokens = shown
+		completionDetails.ReasoningTokensPresent = shown == 0
 	}
 	if completionDetails.HasReasoningTokens() ||
 		completionDetails.TextTokens != 0 ||

@@ -478,17 +478,24 @@ func PatchClaudeMessageDeltaUsageData(data string, usage *dto.ClaudeUsage) strin
 	return data
 }
 
-// PatchClaudeThinkingTokensData exposes a thinking count that another gateway
-// hop left only in the OpenAI billing snapshot as top-level
-// usage.output_tokens_details.thinking_tokens. A native breakdown is kept.
-func PatchClaudeThinkingTokensData(data string, usage *dto.ClaudeUsage) string {
-	if data == "" || usage == nil || usage.OutputTokensDetails != nil || usage.ReportedThinkingDetails() == nil {
+// PatchClaudeThinkingTokensData writes the known thinking count to
+// <usagePath>.output_tokens_details.thinking_tokens when the event carries
+// usage but no thinking count of its own. known is the accumulated usage;
+// another gateway hop may have reported its count only in the OpenAI billing
+// snapshot, possibly on an earlier event. A native count, including an
+// explicit 0, is kept.
+func PatchClaudeThinkingTokensData(data string, usagePath string, known *dto.Usage) string {
+	if data == "" || known == nil || !known.CompletionTokenDetails.HasReasoningTokens() {
 		return data
 	}
-	if ojson.Get(data, "usage.output_tokens_details").Exists() {
+	if !ojson.Get(data, usagePath).Exists() {
 		return data
 	}
-	patchedData, err := ojson.Set(data, "usage.output_tokens_details.thinking_tokens", usage.GetThinkingTokens())
+	native := ojson.Get(data, usagePath+".output_tokens_details.thinking_tokens")
+	if native.Exists() && native.Type != ojson.Null {
+		return data
+	}
+	patchedData, err := ojson.Set(data, usagePath+".output_tokens_details.thinking_tokens", known.CompletionTokenDetails.ReasoningTokens)
 	if err != nil {
 		return data
 	}
