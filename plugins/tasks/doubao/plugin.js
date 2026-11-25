@@ -325,7 +325,7 @@ export const meta = {
     en: "Volcengine Doubao Seedance video generation and Seedream image generation",
     zh: "火山引擎豆包 Seedance 视频生成与 Seedream 图片生成",
   },
-  version: "1.5.0",
+  version: "1.5.1",
   author: { name: "QuantumNous" },
   channelTypes: [54, 45], // VolcEngine-type channels serve Ark video models with the same wire format
   models: Object.keys(VIDEO_MODELS).concat(Object.keys(IMAGE_MODELS)),
@@ -867,6 +867,12 @@ export function buildSubmitRequest(ctx) {
   for (const url of images) imageContent.push({ type: "image_url", image_url: { url: url } });
   const metadataContent = Array.isArray(body.content) ? body.content : [];
   body.content = imageContent.concat(metadataContent).filter((item) => item && item.type !== "text");
+  // Explicit Ark content or an image list takes precedence over the single-frame shorthand.
+  if (!body.content.length) {
+    const reference = req.input_reference || req.image;
+    if (typeof reference === "string" && reference.trim())
+      body.content.push({ type: "image_url", image_url: { url: reference.trim() }, role: "first_frame" });
+  }
   const hasReference = body.content.length > 0;
   if (trimmed(req.prompt) || !hasReference) body.content.push({ type: "text", text: req.prompt || "" });
   if (Array.isArray(body.content)) body.content = rewriteDraftTaskContent(body.content, ctx.originTasks);

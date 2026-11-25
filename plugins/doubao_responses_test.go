@@ -1134,6 +1134,31 @@ func TestDoubaoNativeOfficialBodies(t *testing.T) {
 		})
 	}
 
+	t.Run("video URL references reach Ark", func(t *testing.T) {
+		const url = "https://cdn.example/reference.jpg"
+		firstFrame := map[string]any{"type": "image_url", "image_url": map[string]any{"url": url}, "role": "first_frame"}
+		lastFrame := map[string]any{"type": "image_url", "image_url": map[string]any{"url": url}, "role": "last_frame"}
+		for _, tc := range []struct {
+			name string
+			body map[string]any
+			want map[string]any
+		}{
+			{"JSON input_reference", map[string]any{"kind": "json", "value": map[string]any{"input_reference": url}}, firstFrame},
+			{"JSON image alias", map[string]any{"kind": "json", "value": map[string]any{"image": url}}, firstFrame},
+			{"multipart URL", map[string]any{"kind": "multipart", "fields": map[string][]string{"input_reference": {url}}}, firstFrame},
+			{"explicit content keeps its role", map[string]any{"kind": "json", "value": map[string]any{"input_reference": url, "metadata": map[string]any{"content": []any{lastFrame}}}}, lastFrame},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				intent, err := call([]string{"protocols", "openai_video", "decodeRequest"}, map[string]any{"model": seedance, "body": tc.body})
+				require.NoError(t, err)
+				sent, err := call([]string{"buildSubmitRequest"}, map[string]any{"model": seedance, "requestBody": intent["requestBody"], "baseUrl": doubaoBaseURL})
+				require.NoError(t, err)
+				assert.Equal(t, "image_to_video", sent["action"])
+				assert.Equal(t, map[string]any{"model": seedance, "content": []any{tc.want}}, sent["body"])
+			})
+		}
+	})
+
 	// A /v1/videos client cannot pass a body off as a native one.
 	t.Run("a vendorBody field is not a native body", func(t *testing.T) {
 		intent, err := call([]string{"protocols", "openai_video", "decodeRequest"}, map[string]any{"model": seedance, "body": map[string]any{"kind": "json", "value": map[string]any{
