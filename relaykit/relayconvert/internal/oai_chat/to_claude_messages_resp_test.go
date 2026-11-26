@@ -538,6 +538,51 @@ func TestOpenAIThinkingCumulativeStreamUsage(t *testing.T) {
 	}
 }
 
+// A restored Claude snapshot owns output_tokens and its own thinking count.
+// Stream and non-stream conversion apply the same source order: the snapshot's
+// count (including explicit 0) wins over the outer Chat count, and the shown
+// value is bounded by the Claude output total actually returned.
+func TestRestoredClaudeSnapshotThinkingSurvivesStream(t *testing.T) {
+	for _, tc := range []struct {
+		name               string
+		snapshotThinking   *dto.ClaudeOutputTokensDetails
+		outerTotal         int
+		outerReasoning     *int
+		wantOutput, wantTk int
+	}{
+		{"outer has no reasoning", &dto.ClaudeOutputTokensDetails{ThinkingTokens: 7}, 10, nil, 10, 7},
+		{"outer total and reasoning differ", &dto.ClaudeOutputTokensDetails{ThinkingTokens: 7}, 100, ptr(80), 10, 7},
+		{"explicit zero beats outer positive", &dto.ClaudeOutputTokensDetails{ThinkingTokensPresent: true}, 100, ptr(80), 10, 0},
+		{"no snapshot count falls back within snapshot total", nil, 100, ptr(80), 10, 10},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			snapshot := dto.NewClaudeMessagesBillingUsage(&dto.ClaudeUsage{InputTokens: 100, OutputTokens: 10, OutputTokensDetails: tc.snapshotThinking})
+			require.NotNil(t, snapshot)
+			before, err := kitutil.Marshal(snapshot)
+			require.NoError(t, err)
+			usage := dto.Usage{PromptTokens: 100, CompletionTokens: tc.outerTotal, BillingUsage: snapshot}
+			if tc.outerReasoning != nil {
+				usage.CompletionTokenDetails.ReasoningTokens = *tc.outerReasoning
+			}
+
+			nonStream := ResponseOpenAI2Claude(&dto.OpenAITextResponse{Usage: usage}, nil).Usage
+			info := &convmeta.Values{SendResponseCount: 1}
+			StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{Usage: &usage}, info)
+			final := FinalizeStreamResponseOpenAI2Claude(info)
+			stream := final[len(final)-2].Usage
+			for _, got := range []*dto.ClaudeUsage{nonStream, stream} {
+				assert.Equal(t, tc.wantOutput, got.OutputTokens)
+				require.NotNil(t, got.OutputTokensDetails)
+				assert.True(t, got.OutputTokensDetails.HasThinkingTokens())
+				assert.Equal(t, tc.wantTk, got.OutputTokensDetails.ThinkingTokens)
+			}
+			after, err := kitutil.Marshal(snapshot)
+			require.NoError(t, err)
+			assert.Equal(t, string(before), string(after), "the original snapshot is not modified")
+		})
+	}
+}
+
 func TestThinkingStreamBoundsFollowFinalTotal(t *testing.T) {
 	for _, tc := range []struct {
 		name   string

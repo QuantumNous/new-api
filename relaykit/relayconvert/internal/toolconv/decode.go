@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
@@ -795,7 +796,9 @@ func decodeClaudeChoice(value any, definitions []Definition) (*Choice, error) {
 		}
 		decoded = &Choice{Mode: ChoiceNamed, Kind: kind, Name: name}
 	default:
-		decoded = &Choice{Mode: ChoiceOpaque}
+		// Anthropic defines only auto, any, tool and none. Any other type is a
+		// malformed request, not a complex policy to drop during conversion.
+		return nil, reasoning.AsClientError(fmt.Errorf("invalid Claude tool_choice.type %q: must be one of auto, any, tool, none", choiceType))
 	}
 	if disabled, ok := choice["disable_parallel_tool_use"].(bool); ok {
 		decoded.DisableParallelToolUse = &disabled

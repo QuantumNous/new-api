@@ -15,16 +15,12 @@ func UsageFromOpenAI(usage *dto.Usage) *dto.ClaudeUsage {
 	// across this bridge unchanged regardless of its dialect. Only synthesize
 	// an OpenAI snapshot when no sidecar exists yet.
 	existingBillingUsage := dto.CloneBillingUsage(usage.BillingUsage)
-	if existingBillingUsage != nil && existingBillingUsage.ClaudeUsage != nil &&
-		(existingBillingUsage.Source == dto.BillingUsageSourceClaudeMessages || existingBillingUsage.Semantic == dto.BillingUsageSemanticAnthropic) {
+	if isClaudeSnapshot(existingBillingUsage) {
 		result := existingBillingUsage.ClaudeUsage
 		result.BillingUsage = dto.CloneBillingUsage(usage.BillingUsage)
-		if !result.OutputTokensDetails.HasThinkingTokens() {
-			// A stream-synthesized snapshot has no breakdown; the reasoning
-			// count mapped from that same usage still does. The restored
-			// snapshot owns output_tokens, so bound against that total.
-			result.OutputTokensDetails = outputTokensDetailsWithin(usage, result.OutputTokens)
-		}
+		// The restored snapshot owns output_tokens, so bound against that
+		// total. ThinkingDetails keeps the snapshot's own count first.
+		result.OutputTokensDetails = ThinkingDetails(usage, result.OutputTokens)
 		return result
 	}
 	billingUsage := existingBillingUsage
@@ -53,7 +49,7 @@ func UsageFromOpenAI(usage *dto.Usage) *dto.ClaudeUsage {
 		CacheReadInputTokens:     usage.PromptTokensDetails.CachedTokens,
 		BillingUsage:             billingUsage,
 	}
-	result.OutputTokensDetails = OutputTokensDetailsFromOpenAI(usage)
+	result.OutputTokensDetails = ThinkingDetails(usage, result.OutputTokens)
 	if cacheCreation5m > 0 || cacheCreation1h > 0 {
 		result.CacheCreation = &dto.ClaudeCacheCreationUsage{
 			Ephemeral5mInputTokens: cacheCreation5m,
@@ -63,24 +59,27 @@ func UsageFromOpenAI(usage *dto.Usage) *dto.ClaudeUsage {
 	return result
 }
 
-// OutputTokensDetailsFromOpenAI maps reported reasoning only. It does not
-// alter totals, canonicalize accounting, or mutate the provider snapshot.
-func OutputTokensDetailsFromOpenAI(usage *dto.Usage) *dto.ClaudeOutputTokensDetails {
-	if usage == nil {
-		return nil
-	}
-	return outputTokensDetailsWithin(usage, usage.CompletionTokens)
+func isClaudeSnapshot(snapshot *dto.BillingUsage) bool {
+	return snapshot != nil && snapshot.ClaudeUsage != nil &&
+		(snapshot.Source == dto.BillingUsageSourceClaudeMessages || snapshot.Semantic == dto.BillingUsageSemanticAnthropic)
 }
 
-// outputTokensDetailsWithin maps the reported reasoning count and bounds it
-// by outputTokens, the total returned beside it.
-func outputTokensDetailsWithin(usage *dto.Usage, outputTokens int) *dto.ClaudeOutputTokensDetails {
+// ThinkingDetails returns the client-visible thinking breakdown shown beside
+// outputTokens, the Claude output total actually returned. Non-stream and
+// stream conversion share it, so both apply one source order:
+//  1. thinking_tokens of a restored Claude snapshot, including explicit 0;
+//  2. Chat reasoning_tokens, including explicit 0;
+//  3. a recognized, non-estimated OpenAI snapshot.
+//
+// It maps reported counts only. It never changes totals or snapshots.
+func ThinkingDetails(usage *dto.Usage, outputTokens int) *dto.ClaudeOutputTokensDetails {
 	if usage == nil {
 		return nil
 	}
-	// Native Chat fields win, including explicit zero. Only a recognized,
-	// non-estimated OpenAI sidecar may fill a missing reasoning count. Never
-	// canonicalize the full usage here: that would change totals and billing.
+	if isClaudeSnapshot(usage.BillingUsage) && usage.BillingUsage.ClaudeUsage.OutputTokensDetails.HasThinkingTokens() {
+		return boundedThinkingDetails(usage.BillingUsage.ClaudeUsage.OutputTokensDetails.ThinkingTokens, outputTokens, "Claude")
+	}
+	// Never canonicalize the full usage here: that would change totals and billing.
 	details := usage.CompletionTokenDetails
 	if fallback, ok := usage.BillingUsage.ReportedOpenAIReasoning(); ok {
 		if details.HasReasoningTokens() && details.ReasoningTokens != fallback {
@@ -91,13 +90,17 @@ func outputTokensDetailsWithin(usage *dto.Usage, outputTokens int) *dto.ClaudeOu
 		}
 	}
 	if details.HasReasoningTokens() {
-		// Match Claude's existing bounds convention, but report the anomaly
-		// and retain the unmodified upstream count in the billing sidecar.
-		thinkingTokens, bounded := dto.BoundedReasoningTokens(details.ReasoningTokens, outputTokens)
-		if bounded {
-			kitutil.LogError(fmt.Sprintf("OpenAI reasoning usage out of range: reasoning_tokens=%d output_tokens=%d; thinking_tokens bounded to %d (billing snapshot preserved)", details.ReasoningTokens, outputTokens, thinkingTokens))
-		}
-		return &dto.ClaudeOutputTokensDetails{ThinkingTokens: thinkingTokens, ThinkingTokensPresent: thinkingTokens == 0}
+		return boundedThinkingDetails(details.ReasoningTokens, outputTokens, "OpenAI")
 	}
 	return nil
+}
+
+// boundedThinkingDetails applies Claude's display bound [0, output_tokens]
+// and logs an anomaly; the snapshot keeps the unmodified upstream count.
+func boundedThinkingDetails(reported int, outputTokens int, source string) *dto.ClaudeOutputTokensDetails {
+	thinkingTokens, bounded := dto.BoundedReasoningTokens(reported, outputTokens)
+	if bounded {
+		kitutil.LogError(fmt.Sprintf("%s thinking usage out of range: reported=%d output_tokens=%d; thinking_tokens bounded to %d (billing snapshot preserved)", source, reported, outputTokens, thinkingTokens))
+	}
+	return &dto.ClaudeOutputTokensDetails{ThinkingTokens: thinkingTokens, ThinkingTokensPresent: thinkingTokens == 0}
 }

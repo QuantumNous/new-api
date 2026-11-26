@@ -422,3 +422,39 @@ func TestImageHelperLocalFailuresAreRequestErrors(t *testing.T) {
 		})
 	}
 }
+
+// Report request 1630720: an unknown Claude tool_choice.type reaches a Chat
+// channel. The relay rejects it with HTTP 400 before contacting the upstream.
+func TestClaudeHelperRejectsUnknownToolChoiceType(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	contacted := make(chan struct{}, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		contacted <- struct{}{}
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(upstream.Close)
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	body := `{"model":"kimi-k3.1-pro","max_tokens":4096,"stream":false,"messages":[{"role":"user","content":"只回复 OK。"}],` +
+		`"tools":[{"name":"zqx_lookup_receipt","input_schema":{"type":"object","properties":{"key":{"type":"string"}}}}],` +
+		`"tool_choice":{"type":"zqx_bogus_choice"}}`
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	t.Cleanup(func() { common.CleanupBodyStorage(c) })
+	common.SetContextKey(c, constant.ContextKeyOriginalModel, "kimi-k3.1-pro")
+	common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+	common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, upstream.URL)
+	common.SetContextKey(c, constant.ContextKeyChannelKey, "fixture-key")
+
+	request, err := helper.GetAndValidateClaudeRequest(c)
+	require.NoError(t, err)
+	info := relaycommon.GenRelayInfoClaude(c, request)
+
+	apiErr := ClaudeHelper(c, info)
+	require.NotNil(t, apiErr)
+	assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode)
+	assert.Equal(t, types.ErrorCodeConvertRequestFailed, apiErr.GetErrorCode())
+	assert.True(t, types.IsSkipRetryError(apiErr), "the same request fails the same way on every channel")
+	assert.Contains(t, apiErr.Error(), `"zqx_bogus_choice"`)
+	assert.Empty(t, contacted, "no upstream request for an invalid tool_choice")
+}

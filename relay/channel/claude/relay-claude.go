@@ -388,8 +388,9 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens = claudeResponse.Usage.CacheCreationInputTokens
 		claudeInfo.Usage.ClaudeCacheCreation5mTokens = claudeResponse.Usage.GetCacheCreation5mTokens()
 		claudeInfo.Usage.ClaudeCacheCreation1hTokens = claudeResponse.Usage.GetCacheCreation1hTokens()
-		claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens = claudeResponse.Usage.GetThinkingTokens()
-		claudeInfo.Usage.CompletionTokenDetails.ReasoningTokensPresent = claudeResponse.Usage.ReportedThinkingDetails() != nil && claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens == 0
+		shownThinking, reportedThinking := dto.ThinkingTokensWithin(claudeResponse.Usage.ReportedThinkingDetails(), claudeResponse.Usage.OutputTokens)
+		claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens = shownThinking
+		claudeInfo.Usage.CompletionTokenDetails.ReasoningTokensPresent = reportedThinking && shownThinking == 0
 	}
 	var responseData []byte
 	switch info.RelayFormat {

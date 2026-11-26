@@ -768,15 +768,22 @@ func (u *ClaudeUsage) ReportedThinkingDetails() *ClaudeOutputTokensDetails {
 	return nil
 }
 
-// GetThinkingTokens returns the reported reasoning tokens, bounded by
-// output_tokens so the OpenAI reasoning_tokens never exceeds completion_tokens.
-func (u *ClaudeUsage) GetThinkingTokens() int {
-	details := u.ReportedThinkingDetails()
-	if details == nil {
-		return 0
+// ThinkingTokensWithin turns a reported (raw) thinking count into the value
+// shown beside outputTokens, the known cumulative output total.
+//
+// reported is false when nothing is shown: the count was not reported, or a
+// positive count has no known total yet (outputTokens <= 0). A total that has
+// not arrived is not an authoritative 0, so a positive count is never shown as
+// a reported 0. An upstream-reported 0 (or negative) count is shown as 0.
+func ThinkingTokensWithin(raw *ClaudeOutputTokensDetails, outputTokens int) (shown int, reported bool) {
+	if !raw.HasThinkingTokens() {
+		return 0, false
 	}
-	thinkingTokens, _ := BoundedReasoningTokens(details.ThinkingTokens, u.OutputTokens)
-	return thinkingTokens
+	if raw.ThinkingTokens > 0 && outputTokens <= 0 {
+		return 0, false
+	}
+	shown, _ = BoundedReasoningTokens(raw.ThinkingTokens, outputTokens)
+	return shown, true
 }
 
 func (u *ClaudeUsage) GetCacheCreationTotalTokens() int {

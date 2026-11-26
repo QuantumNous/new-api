@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	sharedgemini "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/gemini"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
@@ -286,6 +287,46 @@ func TestConvertRequestClaudeToChatResolvesToolResultNames(t *testing.T) {
 	}
 	assert.Equal(t, "assistant", chatReq.Messages[1].Role)
 	assert.Equal(t, "assistant", chatReq.Messages[5].Role)
+}
+
+// Anthropic defines tool_choice.type auto, any, tool and none. An unknown type
+// is a client error (HTTP 400 at the host), not a policy to drop silently.
+func TestConvertRequestClaudeToChatToolChoice(t *testing.T) {
+	tools := []any{map[string]any{"name": "zqx_lookup_receipt", "input_schema": map[string]any{"type": "object"}}}
+	for _, tc := range []struct {
+		choice string
+		want   string
+	}{
+		{`{"type":"auto"}`, `"auto"`},
+		{`{"type":"none"}`, `"none"`},
+		{`{"type":"any"}`, `"required"`},
+		{`{"type":"tool","name":"zqx_lookup_receipt"}`, `{"type":"function","function":{"name":"zqx_lookup_receipt"}}`},
+		{`{"type":"zqx_bogus_choice"}`, ``},
+	} {
+		t.Run(tc.choice, func(t *testing.T) {
+			var choice any
+			require.NoError(t, kitutil.UnmarshalJsonStr(tc.choice, &choice))
+			req := &dto.ClaudeRequest{
+				Model:      "claude-test",
+				Messages:   []dto.ClaudeMessage{{Role: "user", Content: "hi"}},
+				Tools:      tools,
+				ToolChoice: choice,
+			}
+			result, err := ConvertRequest(context.Background(), nil, types.RelayFormatOpenAI, req)
+			if tc.want == "" {
+				require.Error(t, err)
+				assert.True(t, reasoning.IsClientError(err), "maps to HTTP 400")
+				assert.Contains(t, err.Error(), `"zqx_bogus_choice"`)
+				return
+			}
+			require.NoError(t, err)
+			chatReq, ok := result.Value.(*dto.GeneralOpenAIRequest)
+			require.True(t, ok)
+			encoded, err := kitutil.Marshal(chatReq.ToolChoice)
+			require.NoError(t, err)
+			assert.JSONEq(t, tc.want, string(encoded))
+		})
+	}
 }
 
 func TestConvertRequestClaudeToResponsesPreservesMixedBlockOrder(t *testing.T) {

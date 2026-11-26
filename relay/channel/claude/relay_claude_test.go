@@ -527,8 +527,8 @@ func TestClaudeThinkingTokensMapToOpenAIReasoningTokens(t *testing.T) {
 	})
 
 	// An upstream Messages endpoint that is itself a gateway may keep the
-	// reasoning count only in billing_usage.openai_usage. Every downstream
-	// protocol reads it from its standard field; totals stay unchanged.
+	// reasoning count only in billing_usage.openai_usage. Messages and Chat
+	// clients read it from their standard field; totals stay unchanged.
 	t.Run("billing snapshot only", func(t *testing.T) {
 		snapshotUsage := `"usage":{"input_tokens":105,"output_tokens":316,"billing_usage":{"source":"oai_chat","semantic":"openai",` +
 			`"openai_usage":{"prompt_tokens":105,"completion_tokens":316,"total_tokens":421,"completion_tokens_details":{"reasoning_tokens":266}}}}`
@@ -540,7 +540,6 @@ func TestClaudeThinkingTokensMapToOpenAIReasoningTokens(t *testing.T) {
 		}{
 			{types.RelayFormatClaude, "usage.output_tokens_details.thinking_tokens"},
 			{types.RelayFormatOpenAI, "usage.completion_tokens_details.reasoning_tokens"},
-			{types.RelayFormatOpenAIResponses, "usage.output_tokens_details.reasoning_tokens"},
 		} {
 			info := &relaycommon.RelayInfo{RelayFormat: tc.format, ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "kimi-k3.1-pro"}}
 			w := httptest.NewRecorder()

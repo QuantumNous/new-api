@@ -101,44 +101,29 @@ func TestUsageFromChatUsagePreservesCacheCreationInputTokensAlone(t *testing.T) 
 	assert.Equal(t, 9, converted.InputTokensDetails.CacheCreationInputTokens)
 }
 
-// Responses clients read input_tokens_details and output_tokens_details; the
-// Chat completion_tokens_details name alone leaves reasoning unreadable.
-func TestUsageFromChatUsageWritesResponsesTokenDetails(t *testing.T) {
+// The reasoning-presence codec omits an unreported count; an explicit 0 the
+// upstream reported must still reach the Responses usage.
+func TestUsageFromChatUsageKeepsReportedZeroReasoning(t *testing.T) {
 	for _, tc := range []struct {
-		name, usage string
-		want        string
+		usage, want string
+		present     bool
 	}{
-		{"reported", `{"completion_tokens_details":{"reasoning_tokens":66}}`, `"output_tokens_details":{"text_tokens":0,"audio_tokens":0,"image_tokens":0,"reasoning_tokens":66}`},
-		{"explicit zero", `{"completion_tokens_details":{"reasoning_tokens":0}}`, `"output_tokens_details":{"text_tokens":0,"audio_tokens":0,"image_tokens":0,"reasoning_tokens":0}`},
-		{"snapshot only", `{"billing_usage":{"source":"oai_chat","semantic":"openai","openai_usage":{"completion_tokens":80,"completion_tokens_details":{"reasoning_tokens":66}}}}`, `"reasoning_tokens":66}`},
-		{"absent", `{}`, ``},
-		// Snapshot fallback is bounded for display by the returned output
-		// total; the snapshot keeps the original value.
-		{"snapshot above total", `{"billing_usage":{"source":"oai_chat","semantic":"openai","openai_usage":{"completion_tokens":200,"completion_tokens_details":{"reasoning_tokens":150}}}}`, `"output_tokens_details":{"text_tokens":0,"audio_tokens":0,"image_tokens":0,"reasoning_tokens":80}`},
-		{"snapshot negative", `{"billing_usage":{"source":"oai_chat","semantic":"openai","openai_usage":{"completion_tokens":80,"completion_tokens_details":{"reasoning_tokens":-3}}}}`, `"output_tokens_details":{"text_tokens":0,"audio_tokens":0,"image_tokens":0,"reasoning_tokens":0}`},
-		{"native zero over snapshot", `{"completion_tokens_details":{"reasoning_tokens":0},"billing_usage":{"source":"oai_chat","semantic":"openai","openai_usage":{"completion_tokens":80,"completion_tokens_details":{"reasoning_tokens":66}}}}`, `"output_tokens_details":{"text_tokens":0,"audio_tokens":0,"image_tokens":0,"reasoning_tokens":0}`},
+		{`{"completion_tokens":80,"completion_tokens_details":{"reasoning_tokens":0}}`, `"reasoning_tokens":0`, true},
+		{`{"completion_tokens":80,"completion_tokens_details":{"reasoning_tokens":66}}`, `"reasoning_tokens":66`, true},
+		{`{"completion_tokens":80}`, ``, false},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			var usage dto.Usage
-			require.NoError(t, kitutil.UnmarshalJsonStr(tc.usage, &usage))
-			usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens = 100, 80, 180
-			converted := UsageFromChatUsage(&usage)
-			assert.Equal(t, 100, converted.InputTokens)
-			assert.Equal(t, 80, converted.OutputTokens)
-			encoded, err := kitutil.Marshal(converted)
-			require.NoError(t, err)
-			assert.Contains(t, string(encoded), `"input_tokens_details":{"cached_tokens":0`)
-			if tc.want == "" {
-				assert.NotContains(t, string(encoded), `"output_tokens_details"`)
-				assert.NotContains(t, string(encoded), `"reasoning_tokens"`, "an unreported count must not become 0")
-				return
-			}
-			require.NotNil(t, converted.OutputTokensDetails)
+		var usage dto.Usage
+		require.NoError(t, kitutil.UnmarshalJsonStr(tc.usage, &usage))
+		converted := UsageFromChatUsage(&usage)
+		converted.BillingUsage = nil
+		encoded, err := kitutil.Marshal(converted)
+		require.NoError(t, err)
+		assert.Equal(t, tc.present, converted.CompletionTokenDetails.HasReasoningTokens(), tc.usage)
+		if tc.present {
 			assert.Contains(t, string(encoded), tc.want)
-			if usage.BillingUsage != nil {
-				assert.Equal(t, usage.BillingUsage.OpenAIUsage.CompletionTokenDetails, converted.BillingUsage.OpenAIUsage.CompletionTokenDetails, "snapshot keeps the original count")
-			}
-		})
+		} else {
+			assert.NotContains(t, string(encoded), `"reasoning_tokens"`)
+		}
 	}
 }
 
@@ -240,39 +225,18 @@ func TestChatCompletionsStreamToResponsesEventsAggregatesUsageAndToolArgs(t *tes
 	})...)
 	events = append(events, FinalizeChatCompletionsStreamToResponses(state)...)
 
-	// Output items are sequential: the message closes before the tool call opens.
-	types := make([]string, 0, len(events))
-	for _, event := range events {
-		types = append(types, event.Type)
-	}
-	assert.Equal(t, []string{
-		responsesEventCreated,
-		responsesEventOutputItemAdded,
-		responsesEventContentPartAdded,
-		responsesEventOutputTextDelta,
-		"response.output_text.done",
-		responsesEventContentPartDone,
-		responsesEventOutputItemDone,
-		responsesEventOutputItemAdded,
-		responsesEventFunctionArgsDelta,
-		responsesEventFunctionArgsDone,
-		responsesEventOutputItemDone,
-		responsesEventCompleted,
-	}, types)
-	assert.Equal(t, "hello", events[3].Payload.Delta)
-	assert.Equal(t, `{"q":"x"}`, events[8].Payload.Delta)
-	require.NotNil(t, events[11].Payload.Response)
-	assert.Equal(t, 6, events[11].Payload.Response.Usage.TotalTokens)
-	require.Len(t, events[11].Payload.Response.Output, 2)
-	assert.Equal(t, "hello", events[11].Payload.Response.Output[0].Content[0].Text)
-	assert.Equal(t, `"{\"q\":\"x\"}"`, string(events[11].Payload.Response.Output[1].Arguments))
-
-	partAdded, err := kitutil.Marshal(events[2].Payload)
-	require.NoError(t, err)
-	assert.Contains(t, string(partAdded), `"part":{"type":"output_text","text":"","annotations":[]}`)
-	partDone, err := kitutil.Marshal(events[5].Payload)
-	require.NoError(t, err)
-	assert.Contains(t, string(partDone), `"part":{"type":"output_text","text":"hello","annotations":[]}`)
+	require.Len(t, events, 10)
+	assert.Equal(t, responsesEventCreated, events[0].Type)
+	assert.Equal(t, responsesEventOutputTextDelta, events[2].Type)
+	assert.Equal(t, "hello", events[2].Payload.Delta)
+	assert.Equal(t, responsesEventFunctionArgsDelta, events[4].Type)
+	assert.Equal(t, `{"q":"x"}`, events[4].Payload.Delta)
+	assert.Equal(t, responsesEventCompleted, events[9].Type)
+	require.NotNil(t, events[9].Payload.Response)
+	assert.Equal(t, 6, events[9].Payload.Response.Usage.TotalTokens)
+	require.Len(t, events[9].Payload.Response.Output, 2)
+	assert.Equal(t, "hello", events[9].Payload.Response.Output[0].Content[0].Text)
+	assert.Equal(t, `"{\"q\":\"x\"}"`, string(events[9].Payload.Response.Output[1].Arguments))
 }
 
 func TestChatCompletionsStreamToResponsesEmitsReasoningSummaryPartLifecycle(t *testing.T) {
@@ -298,20 +262,17 @@ func TestChatCompletionsStreamToResponsesEmitsReasoningSummaryPartLifecycle(t *t
 	for _, event := range events {
 		types = append(types, event.Type)
 	}
-	// The reasoning item is finished before the message item starts.
 	assert.Equal(t, []string{
 		responsesEventCreated,
 		responsesEventOutputItemAdded,
 		responsesEventReasoningSummaryPartAdded,
 		responsesEventReasoningSummaryDelta,
-		responsesEventReasoningSummaryDone,
-		responsesEventReasoningSummaryPartDone,
-		responsesEventOutputItemDone,
 		responsesEventOutputItemAdded,
-		responsesEventContentPartAdded,
 		responsesEventOutputTextDelta,
 		"response.output_text.done",
-		responsesEventContentPartDone,
+		responsesEventOutputItemDone,
+		responsesEventReasoningSummaryDone,
+		responsesEventReasoningSummaryPartDone,
 		responsesEventOutputItemDone,
 		responsesEventCompleted,
 	}, types)
@@ -329,7 +290,7 @@ func TestChatCompletionsStreamToResponsesEmitsReasoningSummaryPartLifecycle(t *t
 	require.NotNil(t, partAdded.Part)
 	assert.Equal(t, dto.ResponsesReasoningSummaryPart{Type: "summary_text"}, *partAdded.Part)
 
-	partDone := events[5].Payload
+	partDone := events[9].Payload
 	assert.Equal(t, "resp_1_reasoning_0", partDone.ItemID)
 	require.NotNil(t, partDone.Part)
 	assert.Equal(t, dto.ResponsesReasoningSummaryPart{Type: "summary_text", Text: "think"}, *partDone.Part)

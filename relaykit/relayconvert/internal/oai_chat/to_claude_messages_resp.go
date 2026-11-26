@@ -110,9 +110,12 @@ func clientVisibleClaudeStreamUsage(state *convmeta.ClaudeConvertInfo, incoming 
 	} else {
 		state.ClientUsage = dto.MergeClaudeUsageNonZero(state.ClientUsage, converted)
 	}
-	// Bound against the latest known total, including when reasoning arrives
-	// before that total or a later frame corrects only the total.
-	state.ClientUsage.OutputTokensDetails = sharedclaude.OutputTokensDetailsFromOpenAI(state.Usage)
+	// Recompute the display value from the cumulative upstream usage with the
+	// same source order as non-stream conversion, so a restored Claude
+	// snapshot keeps its own count. Bound by the Claude output total that is
+	// returned, including when reasoning arrives before that total or a
+	// later frame corrects only the total.
+	state.ClientUsage.OutputTokensDetails = sharedclaude.ThinkingDetails(state.Usage, state.ClientUsage.OutputTokens)
 	// Keep one complete cumulative snapshot across gateway hops; never nest it.
 	if state.Usage.BillingUsage != nil {
 		state.ClientUsage.BillingUsage = dto.CloneBillingUsage(state.Usage.BillingUsage)
