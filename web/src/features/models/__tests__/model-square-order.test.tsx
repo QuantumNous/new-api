@@ -27,12 +27,12 @@ import { api } from '@/lib/api'
 import { ModelSquareOrderDialog } from '../components/dialogs/model-square-order-dialog'
 
 function mockApi(
-  saved: Record<string, string>,
+  saved: Record<string, string> | Promise<Record<string, string>>,
   usage: Record<string, { requests: number; tokens: number }> = {}
 ) {
   vi.spyOn(api, 'get').mockImplementation(async (url: string) => {
     if (url === '/api/option/') {
-      const data = Object.entries(saved).map(([key, value]) => ({
+      const data = Object.entries(await saved).map(([key, value]) => ({
         key,
         value,
       }))
@@ -53,13 +53,16 @@ function mockApi(
   return vi.spyOn(api, 'put').mockResolvedValue({ data: { success: true } })
 }
 
-function renderDialog(onOpenChange = vi.fn()) {
+function renderDialog(onOpenChange = vi.fn(), initiallyOpen = true) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
   const view = render(
     <QueryClientProvider client={client}>
-      <ModelSquareOrderDialog open onOpenChange={onOpenChange} />
+      <ModelSquareOrderDialog
+        open={initiallyOpen}
+        onOpenChange={onOpenChange}
+      />
     </QueryClientProvider>
   )
   return {
@@ -77,6 +80,26 @@ afterEach(() => {
 })
 
 describe('model square order dialog', () => {
+  it('loads the saved order on open before allowing edits', async () => {
+    let resolveOptions!: (value: Record<string, string>) => void
+    const saved = new Promise<Record<string, string>>((resolve) => {
+      resolveOptions = resolve
+    })
+    mockApi(saved)
+    const dialog = renderDialog(vi.fn(), false)
+    expect(api.get).not.toHaveBeenCalledWith('/api/option/')
+
+    dialog.rerender(true)
+    const usageMode = screen.getByRole('button', { name: 'Most used' })
+    expect(usageMode).toBeDisabled()
+
+    resolveOptions({ 'model_square_setting.sort_models': '["beta"]' })
+    expect(
+      await screen.findByRole('button', { name: 'Remove beta' })
+    ).toBeVisible()
+    expect(usageMode).toBeEnabled()
+  })
+
   it('keeps list edits as a draft and saves only the changed setting', async () => {
     const put = mockApi({
       'model_square_setting.sort_mode': 'manual',
