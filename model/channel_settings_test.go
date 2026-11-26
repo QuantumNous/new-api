@@ -190,8 +190,12 @@ func TestInferencePresetSettingsAndDatabaseRoundTrip(t *testing.T) {
 							constant.EndpointTypeAnthropic,
 							constant.EndpointTypeEmbeddings,
 							constant.EndpointTypeJinaRerank,
-							constant.EndpointTypeAudioTranscription,
-							constant.EndpointTypeAudioTranslation,
+						}
+						if channelType == constant.ChannelTypeVLLM {
+							expectedEndpoints = append(expectedEndpoints,
+								constant.EndpointTypeAudioTranscription,
+								constant.EndpointTypeAudioTranslation,
+							)
 						}
 						assert.ElementsMatch(t, expectedEndpoints, endpoints)
 					}

@@ -40,8 +40,6 @@ func TestSGLangChannelProtocols(t *testing.T) {
 		"/v1/embeddings",
 		"/v1/responses",
 		"/v1/messages",
-		"/v1/audio/transcriptions",
-		"/v1/audio/translations",
 	} {
 		info.RequestURLPath = path
 		adaptor = &advancedcustom.Adaptor{}
@@ -50,9 +48,10 @@ func TestSGLangChannelProtocols(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "https://inference.example/prefix"+path, url)
 	}
-	assert.Contains(t, common.GetEndpointTypesByChannelType(constant.ChannelTypeSGLang, "served-model"), constant.EndpointTypeAudioTranscription)
-	assert.Contains(t, common.GetEndpointTypesByChannelType(constant.ChannelTypeSGLang, "served-model"), constant.EndpointTypeAudioTranslation)
+	assert.NotContains(t, common.GetEndpointTypesByChannelType(constant.ChannelTypeSGLang, "served-model"), constant.EndpointTypeAudioTranscription)
+	assert.NotContains(t, common.GetEndpointTypesByChannelType(constant.ChannelTypeSGLang, "served-model"), constant.EndpointTypeAudioTranslation)
 	assert.Contains(t, common.GetEndpointTypesByChannelType(constant.ChannelTypeVLLM, "whisper-1"), constant.EndpointTypeAudioTranscription)
+	assert.Contains(t, common.GetEndpointTypesByChannelType(constant.ChannelTypeVLLM, "whisper-1"), constant.EndpointTypeAudioTranslation)
 	for _, format := range []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatClaude} {
 		info.RelayFormat = format
 		info.RequestURLPath = "/v1/messages"
