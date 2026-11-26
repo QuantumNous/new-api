@@ -22,11 +22,12 @@ import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { getSystemOptions } from '../api'
 
-export function useSystemOptions() {
+export function useSystemOptions(enabled = true) {
   return useQuery({
     queryKey: ['system-options'],
     queryFn: async () => requireServerSuccess(await getSystemOptions()),
     staleTime: 5 * 60 * 1000,
+    enabled,
   })
 }
 
