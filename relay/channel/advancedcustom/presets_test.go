@@ -129,6 +129,50 @@ func TestSGLangRerankRequestAndResponse(t *testing.T) {
 	assert.Zero(t, decoded.Usage.CompletionTokens)
 }
 
+func TestVLLMRerankRequestAndResponse(t *testing.T) {
+	service.InitHttpClient()
+	assert.Contains(t, common.GetEndpointTypesByChannelType(constant.ChannelTypeVLLM, "Qwen3-Reranker-0.6B"), constant.EndpointTypeJinaRerank)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/prefix/v1/rerank", r.URL.Path)
+		assert.Equal(t, "Bearer test-key", r.Header.Get("Authorization"))
+		var request dto.RerankRequest
+		require.NoError(t, common.DecodeJson(r.Body, &request))
+		assert.Equal(t, "Qwen3-Reranker-0.6B", request.Model)
+		assert.Equal(t, []any{"first", "second"}, request.Documents)
+		_, _ = io.WriteString(w, `{"id":"rerank-1","model":"Qwen3-Reranker-0.6B","usage":{"total_tokens":9},"results":[{"index":1,"relevance_score":0.91,"document":{"text":"second"}},{"index":0,"relevance_score":0.12,"document":{"text":"first"}}]}`)
+	}))
+	defer upstream.Close()
+	info := &relaycommon.RelayInfo{
+		ChannelMeta:    &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeVLLM, ChannelBaseUrl: upstream.URL + "/prefix", ApiKey: "test-key"},
+		RequestURLPath: "/v1/rerank", RelayMode: relayconstant.RelayModeRerank,
+		RelayFormat:     types.RelayFormatOpenAI,
+		OriginModelName: "Qwen3-Reranker-0.6B",
+		RerankerInfo:    &relaycommon.RerankerInfo{Documents: []any{"first", "second"}, ReturnDocuments: true},
+	}
+	adaptor := &advancedcustom.Adaptor{}
+	info.ChannelOtherSettings.AdvancedCustom = common.GetAdvancedCustomPreset(constant.ChannelTypeVLLM)
+	adaptor.Init(info)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/rerank", nil).WithContext(context.Background())
+	converted, err := adaptor.ConvertRerankRequest(c, info.RelayMode, dto.RerankRequest{Model: "Qwen3-Reranker-0.6B", Query: "query", Documents: info.Documents})
+	require.NoError(t, err)
+	body, err := common.Marshal(converted)
+	require.NoError(t, err)
+	response, err := adaptor.DoRequest(c, info, bytes.NewReader(body))
+	require.NoError(t, err)
+	usage, apiErr := adaptor.DoResponse(c, response.(*http.Response), info)
+	require.Nil(t, apiErr)
+	assert.Equal(t, 9, usage.(*dto.Usage).TotalTokens)
+	assert.Equal(t, 9, usage.(*dto.Usage).PromptTokens)
+	var decoded dto.RerankResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &decoded))
+	assert.Equal(t, []dto.RerankResponseResult{
+		{Index: 1, RelevanceScore: 0.91, Document: map[string]any{"text": "second"}},
+		{Index: 0, RelevanceScore: 0.12, Document: map[string]any{"text": "first"}},
+	}, decoded.Results)
+}
+
 func TestSGLangRerankRejectsMalformedResults(t *testing.T) {
 	for _, body := range []string{`null`, `{}`, `[{"index":99,"score":1}]`, `[{"index":-1,"score":0}]`, `[{"index":0}]`, `[{"score":1}]`} {
 		t.Run(body, func(t *testing.T) {

@@ -26,12 +26,16 @@ func GetAdvancedCustomPreset(channelType int) *dto.AdvancedCustomConfig {
 			Auth: &dto.AdvancedCustomRouteAuth{Type: dto.AdvancedCustomAuthTypeHeader, Name: "Authorization", Value: "Bearer {api_key}"},
 		})
 	}
+	// vLLM returns the Jina /v1/rerank envelope natively; SGLang returns a
+	// sorted score array that needs jina_rerank_to_sglang.
+	rerankConverter := "none"
 	if channelType == constant.ChannelTypeSGLang {
-		for _, path := range []string{"/v1/rerank", "/rerank"} {
-			config.Routes = append(config.Routes, dto.AdvancedCustomRoute{
-				IncomingPath: path, UpstreamPath: "/v1/rerank", Converter: dto.AdvancedCustomConverterSGLangRerank,
-			})
-		}
+		rerankConverter = dto.AdvancedCustomConverterSGLangRerank
+	}
+	for _, path := range []string{"/v1/rerank", "/rerank"} {
+		config.Routes = append(config.Routes, dto.AdvancedCustomRoute{
+			IncomingPath: path, UpstreamPath: "/v1/rerank", Converter: rerankConverter,
+		})
 	}
 	return config
 }

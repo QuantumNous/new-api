@@ -184,9 +184,14 @@ func TestInferencePresetSettingsAndDatabaseRoundTrip(t *testing.T) {
 							assert.Equal(t, tc.allowed, ok)
 						}
 						endpoints := getPricingEndpointTypesForAbility(AbilityWithChannel{ChannelType: channelType, Ability: Ability{Model: "allowed", ChannelId: loaded.Id}}, map[int]*dto.AdvancedCustomConfig{loaded.Id: actual})
-						expectedEndpoints := []constant.EndpointType{constant.EndpointTypeOpenAI, constant.EndpointTypeOpenAIResponse, constant.EndpointTypeAnthropic, constant.EndpointTypeEmbeddings}
-						if channelType == constant.ChannelTypeSGLang {
-							expectedEndpoints = append(expectedEndpoints, constant.EndpointTypeJinaRerank)
+						expectedEndpoints := []constant.EndpointType{
+							constant.EndpointTypeOpenAI,
+							constant.EndpointTypeOpenAIResponse,
+							constant.EndpointTypeAnthropic,
+							constant.EndpointTypeEmbeddings,
+							constant.EndpointTypeJinaRerank,
+							constant.EndpointTypeAudioTranscription,
+							constant.EndpointTypeAudioTranslation,
 						}
 						assert.ElementsMatch(t, expectedEndpoints, endpoints)
 					}
