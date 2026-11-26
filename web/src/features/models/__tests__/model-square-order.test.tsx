@@ -53,13 +53,16 @@ function mockApi(
   return vi.spyOn(api, 'put').mockResolvedValue({ data: { success: true } })
 }
 
-function renderDialog(onOpenChange = vi.fn()) {
+function renderDialog(onOpenChange = vi.fn(), initiallyOpen = true) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
   const view = render(
     <QueryClientProvider client={client}>
-      <ModelSquareOrderDialog open onOpenChange={onOpenChange} />
+      <ModelSquareOrderDialog
+        open={initiallyOpen}
+        onOpenChange={onOpenChange}
+      />
     </QueryClientProvider>
   )
   return {
@@ -77,6 +80,18 @@ afterEach(() => {
 })
 
 describe('model square order dialog', () => {
+  it('loads the saved model order when the dialog opens', async () => {
+    mockApi({ 'model_square_setting.sort_models': '["beta"]' })
+    const dialog = renderDialog(vi.fn(), false)
+    expect(api.get).not.toHaveBeenCalledWith('/api/option/')
+
+    dialog.rerender(true)
+
+    expect(
+      await screen.findByRole('button', { name: 'Remove beta' })
+    ).toBeVisible()
+  })
+
   it('keeps list edits as a draft and saves only the changed setting', async () => {
     const put = mockApi({
       'model_square_setting.sort_mode': 'manual',

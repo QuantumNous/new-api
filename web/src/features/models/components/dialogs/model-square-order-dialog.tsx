@@ -103,7 +103,7 @@ export function ModelSquareOrderDialog(props: ModelSquareOrderDialogProps) {
   const { t, i18n } = useTranslation()
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const queryClient = useQueryClient()
-  const optionsQuery = useSystemOptions()
+  const optionsQuery = useSystemOptions(props.open)
   const [draft, setDraft] = useState<OrderOptions | null>(null)
 
   const saved = getOptionValue(optionsQuery.data?.data, DEFAULT_ORDER)
