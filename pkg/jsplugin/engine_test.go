@@ -271,7 +271,10 @@ export function invalid(kind) {
     case "bigint": value=1n; break;
     case "date": value=new Date(); break;
     case "sparse": value=[,1]; break;
-    case "size": value="<".repeat(200000); break;
+    case "depth":
+      value = null;
+      for (let i = 0; i < 33; i++) value = [value];
+      break;
     case "nodes": value=new Array(32768).fill(0); break;
   }
   return utils.json.clone(value);
@@ -291,7 +294,7 @@ export function invalid(kind) {
 	assert.Equal(t, map[string]any{"marker": "data"}, cloned["__proto__"])
 	assert.True(t, math.Signbit(cloned["zero"].(float64)))
 	assert.Equal(t, []any{map[string]any{"text": "original"}}, input["items"])
-	for _, kind := range []string{"cycle", "function", "undefined", "nan", "bigint", "date", "sparse", "size", "nodes"} {
+	for _, kind := range []string{"cycle", "function", "undefined", "nan", "bigint", "date", "sparse", "depth", "nodes"} {
 		t.Run(kind, func(t *testing.T) {
 			_, err := engine.Call(t.Context(), "invalid", kind)
 			require.Error(t, err)
@@ -537,7 +540,7 @@ func TestJSONStateUTF8Normalization(t *testing.T) {
 
 		encoded, err := common.Marshal(normalized)
 		require.NoError(t, err)
-		padding := strings.Repeat("x", MaxJSONToolBytes-len(encoded))
+		padding := strings.Repeat("x", (4<<20)-len(encoded))
 		value, err = engine.Call(t.Context(), "clone", raw+padding)
 		require.NoError(t, err, "normalized clone must fit exactly")
 		assert.Equal(t, normalized, strings.TrimSuffix(value.(string), padding))
@@ -877,6 +880,12 @@ func TestEngineFetchContract(t *testing.T) {
 	engine, err := Compile(`
 export function run(request) { return utils.fetch(request); }
 export function fetchBytes(url) { return Array.from(new Uint8Array(utils.fetch({url: url, responseType: "bytes"}).body)); }
+export function fetchSizes(paths) {
+  return paths.map(path => {
+    try { return utils.fetch({url: "https://api.example/" + path, responseType: "bytes"}).body.byteLength; }
+    catch (e) { return e.message; }
+  });
+}
 export function fetchFiveTimes() {
   const failures = [];
   for (let i = 0; i < 5; i++) {
@@ -886,6 +895,8 @@ export function fetchFiveTimes() {
 }`, Options{Key: "fetch"})
 	require.NoError(t, err)
 	var requests []FetchRequest
+	const fullResponse = 4 << 20
+	payload := make([]byte, fullResponse+1)
 	ctx := WithFetcher(t.Context(), func(_ context.Context, request FetchRequest) (FetchResponse, error) {
 		requests = append(requests, request)
 		switch request.URL {
@@ -895,8 +906,12 @@ export function fetchFiveTimes() {
 			return FetchResponse{Status: http.StatusNotFound, Body: []byte("not found")}, nil
 		case "https://api.example/bytes":
 			return FetchResponse{Status: http.StatusPartialContent, Body: []byte{0, 0x80, 0xff, '{'}}, nil
+		case "https://api.example/full":
+			return FetchResponse{Status: http.StatusOK, Body: payload[:fullResponse]}, nil
+		case "https://api.example/partial":
+			return FetchResponse{Body: payload[:fullResponse-1]}, io.ErrUnexpectedEOF
 		case "https://api.example/large":
-			return FetchResponse{Status: http.StatusOK, Body: bytes.Repeat([]byte("a"), MaxFetchBodyBytes+1)}, nil
+			return FetchResponse{Status: http.StatusOK, Body: payload}, nil
 		case "https://api.example/down?token=secret":
 			return FetchResponse{}, &url.Error{Op: "Get", URL: request.URL, Err: errors.New("connection refused")}
 		}
@@ -946,7 +961,21 @@ export function fetchFiveTimes() {
 	assert.Len(t, requests, sent, "rejected requests must not reach the fetcher")
 
 	_, err = engine.Call(ctx, "run", map[string]any{"url": "https://api.example/large"})
-	assert.ErrorContains(t, err, "utils.fetch response from api.example exceeds 1048576 bytes")
+	assert.ErrorContains(t, err, "utils.fetch response from api.example exceeds 4194304 bytes")
+
+	const budgetError = "utils.fetch allows at most 8388608 response bytes per hook call"
+	sent = len(requests)
+	value, err = engine.Call(ctx, "fetchSizes", []string{"full", "full", "bytes"})
+	require.NoError(t, err)
+	assert.Equal(t, []any{int64(fullResponse), int64(fullResponse), budgetError}, value)
+	assert.Len(t, requests, sent+2, "exhausting the byte budget stops further network calls")
+
+	sent = len(requests)
+	value, err = engine.Call(ctx, "fetchSizes", []string{"partial", "full", "bytes", "json"})
+	require.NoError(t, err)
+	assert.Equal(t, []any{"utils.fetch to api.example failed: unexpected EOF", int64(fullResponse), budgetError, budgetError}, value)
+	require.Len(t, requests, sent+3)
+	assert.Equal(t, int64(1), requests[sent+2].ResponseBodyLimit(), "the transport can read one more response byte")
 
 	_, err = engine.Call(ctx, "run", map[string]any{"url": "https://api.example/down?token=secret"})
 	var hookErr *HookError

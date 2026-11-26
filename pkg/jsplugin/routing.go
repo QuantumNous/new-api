@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/MoeForge/moego/regexp"
+	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
 )
 
@@ -290,6 +291,17 @@ type PinnedEndpoint struct {
 	Model       string
 	MappedModel string
 	Candidates  []ProtocolBinding
+}
+
+// DiscardsImmediateResult reports whether this submission delivers a terminal
+// result inline and omits its task data from storage.
+func DiscardsImmediateResult(c *gin.Context) bool {
+	route, _ := common.GetContextKeyType[PinnedRoute](c, ContextKeyPinnedRoute)
+	if route.Route.RetainResult != nil && !*route.Route.RetainResult {
+		return true
+	}
+	endpoint, _ := common.GetContextKeyType[PinnedEndpoint](c, ContextKeyPinnedEndpoint)
+	return endpoint.Protocol == ProtocolOpenAIImage
 }
 
 // FileReference returns the opaque ref of the index-th uploaded file in a

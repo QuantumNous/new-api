@@ -30,6 +30,7 @@ import type {
   SyncUpstreamResponse,
   PreviewUpstreamDiffResponse,
   MissingModelsResponse,
+  ModelSquareUsageResponse,
   PrefillGroupsResponse,
   SyncLocale,
   SyncSource,
@@ -237,6 +238,17 @@ export async function previewUpstreamDiff(params?: {
  */
 export async function getMissingModels(): Promise<MissingModelsResponse> {
   const res = await api.get('/api/models/missing')
+  return res.data
+}
+
+/**
+ * Get every model square model with its usage over the last days, for the
+ * model square order
+ */
+export async function getModelSquareUsage(
+  days: number
+): Promise<ModelSquareUsageResponse> {
+  const res = await api.get('/api/models/square_usage', { params: { days } })
   return res.data
 }
 

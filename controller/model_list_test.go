@@ -261,6 +261,97 @@ func TestModelSquareGroupVisibility(t *testing.T) {
 	}
 }
 
+func TestModelSquareOrderFollowsSavedSetting(t *testing.T) {
+	originalGroups := setting.UserUsableGroups2JSONString()
+	originalOrder := *operation_setting.GetModelSquareSetting()
+	originalDataExport := common.DataExportEnabled
+	t.Cleanup(func() {
+		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(originalGroups))
+		*operation_setting.GetModelSquareSetting() = originalOrder
+		common.DataExportEnabled = originalDataExport
+	})
+
+	for _, dialect := range []struct{ kind, env string }{{"sqlite", ""}, {"mysql", "TEST_MYSQL_DSN"}, {"postgres", "TEST_POSTGRES_DSN"}} {
+		t.Run(dialect.kind, func(t *testing.T) {
+			if dialect.env != "" && os.Getenv(dialect.env) == "" {
+				t.Skip("set " + dialect.env + " to run this database")
+			}
+			db := modelManagementDB(t, dialect.kind, os.Getenv(dialect.env))
+			// The service caches usage across databases, so usage ordering is
+			// covered in the service tests and the query is checked directly below.
+			common.DataExportEnabled = false
+			*operation_setting.GetModelSquareSetting() = operation_setting.ModelSquareSetting{SortMode: "manual", SortMetric: "tokens", SortDays: 7, SortModels: []string{}}
+			require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Public"}`))
+			vendor := model.Vendor{Name: "Acme", Icon: "Acme.Color"}
+			require.NoError(t, db.Create(&vendor).Error)
+			require.NoError(t, db.Create(&model.Model{ModelName: "vip-only", Icon: "Vip.Color", VendorID: vendor.Id, Status: 1}).Error)
+			require.NoError(t, db.Create(&[]model.Ability{
+				{Model: "alpha", Group: "default", ChannelId: 1, Enabled: true},
+				{Model: "gamma", Group: "default", ChannelId: 1, Enabled: true},
+				{Model: "vip-only", Group: "vip", ChannelId: 1, Enabled: true},
+			}).Error)
+			model.InvalidatePricingCache()
+			t.Cleanup(model.InvalidatePricingCache)
+
+			manual := []string{"gamma", "alpha"}
+			for _, step := range []struct {
+				key, value string
+				rejected   bool
+				want       []string
+			}{
+				{want: []string{}},
+				{key: "model_square_setting.sort_models", value: `["gamma","vip-only","alpha","gamma"]`, want: manual},
+				{key: "model_square_setting.sort_mode", value: "random", rejected: true, want: manual},
+				{key: "model_square_setting.sort_metric", value: "cost", rejected: true, want: manual},
+				{key: "model_square_setting.sort_days", value: "3", rejected: true, want: manual},
+				{key: "model_square_setting.sort_models", value: `"gamma"`, rejected: true, want: manual},
+			} {
+				if step.key != "" {
+					err := model.UpdateOption(step.key, step.value)
+					if step.rejected {
+						require.Error(t, err, step.key)
+					} else {
+						require.NoError(t, err, step.key)
+					}
+				}
+				recorder := httptest.NewRecorder()
+				ctx, _ := gin.CreateTestContext(recorder)
+				ctx.Request = httptest.NewRequest(http.MethodGet, "/api/pricing", nil)
+				GetPricing(ctx)
+				require.Equal(t, http.StatusOK, recorder.Code)
+				var response struct {
+					ModelOrder map[string][]string `json:"model_order"`
+				}
+				require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+				assert.Equal(t, map[string][]string{"recommended": step.want, "requests": {}, "tokens": {}}, response.ModelOrder, step.key)
+			}
+
+			// The admin preview offers the models of every group.
+			assert.ElementsMatch(t, []modelSquareUsage{
+				{ModelName: "alpha"},
+				{ModelName: "gamma"},
+				{ModelName: "vip-only", Icon: "Vip.Color", VendorName: "Acme", VendorIcon: "Acme.Color"},
+			}, modelSquareData[[]modelSquareUsage](t, GetModelSquareUsage, "/api/models/square_usage?days=7", ""))
+
+			require.NoError(t, db.AutoMigrate(&model.QuotaData{}))
+			now := time.Now().Unix()
+			require.NoError(t, db.Create(&[]model.QuotaData{
+				{UserID: 1, Username: "a", ModelName: "alpha", CreatedAt: now - 3600, Count: 3, TokenUsed: 100},
+				{UserID: 2, Username: "b", ModelName: "alpha", CreatedAt: now - 7200, Count: 2},
+				{UserID: 1, Username: "a", ModelName: "vip-only", CreatedAt: now - 3600, Count: 1},
+				{UserID: 1, Username: "a", ModelName: "gamma", CreatedAt: now - 8*24*3600, Count: 9, TokenUsed: 900},
+				{UserID: 1, Username: "a", ModelName: "", CreatedAt: now - 3600, Count: 4, TokenUsed: 40},
+			}).Error)
+			totals, err := model.GetModelUsageTotals(now-7*24*3600, now)
+			require.NoError(t, err)
+			assert.ElementsMatch(t, []model.ModelUsageTotal{
+				{ModelName: "alpha", Requests: 5, Tokens: 100},
+				{ModelName: "vip-only", Requests: 1},
+			}, totals)
+		})
+	}
+}
+
 func decodeUserModelsResponse(t *testing.T, recorder *httptest.ResponseRecorder) []string {
 	t.Helper()
 

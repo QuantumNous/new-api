@@ -31,7 +31,7 @@ import {
   type ViewMode,
 } from '../constants'
 import { filterAndSortModels, extractAllTags } from '../lib/filters'
-import type { PricingModel, TokenUnit } from '../types'
+import type { ModelOrder, PricingModel, TokenUnit } from '../types'
 
 type FilterState = {
   search?: string
@@ -53,7 +53,7 @@ function normalizeViewMode(value: unknown): ViewMode {
   return VIEW_MODES.CARD
 }
 
-export function useFilters(models: PricingModel[]) {
+export function useFilters(models: PricingModel[], modelOrder?: ModelOrder) {
   const search = useSearch({ from: '/pricing/' })
   const [filterState, setFilterState] = useState<FilterState>(() => ({
     search: search.search,
@@ -70,7 +70,7 @@ export function useFilters(models: PricingModel[]) {
 
   const searchInput = filterState.search || ''
   const debouncedSearchInput = useDebounce(searchInput, 200)
-  const sortBy = filterState.sort || SORT_OPTIONS.NAME
+  const sortBy = filterState.sort || SORT_OPTIONS.RECOMMENDED
   const vendorFilter = filterState.vendor || FILTER_ALL
   const groupFilter = filterState.group || FILTER_ALL
   const quotaTypeFilter = filterState.quotaType || QUOTA_TYPES.ALL
@@ -99,7 +99,7 @@ export function useFilters(models: PricingModel[]) {
   )
   const setSortBy = useCallback(
     (v: string) =>
-      updateFilters({ sort: v === SORT_OPTIONS.NAME ? undefined : v }),
+      updateFilters({ sort: v === SORT_OPTIONS.RECOMMENDED ? undefined : v }),
     [updateFilters]
   )
   const setVendorFilter = useCallback(
@@ -157,9 +157,11 @@ export function useFilters(models: PricingModel[]) {
       endpointType: endpointTypeFilter,
       tag: tagFilter,
       sortBy,
+      modelOrder,
     })
   }, [
     models,
+    modelOrder,
     debouncedSearchInput,
     vendorFilter,
     groupFilter,

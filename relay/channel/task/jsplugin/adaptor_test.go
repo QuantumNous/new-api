@@ -661,7 +661,7 @@ func TestTaskAdaptorHookFetchReachesRequestHostsOnly(t *testing.T) {
 		switch r.URL.Path {
 		case "/info":
 			assert.Equal(t, "Bearer key", r.Header.Get("Authorization"))
-			_, _ = w.Write([]byte(`{"from":"base"}`))
+			_, _ = fmt.Fprintf(w, `{"padding":"%s","from":"base"}`, strings.Repeat("x", 1<<20))
 		case "/moved":
 			http.Redirect(w, r, extra.URL+"/elsewhere", http.StatusFound)
 		default:
@@ -2382,41 +2382,53 @@ func TestTaskSubmitStreamRelaysToNativeClients(t *testing.T) {
 	}
 }
 
-// A native route that declares retainResult: false never persists its reply,
-// so a Base64 image reply may exceed the 1 MiB task data limit.
-func TestTaskSubmitReplyLimitFollowsRetainResult(t *testing.T) {
-	plugin, err := pluginruntime.CompilePlugin(documentStreamPlugin, pluginruntime.Options{})
+func TestTaskSubmitReplyLimitFollowsResultRetention(t *testing.T) {
+	source := strings.Replace(mockPlugin, `taskData: {accepted: true, status: resp.statusCode},`,
+		`taskData: resp.body, state: resp.body.data, immediate: resp.body.pending ? null : {status: "SUCCESS"},`, 1)
+	plugin, err := pluginruntime.CompilePlugin(source, pluginruntime.Options{})
 	require.NoError(t, err)
-	document := strings.Repeat("x", maxTaskPluginPersistedJSONBytes+1024)
+	previous := constant.MaxFileDownloadMB
+	constant.MaxFileDownloadMB = 2
+	t.Cleanup(func() { constant.MaxFileDownloadMB = previous })
 	discard := false
 	for _, tc := range []struct {
-		name   string
-		retain *bool
-		valid  bool
+		name     string
+		protocol string
+		retain   *bool
+		size     int
+		pending  bool
+		wantErr  string
 	}{
-		{"retained reply", nil, false},
-		{"discarded reply", &discard, true},
+		{"retained native reply", "", nil, (1 << 20) + 1, false, "task submit response exceeds size limit"},
+		{"inline native reply", "", &discard, 2 << 20, false, ""},
+		{"inline image reply", pluginruntime.ProtocolOpenAIImage, nil, 2 << 20, false, ""},
+		{"image above download limit", pluginruntime.ProtocolOpenAIImage, nil, (2 << 20) + 1, false, "task submit response exceeds size limit"},
+		{"asynchronous image snapshot", pluginruntime.ProtocolOpenAIImage, nil, (1 << 20) + 1, true, "task data exceeds size limit"},
+		{"retained video reply", "openai_video", nil, (1 << 20) + 1, false, "task submit response exceeds size limit"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			info := &relaycommon.RelayInfo{OriginModelName: "alias", ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "document", ChannelBaseUrl: "https://provider.example"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{PublicTaskID: "public-document"}}
+			info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}, TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
 			adaptor := New(plugin)
 			adaptor.Init(info)
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
-			c.Request = httptest.NewRequest(http.MethodPost, "/compile", nil)
-			c.Set(pluginruntime.ContextKeyPinnedRoute, pluginruntime.PinnedRoute{Plugin: plugin, Route: pluginruntime.Route{Method: http.MethodPost, Path: "/compile", Type: pluginruntime.RouteTypeSubmit, RetainResult: tc.retain}})
-			c.Set("task_request", map[string]any{"responseType": "json"})
-			require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
-			_, err := adaptor.BuildRequestBody(c, info)
-			require.NoError(t, err)
-			body := `{"document":"` + document + `","units":1}`
+			c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+			if tc.protocol == "" {
+				c.Set(pluginruntime.ContextKeyPinnedRoute, pluginruntime.PinnedRoute{Plugin: plugin, Route: pluginruntime.Route{Type: pluginruntime.RouteTypeSubmit, RetainResult: tc.retain}})
+			} else {
+				c.Set(pluginruntime.ContextKeyPinnedEndpoint, pluginruntime.PinnedEndpoint{Plugin: plugin, Protocol: tc.protocol})
+			}
+			const prefix = `{"data":[{"b64_json":"`
+			suffix := fmt.Sprintf(`"}],"id":"upstream-1","pending":%t}`, tc.pending)
+			body := prefix + strings.Repeat("A", tc.size-len(prefix)-len(suffix)) + suffix
 			parsed, taskErr := adaptor.ParseResponse(c, &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(body))}, info)
-			if !tc.valid {
+			if tc.wantErr != "" {
 				require.NotNil(t, taskErr)
-				assert.Contains(t, taskErr.Error.Error(), "exceeds size limit")
+				assert.ErrorContains(t, taskErr.Error, tc.wantErr)
 				return
 			}
 			require.Nil(t, taskErr)
-			assert.Len(t, parsed.TaskData, len(body))
+			assert.Len(t, parsed.TaskData, tc.size)
+			assert.Empty(t, parsed.PluginState, "an inline result still has a 1 MiB state limit")
 		})
 	}
 }

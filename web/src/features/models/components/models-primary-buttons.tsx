@@ -29,6 +29,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useCanEditModelPricing } from '@/features/model-pricing/api'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { useModels } from './models-provider'
 
@@ -36,6 +38,10 @@ export function ModelsPrimaryButtons() {
   const { t } = useTranslation()
   const { setOpen, setCurrentRow } = useModels()
   const canPrice = useCanEditModelPricing()
+  // The order is a site setting, which only the root user can save.
+  const isRoot = useAuthStore(
+    (state) => state.auth.user?.role === ROLE.SUPER_ADMIN
+  )
 
   const handleCreateModel = () => {
     setCurrentRow(null)
@@ -66,6 +72,15 @@ export function ModelsPrimaryButtons() {
           size='sm'
         >
           {t('Sync pricing')}
+        </Button>
+      )}
+      {isRoot && (
+        <Button
+          onClick={() => setOpen('model-square-order')}
+          variant='outline'
+          size='sm'
+        >
+          {t('Model square order')}
         </Button>
       )}
       {/* Create Model */}

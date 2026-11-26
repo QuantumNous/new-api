@@ -282,6 +282,7 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 	"POST /api/models/sync_upstream":        accessTokenScopeRule("model:write"),
 	"POST /api/models/delete":               accessTokenScopeRule("model:write"),
 	"GET /api/models/missing":               accessTokenScopeRule("model:read"),
+	"GET /api/models/square_usage":          accessTokenScopeRule("log:read"),
 	"GET /api/models/":                      accessTokenScopeRule("model:read"),
 	"GET /api/models/search":                accessTokenScopeRule("model:read"),
 	"GET /api/models/:id":                   accessTokenScopeRule("model:read"),

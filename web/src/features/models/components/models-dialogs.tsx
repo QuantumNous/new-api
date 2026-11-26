@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { DescriptionDialog } from './dialogs/description-dialog'
 import { MissingModelsDialog } from './dialogs/missing-models-dialog'
+import { ModelSquareOrderDialog } from './dialogs/model-square-order-dialog'
 import { PrefillGroupManagement } from './dialogs/prefill-group-management'
 import { PriceSyncDialog } from './dialogs/price-sync-dialog'
 import { SyncWizardDialog } from './dialogs/sync-wizard-dialog'
@@ -70,6 +71,11 @@ export function ModelsDialogs() {
       {/* Sync Wizard Dialog */}
       <SyncWizardDialog
         open={open === 'sync-wizard'}
+        onOpenChange={(v) => !v && setOpen(null)}
+      />
+
+      <ModelSquareOrderDialog
+        open={open === 'model-square-order'}
         onOpenChange={(v) => !v && setOpen(null)}
       />
 

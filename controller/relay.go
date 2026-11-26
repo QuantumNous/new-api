@@ -830,31 +830,16 @@ func executeTaskSubmissionWith(
 			task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
 		}
 	}
-	// A native submit route may declare retainResult: false. It applies only
-	// to immediate terminal results: the client receives the complete response
-	// once, the upstream snapshot is never persisted, and the task is not
-	// retrievable afterwards. An asynchronous result on such a route keeps its
-	// snapshot because polling and retrieval need it. The OpenAI Images
-	// protocol delivers its images inline in the same HTTP response, so its
-	// immediate results follow the same rule; an asynchronous image task is
-	// expected there and is polled inside the request.
+	// The presenter reads the in-memory snapshot. Asynchronous tasks also
+	// need it in storage for polling and retrieval.
 	var insertOmits []string
 	immediateTerminal := result.Immediate != nil && (result.Immediate.Status == model.TaskStatusSuccess || result.Immediate.Status == model.TaskStatusFailure)
-	if pinnedValue, exists := c.Get(pluginruntime.ContextKeyPinnedRoute); exists {
-		pinned, ok := pinnedValue.(pluginruntime.PinnedRoute)
-		if ok && pinned.Route.RetainResult != nil && !*pinned.Route.RetainResult {
-			if immediateTerminal {
-				task.PrivateData.ResultDiscarded = true
-				insertOmits = append(insertOmits, "data")
-			} else {
-				logger.LogWarn(c, common.LogText("task plugin route %s %s declares retainResult: false but returned an asynchronous result; retaining task %s", pinned.Route.Method, pinned.Route.Path, task.TaskID))
-			}
-		}
-	}
-	if pinnedValue, exists := c.Get(pluginruntime.ContextKeyPinnedEndpoint); exists && immediateTerminal {
-		if pinned, ok := pinnedValue.(pluginruntime.PinnedEndpoint); ok && pinned.Protocol == pluginruntime.ProtocolOpenAIImage {
+	if pluginruntime.DiscardsImmediateResult(c) {
+		if immediateTerminal {
 			task.PrivateData.ResultDiscarded = true
 			insertOmits = append(insertOmits, "data")
+		} else if pinned, ok := common.GetContextKeyType[pluginruntime.PinnedRoute](c, pluginruntime.ContextKeyPinnedRoute); ok {
+			logger.LogWarn(c, common.LogText("task plugin route %s %s declares retainResult: false but returned an asynchronous result; retaining task %s", pinned.Route.Method, pinned.Route.Path, task.TaskID))
 		}
 	}
 	diagnostics.insertStart(task)

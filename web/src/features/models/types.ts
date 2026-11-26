@@ -249,6 +249,21 @@ export interface MissingModelsResponse {
   data?: string[]
 }
 
+export type ModelSquareUsage = {
+  model_name: string
+  icon?: string
+  vendor_name?: string
+  vendor_icon?: string
+  requests: number
+  tokens: number
+}
+
+export interface ModelSquareUsageResponse {
+  success: boolean
+  message?: string
+  data?: ModelSquareUsage[]
+}
+
 /**
  * Prefill groups response
  */
