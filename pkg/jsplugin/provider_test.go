@@ -205,8 +205,10 @@ func TestRelayConfigAcceptsAdvancedCustomConverters(t *testing.T) {
 	plugin := compileProviderPlugin(t, `[
 		{incoming_path: "/v1/chat/completions", upstream_path: "/{model}/generate", converter: "openai_chat_completions_to_openai_responses", models: ["re:^a-"], auth: {type: "header", name: "X-Key", value: "{api_key}"}},
 		{incoming_path: "/v1/chat/completions", upstream_path: "/other"},
+		{incoming_path: "/v1/responses", upstream_path: "/v1/messages", converter: "openai_responses_to_claude_messages"},
 		{incoming_path: "/v1/models", upstream_path: "/v1/models"}
 	]`, "")
+	require.NoError(t, plugin.Meta.RelayConfig().Validate())
 
 	route, ok := plugin.Meta.RelayRoute("/v1/chat/completions", "a-1")
 	require.True(t, ok)
@@ -214,6 +216,9 @@ func TestRelayConfigAcceptsAdvancedCustomConverters(t *testing.T) {
 	route, ok = plugin.Meta.RelayRoute("/v1/chat/completions", "b-1")
 	require.True(t, ok)
 	assert.Equal(t, "/other", route.UpstreamPath)
+	route, ok = plugin.Meta.RelayRoute("/v1/responses", "claude-1")
+	require.True(t, ok)
+	assert.Equal(t, "openai_responses_to_claude_messages", route.Converter)
 	_, ok = plugin.Meta.RelayRoute("/v1/embeddings", "a-1")
 	assert.False(t, ok)
 }

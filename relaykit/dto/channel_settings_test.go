@@ -33,29 +33,44 @@ func TestAdvancedCustomValidateResponsesToChatConverterPath(t *testing.T) {
 	}
 	require.NoError(t, validGemini.Validate())
 
+	validClaude := &AdvancedCustomConfig{
+		Routes: []AdvancedCustomRoute{
+			{
+				IncomingPath: "/v1/responses",
+				UpstreamPath: "/v1/messages",
+				Converter:    advancedCustomConverterOpenAIResponsesToClaudeMessages,
+			},
+		},
+	}
+	require.NoError(t, validClaude.Validate())
+	assert.Equal(t, []types.EndpointType{types.EndpointTypeOpenAIResponse}, validClaude.SupportedEndpointTypesForModel("claude-test"))
+
 	tests := []struct {
 		name         string
 		incomingPath string
 	}{
 		{name: "chat completions", incomingPath: "/v1/chat/completions"},
 		{name: "responses compact", incomingPath: "/v1/responses/compact"},
+		{name: "messages", incomingPath: "/v1/messages"},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			config := &AdvancedCustomConfig{
-				Routes: []AdvancedCustomRoute{
-					{
-						IncomingPath: tt.incomingPath,
-						UpstreamPath: "/v1/chat/completions",
-						Converter:    advancedCustomConverterOpenAIResponsesToOpenAIChat,
+	for _, converter := range []string{advancedCustomConverterOpenAIResponsesToOpenAIChat, advancedCustomConverterOpenAIResponsesToClaudeMessages} {
+		for _, tt := range tests {
+			t.Run(converter+"/"+tt.name, func(t *testing.T) {
+				config := &AdvancedCustomConfig{
+					Routes: []AdvancedCustomRoute{
+						{
+							IncomingPath: tt.incomingPath,
+							UpstreamPath: "/v1/chat/completions",
+							Converter:    converter,
+						},
 					},
-				},
-			}
-			err := config.Validate()
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "converter does not match incoming_path")
-		})
+				}
+				err := config.Validate()
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "converter does not match incoming_path")
+			})
+		}
 	}
 }
 
@@ -564,6 +579,7 @@ func TestAdvancedCustomValidateAlphaSearchConverterPath(t *testing.T) {
 		advancedCustomConverterOpenAIChatToOpenAIResponses,
 		advancedCustomConverterOpenAIResponsesToOpenAIChat,
 		advancedCustomConverterOpenAIResponsesToGemini,
+		advancedCustomConverterOpenAIResponsesToClaudeMessages,
 		advancedCustomConverterGeminiContentToOpenAIChat,
 		advancedCustomConverterOpenAIChatToGeminiContent,
 	}
