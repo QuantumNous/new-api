@@ -153,6 +153,9 @@ async function renderList(
         },
       }
     }
+    if (url === '/api/option/') {
+      return { data: { success: true, data: [] } }
+    }
     return { data: { success: true, data: { items: [] } } }
   })
   const client = new QueryClient({

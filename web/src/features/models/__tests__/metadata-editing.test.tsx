@@ -99,6 +99,9 @@ describe('model pricing entry', () => {
           },
         }
       }
+      if (url === '/api/option/') {
+        return { data: { success: true, data: [] } }
+      }
       return { data: { success: true, data: { items: [] } } }
     })
     const post = vi.spyOn(api, 'post')
@@ -177,6 +180,9 @@ describe('model pricing entry', () => {
           },
         }
       }
+      if (url === '/api/option/') {
+        return { data: { success: true, data: [] } }
+      }
       return { data: { success: true, data: { items: [] } } }
     })
     const client = renderModelActions()
@@ -224,8 +230,11 @@ describe('model pricing entry', () => {
   })
 
   it('does not expose a pricing shortcut to an ordinary administrator', () => {
-    vi.spyOn(api, 'get').mockResolvedValue({
-      data: { success: true, data: { items: [] } },
+    vi.spyOn(api, 'get').mockImplementation(async (url) => {
+      if (url === '/api/option/') {
+        return { data: { success: true, data: [] } }
+      }
+      return { data: { success: true, data: { items: [] } } }
     })
     const client = renderModelActions(model, 10)
     expect(screen.getByRole('button', { name: 'Edit' })).toBeVisible()
@@ -263,6 +272,9 @@ describe('model pricing entry', () => {
             },
           },
         }
+      }
+      if (url === '/api/option/') {
+        return { data: { success: true, data: [] } }
       }
       return { data: { success: true, data: { items: [] } } }
     })
