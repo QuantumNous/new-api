@@ -1676,6 +1676,70 @@ func TestTaskPluginErrorFallbackIsSanitized(t *testing.T) {
 	}
 }
 
+func TestAbortWithOpenAiMessageEarlyNativeErrorOptIn(t *testing.T) {
+	optIn := compileTaskRoutePlugin(t, `
+export const meta = {
+  apiVersion: 1, key: "early-native-opt-in", name: "Early", version: "1.0.0",
+  author: {name: "Test"}, models: ["early"], fetchMode: "per_task", earlyNativeError: true,
+  routes: [{method: "POST", path: "/early/submit", type: "submit", decode: "decode", render: "created"}],
+};
+export function buildSubmitRequest() { return {url: "https://example.com"}; }
+export function parseSubmitResponse() { return {taskId: "one"}; }
+export function buildQueryRequest() { return {url: "https://example.com"}; }
+export function parseTaskResult() { return {status: "SUCCESS"}; }
+export const native = {
+  decode: function() { return {kind: "submit", model: "early", requestBody: {}}; },
+  created: function(_ctx, task) { return {id: task.task_id}; },
+  error: function(ctx, error) {
+    return {vendor: true, path: ctx.path, code: 2, status: "error", message: "Invalid API key", httpStatus: error.httpStatus};
+  },
+};
+`)
+	legacy := compileTaskRoutePlugin(t, `
+export const meta = {
+  apiVersion: 1, key: "early-native-legacy", name: "Legacy", version: "1.0.0",
+  author: {name: "Test"}, models: ["legacy"], fetchMode: "per_task",
+  routes: [{method: "POST", path: "/legacy/submit", type: "submit", decode: "decode", render: "created"}],
+};
+export function buildSubmitRequest() { return {url: "https://example.com"}; }
+export function parseSubmitResponse() { return {taskId: "one"}; }
+export function buildQueryRequest() { return {url: "https://example.com"}; }
+export function parseTaskResult() { return {status: "SUCCESS"}; }
+export const native = {
+  decode: function() { return {kind: "submit", model: "legacy", requestBody: {}}; },
+  created: function(_ctx, task) { return {id: task.task_id}; },
+  error: function() { return {should_not: "run"}; },
+};
+`)
+
+	t.Run("opt-in without Prepare uses native.error", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest(http.MethodPost, "/early/submit", nil)
+		c.Set(common.RequestIdKey, "early-req")
+		c.Set(jsplugin.ContextKeyPinnedRoute, jsplugin.PinnedRoute{Plugin: optIn, Route: optIn.Meta.Routes[0]})
+
+		abortWithOpenAiMessage(c, http.StatusUnauthorized, "Invalid token")
+
+		assert.Equal(t, http.StatusUnauthorized, recorder.Code)
+		assert.JSONEq(t, `{"vendor":true,"path":"/early/submit","code":2,"status":"error","message":"Invalid API key","httpStatus":401}`, recorder.Body.String())
+		assert.NotContains(t, recorder.Body.String(), "new_api_error")
+	})
+
+	t.Run("legacy without Prepare keeps new_api_error", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest(http.MethodPost, "/legacy/submit", nil)
+		c.Set(common.RequestIdKey, "legacy-req")
+		c.Set(jsplugin.ContextKeyPinnedRoute, jsplugin.PinnedRoute{Plugin: legacy, Route: legacy.Meta.Routes[0]})
+
+		abortWithOpenAiMessage(c, http.StatusUnauthorized, "Invalid token")
+
+		assert.Equal(t, http.StatusUnauthorized, recorder.Code)
+		assert.JSONEq(t, `{"error":{"message":"Invalid token (request id: legacy-req)","type":"new_api_error","code":""}}`, recorder.Body.String())
+	})
+}
+
 func TestResolvedTaskPluginIDsEnforcesPublicQueryContract(t *testing.T) {
 	valid, ok := resolvedTaskPluginIDs([]any{"task-a", "task-b", "task-a"})
 	require.True(t, ok)

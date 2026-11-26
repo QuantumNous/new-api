@@ -18,7 +18,11 @@ func abortWithOpenAiMessage(c *gin.Context, statusCode int, message string, code
 	}
 	userId := c.GetInt("id")
 	_, preparedPluginRoute := c.Get(pluginruntime.ContextKeyRouteRequest)
-	if !preparedPluginRoute || !RespondTaskPluginError(c, &dto.TaskError{
+	// Prepared native routes already use native.error. Before Prepare, only
+	// plugins that opt in with meta.earlyNativeError do, so historical
+	// vendors keep new_api_error on TokenAuth failures.
+	tryNativeError := preparedPluginRoute || pinnedEarlyNativeError(c)
+	if !tryNativeError || !RespondTaskPluginError(c, &dto.TaskError{
 		Code:       codeStr,
 		Message:    message,
 		StatusCode: statusCode,
@@ -33,6 +37,14 @@ func abortWithOpenAiMessage(c *gin.Context, statusCode int, message string, code
 	}
 	c.Abort()
 	logger.LogError(c.Request.Context(), common.LogText("user %d | %s", userId, message))
+}
+
+// pinnedEarlyNativeError reports whether the matched task plugin asked the
+// host to render pre-Prepare failures through native.error.
+func pinnedEarlyNativeError(c *gin.Context) bool {
+	value, exists := c.Get(pluginruntime.ContextKeyPinnedRoute)
+	pinned, ok := value.(pluginruntime.PinnedRoute)
+	return exists && ok && pinned.Plugin != nil && pinned.Plugin.Meta.EarlyNativeError
 }
 
 // invalidRequestStatus is the status of a request whose body could not be

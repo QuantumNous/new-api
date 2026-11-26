@@ -531,6 +531,33 @@ func TestRouteMissingAndUpstreamError(t *testing.T) {
 	}
 }
 
+func TestEarlyNativeErrorRequiresNativeError(t *testing.T) {
+	t.Run("accepted with native.error", func(t *testing.T) {
+		plugin, err := CompilePlugin(routingTestPluginSource(
+			"early-ok", 0, `["gpt-5.5"]`,
+			`earlyNativeError: true, routes: [{method: "POST", path: "/v1/jobs", type: "submit", decode: "decodeJob", render: "jobCreated"}],`,
+			`export const native = {
+  decodeJob: function(ctx) { return {kind: "submit", model: "gpt-5.5", requestBody: ctx.body.value}; },
+  jobCreated: function(_ctx, task) { return task; },
+  error: function(_ctx, error) { return {code: error.code, message: error.message}; },
+};`,
+		), Options{})
+		require.NoError(t, err)
+		assert.True(t, plugin.Meta.EarlyNativeError)
+	})
+	t.Run("rejected without native.error", func(t *testing.T) {
+		_, err := CompilePlugin(routingTestPluginSource(
+			"early-missing", 0, `["gpt-5.5"]`,
+			`earlyNativeError: true, routes: [{method: "POST", path: "/v1/jobs", type: "submit", decode: "decodeJob", render: "jobCreated"}],`,
+			`export const native = {
+  decodeJob: function(ctx) { return {kind: "submit", model: "gpt-5.5", requestBody: ctx.body.value}; },
+  jobCreated: function(_ctx, task) { return task; },
+};`,
+		), Options{})
+		require.ErrorContains(t, err, "earlyNativeError requires native.error")
+	})
+}
+
 func TestRouteRequestContextKeepsFormAndMultipartValuesAcrossDecoderWrites(t *testing.T) {
 	plugin, err := CompilePlugin(routingTestPluginSource("route-request-writes", 0, `["gpt-5.5"]`, "", `
 export function decodeJob(ctx) {

@@ -1720,6 +1720,30 @@ func taskUpstreamErrorValue(reply *dto.TaskUpstreamReply) map[string]any {
 	return value
 }
 
+// routeRequestContextForNativeError returns the prepared route request when
+// present, otherwise a minimal context from the HTTP request so early
+// native.error (before PrepareTaskPluginRoute) can still run.
+func routeRequestContextForNativeError(c *gin.Context) (pluginruntime.RouteRequestContext, bool) {
+	if value, exists := c.Get(pluginruntime.ContextKeyRouteRequest); exists {
+		if requestContext, ok := value.(pluginruntime.RouteRequestContext); ok {
+			return requestContext, true
+		}
+	}
+	if c == nil || c.Request == nil {
+		return pluginruntime.RouteRequestContext{}, false
+	}
+	path := c.Request.URL.Path
+	if path == "" {
+		path = "/"
+	}
+	return pluginruntime.RouteRequestContext{
+		Path:   path,
+		Method: c.Request.Method,
+		Params: map[string]string{},
+		Query:  map[string][]string{},
+	}, true
+}
+
 // RespondTaskPluginError gives a pinned plugin a sanitized error DTO and writes
 // its native error body with the host's status, unless the body is a reply
 // wrapper that answers with the vendor's own status.
@@ -1740,9 +1764,8 @@ func RespondTaskPluginError(c *gin.Context, taskErr *dto.TaskError) bool {
 	}
 	requestID := c.GetString(common.RequestIdKey)
 	hasRenderer, err := pinned.Plugin.Engine.HasCallablePath(c.Request.Context(), "native", "error")
-	requestValue, exists := c.Get(pluginruntime.ContextKeyRouteRequest)
-	requestContext, ok := requestValue.(pluginruntime.RouteRequestContext)
-	if err == nil && hasRenderer && exists && ok {
+	requestContext, hasRequest := routeRequestContextForNativeError(c)
+	if err == nil && hasRenderer && hasRequest {
 		errorValue := map[string]any{
 			"code":       sanitized.Code,
 			"message":    sanitized.Message,
