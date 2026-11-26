@@ -82,6 +82,10 @@ func logQuotaDataCache(quotaData *QuotaData) {
 }
 
 func LogQuotaData(params QuotaDataLogParams) {
+	logQuotaData(params, LogTypeConsume)
+}
+
+func logQuotaData(params QuotaDataLogParams, logType int) {
 	// 只精确到小时
 	createdAt := params.CreatedAt - (params.CreatedAt % 3600)
 	quotaData := &QuotaData{
@@ -98,6 +102,11 @@ func LogQuotaData(params QuotaDataLogParams) {
 		TokenUsed:           params.TokenUsed,
 		CacheReadTokens:     max(0, params.CacheReadTokens),
 		CacheCreationTokens: max(0, params.CacheCreationTokens),
+	}
+
+	if logType == LogTypeRefund {
+		quotaData.Count = 0
+		quotaData.Quota = -params.Quota
 	}
 
 	CacheQuotaDataLock.Lock()
@@ -123,7 +132,7 @@ func SaveQuotaDataCache() {
 			//quotaDataDB.Count += quotaData.Count
 			//quotaDataDB.Quota += quotaData.Quota
 			//DB.Table("quota_data").Save(quotaDataDB)
-			increaseQuotaData(quotaData)
+			increaseQuotaData(quotaDataDB.Id, quotaData)
 		} else {
 			DB.Table("quota_data").Create(quotaData)
 		}
@@ -132,10 +141,8 @@ func SaveQuotaDataCache() {
 	common.SysLog(common.LogText("saved dashboard data, %d records", size))
 }
 
-func increaseQuotaData(quotaData *QuotaData) {
-	err := DB.Table("quota_data").
-		Where("user_id = ? and username = ? and model_name = ? and created_at = ? and use_group = ? and token_id = ? and channel_id = ? and node_name = ?",
-			quotaData.UserID, quotaData.Username, quotaData.ModelName, quotaData.CreatedAt, quotaData.UseGroup, quotaData.TokenID, quotaData.ChannelID, quotaData.NodeName).
+func increaseQuotaData(id int, quotaData *QuotaData) {
+	err := DB.Table("quota_data").Where("id = ?", id).
 		Updates(map[string]any{
 			"count":                 gorm.Expr("count + ?", quotaData.Count),
 			"quota":                 gorm.Expr("quota + ?", quotaData.Quota),
