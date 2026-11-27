@@ -577,7 +577,11 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 			reason = fmt.Sprintf("%s %s: %v", urlErr.Op, req.URL.Host, urlErr.Err)
 		}
 		logger.LogError(c, common2.LogText("do request failed: %s", reason))
-		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithHideErrMsg("upstream error: do request failed"))
+		const message = "upstream error: do request failed"
+		if logger.RequestLogsSuppressed(c) {
+			return nil, types.NewError(errors.New(message), types.ErrorCodeDoRequestFailed)
+		}
+		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithHideErrMsg(message))
 	}
 	if resp == nil {
 		return nil, errors.New("resp is nil")

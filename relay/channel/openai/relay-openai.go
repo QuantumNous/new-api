@@ -126,7 +126,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		if lastStreamData != "" {
 			if err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
-				common.SysLog(common.LogText("error handling stream format: %s", err.Error()))
+				logger.LogSystem(c, common.LogText("error handling stream format: %s", err.Error()))
 				sr.Error(err)
 			}
 		}

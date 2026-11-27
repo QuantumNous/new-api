@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -209,7 +210,7 @@ func handleCozeEvent(c *gin.Context, event string, data string, responseText *st
 			return
 		}
 
-		common.SysLog(common.LogText("stream event error: %v %v", errorData.Code, errorData.Message))
+		logger.LogSystem(c, common.LogText("stream event error: %v %v", errorData.Code, errorData.Message))
 	}
 }
 

@@ -1,14 +1,21 @@
 package controller
 
 import (
+	"bytes"
+	"cmp"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/MoeForge/moego/ojson"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/ali"
 	"github.com/QuantumNous/new-api/relay/channel/cloudflare"
@@ -18,6 +25,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -99,7 +107,9 @@ func TestChannelTestOpenAIChatCompatibility(t *testing.T) {
 		{name: "o series", model: "o3-mini", upstream: "o3-mini", channelType: constant.ChannelTypeAzure, wantLimit: "max_completion_tokens"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			request, ok := buildTestRequest(tt.model, tt.endpoint, &model.Channel{}, tt.stream).(*dto.GeneralOpenAIRequest)
+			testRequest, err := buildTestRequest(tt.model, types.RelayFormatOpenAI, tt.endpoint != "", tt.stream, "")
+			require.NoError(t, err)
+			request, ok := testRequest.(*dto.GeneralOpenAIRequest)
 			require.True(t, ok)
 			encoded := convertChatCompatibilityRequest(t, request, tt.channelType, map[string]string{tt.model: tt.upstream})
 			want := map[string]any{
@@ -309,6 +319,322 @@ func TestCloudflareEmbeddingResponseCompatibility(t *testing.T) {
 			assert.Equal(t, http.StatusOK, w.Code)
 			assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
 			assert.JSONEq(t, tt.body, w.Body.String())
+		})
+	}
+}
+
+func TestChannelTestMessageRelay(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.AutoMigrate(&model.Log{}))
+	service.InitHttpClient()
+
+	user := model.User{Username: "channel-test-operator", Role: common.RoleAdminUser, Group: "default"}
+	user.SetSetting(dto.UserSetting{AcceptUnsetRatioModel: true})
+	require.NoError(t, db.Create(&user).Error)
+
+	oldDebug, oldMemoryCache, oldLogConsume := common.DebugEnabled, common.MemoryCacheEnabled, common.LogConsumeEnabled
+	oldTimeout := constant.StreamingTimeout
+	common.DebugEnabled, common.MemoryCacheEnabled, common.LogConsumeEnabled = true, false, true
+	constant.StreamingTimeout = 5
+	t.Cleanup(func() {
+		common.DebugEnabled, common.MemoryCacheEnabled, common.LogConsumeEnabled = oldDebug, oldMemoryCache, oldLogConsume
+		constant.StreamingTimeout = oldTimeout
+	})
+
+	engine := gin.New()
+	engine.Use(middleware.BodyStorageCleanup(), func(c *gin.Context) {
+		c.Set("id", user.Id)
+		c.Next()
+	})
+	engine.GET("/api/channel/test/:id", TestChannel)
+	engine.POST("/api/channel/test/:id", TestChannel)
+
+	const prompt = "  private-test-prompt \"雪\" 🐈\nnext line\t "
+	const chatResponse = `{"choices":[{"message":{"role":"assistant","content":"private-test-output"},"finish_reason":"stop"}],"usage":{"prompt_tokens":7,"completion_tokens":2,"total_tokens":9}}`
+	const responses = `{"object":"response","status":"completed","output":[],"usage":{"input_tokens":7,"output_tokens":2,"total_tokens":9}}`
+	const chatStreamResponse = "data: " + `{"id":"test","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"private-test-output"},"finish_reason":"stop"}],"usage":{"prompt_tokens":7,"completion_tokens":2,"total_tokens":9}}` + "\n\ndata: [DONE]\n\n"
+	for _, tc := range []struct {
+		name        string
+		channelType int
+		model       string
+		endpoint    constant.EndpointType
+		stream      bool
+		path        string
+		field       string
+		response    string
+		wantText    string
+		request     string
+		method      string
+		status      int
+		errContains string
+		message     string
+		promptUsage int
+	}{
+		{
+			name: "automatic chat", channelType: constant.ChannelTypeOpenAI, model: "gpt-4o-mini",
+			path: "/v1/chat/completions", field: "messages.0.content",
+			response: chatResponse,
+			wantText: prompt, promptUsage: 7,
+		},
+		{
+			name: "explicit chat stream", channelType: constant.ChannelTypeOpenAI, model: "gpt-4o-mini",
+			endpoint: constant.EndpointTypeOpenAI, stream: true,
+			path: "/v1/chat/completions", field: "messages.0.content",
+			response: chatStreamResponse,
+			wantText: prompt, promptUsage: 7,
+		},
+		{
+			name: "automatic responses", channelType: constant.ChannelTypeOpenAI, model: "gpt-5.1-codex",
+			path: "/v1/responses", field: "input.0.content",
+			response: responses,
+			wantText: prompt, promptUsage: 7,
+		},
+		{
+			name: "explicit responses", channelType: constant.ChannelTypeOpenAI, model: "gpt-4o-mini",
+			endpoint: constant.EndpointTypeOpenAIResponse,
+			path:     "/v1/responses", field: "input.0.content",
+			response: responses,
+			wantText: prompt, promptUsage: 7,
+		},
+		{
+			name: "compact", channelType: constant.ChannelTypeOpenAI, model: "gpt-4o-mini",
+			endpoint: constant.EndpointTypeOpenAIResponseCompact,
+			path:     "/v1/responses/compact", field: "input.0.content",
+			response: `{"object":"response.compaction","output":[],"usage":{"input_tokens":7,"output_tokens":2,"total_tokens":9}}`,
+			wantText: prompt, promptUsage: 7,
+		},
+		{
+			name: "claude", channelType: constant.ChannelTypeAnthropic, model: "claude-sonnet-4-5",
+			endpoint: constant.EndpointTypeAnthropic,
+			path:     "/v1/messages", field: "messages.0.content",
+			response: `{"id":"test","type":"message","role":"assistant","content":[{"type":"text","text":"private-test-output"}],"stop_reason":"end_turn","usage":{"input_tokens":7,"output_tokens":2}}`,
+			wantText: prompt, promptUsage: 7,
+		},
+		{
+			name: "gemini", channelType: constant.ChannelTypeGemini, model: "gemini-2.0-flash",
+			endpoint: constant.EndpointTypeGemini,
+			path:     "/v1beta/models/gemini-2.0-flash:generateContent", field: "contents.0.parts.0.text",
+			response: `{"candidates":[{"content":{"role":"model","parts":[{"text":"private-test-output"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":7,"candidatesTokenCount":2,"totalTokenCount":9}}`,
+			wantText: prompt, promptUsage: 7,
+		},
+		{
+			name: "automatic embedding", channelType: constant.ChannelTypeOpenAI, model: "text-embed-test",
+			path: "/v1/embeddings", field: "input.0",
+			response: `{"object":"list","data":[{"object":"embedding","embedding":[0.1],"index":0}],"usage":{"prompt_tokens":7,"total_tokens":7}}`,
+			wantText: "hello world", promptUsage: 7,
+		},
+		{
+			name: "image", channelType: constant.ChannelTypeOpenAI, model: "dall-e-3",
+			endpoint: constant.EndpointTypeImageGeneration,
+			path:     "/v1/images/generations", field: "prompt",
+			response: `{"data":[{"url":"https://image.example/test.png"}]}`,
+			wantText: "a cute cat",
+		},
+		{
+			name: "rerank", channelType: constant.ChannelTypeJina, model: "jina-reranker-v2-base-multilingual",
+			endpoint: constant.EndpointTypeJinaRerank,
+			path:     "/v1/rerank", field: "query",
+			response: `{"results":[{"index":0,"relevance_score":0.95}],"usage":{"total_tokens":9}}`,
+			wantText: "What is Deep Learning?",
+		},
+		{
+			name: "GET default", channelType: constant.ChannelTypeOpenAI, model: "gpt-4o-mini", method: http.MethodGet,
+			path: "/v1/chat/completions", field: "messages.0.content",
+			response: chatResponse,
+			wantText: "hi",
+		},
+		{
+			name: "empty POST options", channelType: constant.ChannelTypeOpenAI, model: "gpt-4o-mini",
+			request: `{}`,
+			path:    "/v1/chat/completions", field: "messages.0.content",
+			response: chatResponse,
+			wantText: "hi",
+		},
+		{
+			name: "whitespace default", channelType: constant.ChannelTypeOpenAI, model: "gpt-4o-mini",
+			request: `{"message":"  \n\u3000\t "}`,
+			path:    "/v1/chat/completions", field: "messages.0.content",
+			response: chatResponse,
+			wantText: "hi",
+		},
+		{
+			name: "4096 Unicode code points", channelType: constant.ChannelTypeOpenAI, model: "gpt-4o-mini",
+			path: "/v1/chat/completions", field: "messages.0.content",
+			response: chatResponse,
+			message:  strings.Repeat("🐈", 4096),
+			wantText: strings.Repeat("🐈", 4096),
+		},
+		{
+			name: "4097 Unicode code points", channelType: constant.ChannelTypeOpenAI, model: "gpt-4o-mini",
+			message:     strings.Repeat("🐈", 4097),
+			errContains: "Test message must be at most 4096 characters",
+		},
+		{
+			name: "unsupported channel", channelType: constant.ChannelTypeKling, model: "gpt-4o-mini",
+			errContains: "channel test is not supported", status: http.StatusInternalServerError,
+		},
+		{
+			name: "upstream 403", channelType: constant.ChannelTypeOpenAI, model: "gpt-4o-mini",
+			path: "/v1/chat/completions", field: "messages.0.content", status: http.StatusForbidden,
+			response:    `{"error":{"type":"test_error","message":"private-test-prompt private-test-output"}}`,
+			wantText:    prompt,
+			errContains: "bad response status code 403",
+		},
+		{
+			name: "upstream 403 without error field", channelType: constant.ChannelTypeOpenAI, model: "gpt-4o-mini",
+			path: "/v1/chat/completions", field: "messages.0.content", status: http.StatusForbidden,
+			response:    `{"echo":"private-test-prompt private-test-output"}`,
+			wantText:    prompt,
+			errContains: "bad response status code 403",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			type upstreamRequest struct {
+				path string
+				body []byte
+			}
+			upstreamRequests := make(chan upstreamRequest, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, err := io.ReadAll(r.Body)
+				assert.NoError(t, err)
+				select {
+				case upstreamRequests <- upstreamRequest{path: r.URL.Path, body: body}:
+				default:
+					t.Error("sent another request to the upstream")
+				}
+				contentType := "application/json"
+				if tc.stream {
+					contentType = "text/event-stream"
+				}
+				w.Header().Set("Content-Type", contentType)
+				w.WriteHeader(cmp.Or(tc.status, http.StatusOK))
+				_, _ = io.WriteString(w, tc.response)
+			}))
+			defer server.Close()
+
+			defaultModel := tc.model
+			if tc.request == "" && tc.method != http.MethodGet {
+				defaultModel = "gpt-4o-mini"
+			}
+			baseURL := server.URL
+			channel := model.Channel{
+				Type: tc.channelType, Name: tc.name, Key: "test-key", Models: defaultModel,
+				Group: "default", Status: common.ChannelStatusEnabled, BaseURL: &baseURL,
+			}
+			require.NoError(t, db.Create(&channel).Error)
+			path := fmt.Sprintf("/api/channel/test/%d", channel.Id)
+			method := cmp.Or(tc.method, http.MethodPost)
+			body := []byte(tc.request)
+			if method == http.MethodGet {
+				path += "?model=" + tc.model + "&message=ignored"
+			} else if tc.request == "" {
+				var err error
+				body, err = common.Marshal(channelTestRequest{
+					Model: tc.model, EndpointType: string(tc.endpoint), Stream: tc.stream, Message: cmp.Or(tc.message, prompt),
+				})
+				require.NoError(t, err)
+			}
+
+			logFile, err := os.CreateTemp(t.TempDir(), "relay-*.log")
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = logFile.Close() })
+			common.LogWriterMu.Lock()
+			prevWriter, prevErrWriter := gin.DefaultWriter, gin.DefaultErrorWriter
+			gin.DefaultWriter, gin.DefaultErrorWriter = logFile, logFile
+			common.LogWriterMu.Unlock()
+			t.Cleanup(func() {
+				common.LogWriterMu.Lock()
+				gin.DefaultWriter, gin.DefaultErrorWriter = prevWriter, prevErrWriter
+				common.LogWriterMu.Unlock()
+			})
+
+			request := httptest.NewRequest(method, path, bytes.NewReader(body))
+			request.Header.Set("Content-Type", "application/json")
+			recorder := httptest.NewRecorder()
+			engine.ServeHTTP(recorder, request)
+
+			require.Equal(t, http.StatusOK, recorder.Code)
+			var response struct {
+				Success   bool     `json:"success"`
+				Message   string   `json:"message"`
+				ErrorCode string   `json:"error_code"`
+				Time      *float64 `json:"time"`
+			}
+			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+			assert.NotNil(t, response.Time)
+			if tc.errContains == "" {
+				require.True(t, response.Success, response.Message)
+				assert.Empty(t, response.Message)
+				require.Eventually(t, func() bool {
+					var updated model.Channel
+					return db.First(&updated, channel.Id).Error == nil && updated.TestTime > 0
+				}, time.Second, time.Millisecond)
+			} else {
+				assert.False(t, response.Success)
+				assert.Contains(t, response.Message, tc.errContains)
+				if tc.status == http.StatusForbidden {
+					assert.Contains(t, response.Message, "private-test-prompt")
+					assert.NotEmpty(t, response.ErrorCode)
+				}
+			}
+			if tc.path == "" {
+				require.Empty(t, upstreamRequests)
+			} else {
+				require.Len(t, upstreamRequests, 1)
+				upstream := <-upstreamRequests
+				assert.Equal(t, tc.path, upstream.path)
+				assert.Equal(t, tc.wantText, ojson.GetBytes(upstream.body, tc.field).String())
+				if tc.stream {
+					assert.True(t, ojson.GetBytes(upstream.body, "stream").Bool())
+				}
+			}
+
+			if tc.promptUsage > 0 {
+				var usage model.Log
+				require.NoError(t, db.Where("channel_id = ?", channel.Id).First(&usage).Error)
+				assert.Equal(t, tc.promptUsage, usage.PromptTokens)
+			}
+			if method == http.MethodPost && tc.request == "" {
+				logs, err := os.ReadFile(logFile.Name())
+				require.NoError(t, err)
+				assert.NotContains(t, string(logs), cmp.Or(tc.message, "private-test-prompt"))
+				assert.NotContains(t, string(logs), "private-test-output")
+				if tc.path != "" || tc.status != 0 {
+					assert.Equal(t, 1, strings.Count(string(logs), "channel test completed"))
+					assert.Contains(t, string(logs), fmt.Sprintf("model=%q status=%d elapsed_ms=", tc.model, cmp.Or(tc.status, http.StatusOK)))
+				}
+
+			}
+		})
+	}
+}
+
+func TestChannelTestMessageRejectsMalformedBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(middleware.BodyStorageCleanup())
+	engine.POST("/api/channel/test/:id", TestChannel)
+	for _, tc := range []struct {
+		name string
+		body string
+		want string
+	}{
+		{name: "malformed JSON", body: `{"message": 1}`, want: "Invalid channel test request"},
+		{name: "multiple JSON values", body: `{}{}`, want: "Invalid channel test request"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, "/api/channel/test/invalidID", strings.NewReader(tc.body))
+			request.Header.Set("Content-Type", "application/json")
+			recorder := httptest.NewRecorder()
+			engine.ServeHTTP(recorder, request)
+			assert.Equal(t, http.StatusOK, recorder.Code)
+			var response struct {
+				Success bool   `json:"success"`
+				Message string `json:"message"`
+			}
+			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+			assert.False(t, response.Success)
+			assert.Contains(t, response.Message, tc.want)
 		})
 	}
 }
