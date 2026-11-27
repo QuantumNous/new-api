@@ -731,6 +731,12 @@ func TestGeminiStreamHandlerWithoutUsageMetadataEstimatesInlineOutput(t *testing
 			frames:               []string{geminiInlineFrame("IMAGE/PNG", "iVBORw0KGgo=")},
 			wantCompletionTokens: 1400,
 		},
+		{
+			// Payload-less image parts bill nothing.
+			name:                 "image chunk without payload",
+			frames:               []string{geminiInlineFrame("image/png", "")},
+			wantCompletionTokens: 0,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
@@ -795,12 +801,15 @@ func TestGeminiHandlersWithoutCompletionUsageEstimateInlineOutput(t *testing.T) 
 		{"image", []dto.GeminiPart{imagePart, imagePart}, 2 * 1400, 0},
 	} {
 		for _, metadata := range []struct {
-			name             string
-			usageMetadata    dto.GeminiUsageMetadata
-			wantPromptTokens int
+			name                 string
+			usageMetadata        dto.GeminiUsageMetadata
+			wantPromptTokens     int
+			overrideCompletion   int
+			hasUpstreamUsageComp bool
 		}{
-			{"prompt-only usage", dto.GeminiUsageMetadata{PromptTokenCount: 151, TotalTokenCount: 151}, 151},
-			{"no usage", dto.GeminiUsageMetadata{}, 20},
+			{"prompt-only usage", dto.GeminiUsageMetadata{PromptTokenCount: 151, TotalTokenCount: 151}, 151, 0, false},
+			{"no usage", dto.GeminiUsageMetadata{}, 20, 0, false},
+			{"upstream completion usage", dto.GeminiUsageMetadata{PromptTokenCount: 151, CandidatesTokenCount: 42, TotalTokenCount: 193}, 151, 42, true},
 		} {
 			payload := dto.GeminiChatResponse{
 				Candidates: []dto.GeminiChatCandidate{
@@ -842,15 +851,21 @@ func TestGeminiHandlersWithoutCompletionUsageEstimateInlineOutput(t *testing.T) 
 					}
 					require.Nil(t, newAPIError)
 					require.NotNil(t, usage)
+					wantCompletion := tc.wantCompletionTokens
+					wantAudio := tc.wantAudioTokens
+					if metadata.hasUpstreamUsageComp {
+						wantCompletion = metadata.overrideCompletion
+						wantAudio = 0
+					}
 					assert.Equal(t, metadata.wantPromptTokens, usage.PromptTokens)
-					assert.Equal(t, tc.wantCompletionTokens, usage.CompletionTokens)
+					assert.Equal(t, wantCompletion, usage.CompletionTokens)
 					assert.Equal(t, usage.PromptTokens+usage.CompletionTokens, usage.TotalTokens)
 					require.NotNil(t, usage.BillingUsage)
 					require.NotNil(t, usage.BillingUsage.GeminiUsageMetadata)
 					assert.Equal(t, usage.CompletionTokens, usage.BillingUsage.GeminiUsageMetadata.CandidatesTokenCount)
 					settled, ok := usage.BillingUsage.CanonicalUsage()
 					require.True(t, ok)
-					assert.Equal(t, tc.wantAudioTokens, settled.CompletionTokenDetails.AudioTokens)
+					assert.Equal(t, wantAudio, settled.CompletionTokenDetails.AudioTokens)
 				})
 			}
 		}
@@ -858,43 +873,60 @@ func TestGeminiHandlersWithoutCompletionUsageEstimateInlineOutput(t *testing.T) 
 }
 
 // Prompt-only usageMetadata that already lists an AUDIO candidate detail
-// without a candidate token count settles with the estimated audio once,
-// not with the upstream entry and the estimate added together.
+// without a candidate token count settles with the inline estimate once
+// (replacing it for audio, or clearing it when only images were estimated).
 func TestGeminiChatHandlerPromptOnlyUsageReplacesAudioCandidateDetail(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
-
-	info := &relaycommon.RelayInfo{
-		RelayFormat:     types.RelayFormatGemini,
-		OriginModelName: "gemini-3.8-flash",
-		ChannelMeta: &relaycommon.ChannelMeta{
-			UpstreamModelName: "gemini-3.8-flash",
-		},
-	}
 
 	audioPart := dto.GeminiPart{InlineData: &dto.GeminiInlineData{MimeType: "audio/l16; rate=24000; channels=1", Data: pcm100ms}}
-	payload := dto.GeminiChatResponse{
-		Candidates: []dto.GeminiChatCandidate{
-			{Content: dto.GeminiChatContent{Role: "model", Parts: []dto.GeminiPart{audioPart, audioPart, audioPart}}},
-		},
-		UsageMetadata: dto.GeminiUsageMetadata{
-			PromptTokenCount:        151,
-			TotalTokenCount:         151,
-			CandidatesTokensDetails: []dto.GeminiPromptTokensDetails{{Modality: "audio", TokenCount: 5}},
-		},
-	}
-	body, err := common.Marshal(payload)
-	require.NoError(t, err)
+	imagePart := dto.GeminiPart{InlineData: &dto.GeminiInlineData{MimeType: "image/png", Data: "iVBORw0KGgo="}}
 
-	usage, newAPIError := GeminiChatHandler(c, info, &http.Response{Body: io.NopCloser(bytes.NewReader(body))})
-	require.Nil(t, newAPIError)
-	require.NotNil(t, usage)
-	require.NotNil(t, usage.BillingUsage)
-	settled, ok := usage.BillingUsage.CanonicalUsage()
-	require.True(t, ok)
-	assert.Equal(t, 8, settled.CompletionTokens)
-	assert.Equal(t, 8, settled.CompletionTokenDetails.AudioTokens)
+	for _, tc := range []struct {
+		name                 string
+		parts                []dto.GeminiPart
+		wantCompletionTokens int
+		wantAudioTokens      int
+	}{
+		{"audio replaces stale detail", []dto.GeminiPart{audioPart, audioPart, audioPart}, 8, 8},
+		{"image clears stale audio detail", []dto.GeminiPart{imagePart}, 1400, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+			info := &relaycommon.RelayInfo{
+				RelayFormat:     types.RelayFormatGemini,
+				OriginModelName: "gemini-3.8-flash",
+				ChannelMeta: &relaycommon.ChannelMeta{
+					UpstreamModelName: "gemini-3.8-flash",
+				},
+			}
+
+			payload := dto.GeminiChatResponse{
+				Candidates: []dto.GeminiChatCandidate{
+					{Content: dto.GeminiChatContent{Role: "model", Parts: tc.parts}},
+				},
+				UsageMetadata: dto.GeminiUsageMetadata{
+					PromptTokenCount:        151,
+					TotalTokenCount:         151,
+					CandidatesTokensDetails: []dto.GeminiPromptTokensDetails{{Modality: "audio", TokenCount: 5}},
+				},
+			}
+			body, err := common.Marshal(payload)
+			require.NoError(t, err)
+
+			usage, newAPIError := GeminiChatHandler(c, info, &http.Response{Body: io.NopCloser(bytes.NewReader(body))})
+			require.Nil(t, newAPIError)
+			require.NotNil(t, usage)
+			assert.Equal(t, tc.wantCompletionTokens, usage.CompletionTokens)
+			assert.Equal(t, tc.wantAudioTokens, usage.CompletionTokenDetails.AudioTokens)
+			require.NotNil(t, usage.BillingUsage)
+			settled, ok := usage.BillingUsage.CanonicalUsage()
+			require.True(t, ok)
+			assert.Equal(t, tc.wantCompletionTokens, settled.CompletionTokens)
+			assert.Equal(t, tc.wantAudioTokens, settled.CompletionTokenDetails.AudioTokens)
+		})
+	}
 }
 
 // Google Search grounding records the unique trimmed non-empty queries
