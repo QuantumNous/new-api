@@ -150,6 +150,12 @@ func (l *InMemoryRateLimiter) touchEntry(key string, now time.Time) *rateLimitEn
 
 // Request parameter duration's unit is seconds
 func (l *InMemoryRateLimiter) Request(key string, maxRequestNum int, duration int64) bool {
+	return l.RequestRetryAfter(key, maxRequestNum, duration) == 0
+}
+
+// RequestRetryAfter records an admitted request, or returns a positive delay
+// in seconds until the next window expiry when the bucket is full.
+func (l *InMemoryRateLimiter) RequestRetryAfter(key string, maxRequestNum int, duration int64) int64 {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
@@ -157,12 +163,19 @@ func (l *InMemoryRateLimiter) Request(key string, maxRequestNum int, duration in
 	entry := l.touchEntry(key, now)
 	entry.requests.removeExpired(now.Unix(), duration)
 
-	allowed := entry.requests.length < maxRequestNum
-	if allowed {
-		entry.requests.append(now.Unix())
+	if entry.requests.length >= maxRequestNum {
+		return entry.requests.retryAfter(now.Unix(), duration)
 	}
+	entry.requests.append(now.Unix())
+	return 0
+}
 
-	return allowed
+// retryAfter assumes expired requests have already been removed.
+func (q *rateLimitQueue) retryAfter(now, duration int64) int64 {
+	if q.head == nil {
+		return 1
+	}
+	return max(1, duration-max(0, now-q.head.timestamp))
 }
 
 // RateLimitReservation counts an active request towards admission until its
@@ -176,17 +189,27 @@ type RateLimitReservation struct {
 // Reserve admits a request when the key's accepted requests plus its in-flight
 // reservations stay below maxRequests. It returns nil when the key is saturated.
 func (l *InMemoryRateLimiter) Reserve(key string, maxRequests int, duration int64) *RateLimitReservation {
+	reservation, _ := l.ReserveWithRetryAfter(key, maxRequests, duration)
+	return reservation
+}
+
+// ReserveWithRetryAfter also reports how soon to retry a rejected reservation.
+// If a failed in-flight request could free a slot, its finish time is unknown.
+func (l *InMemoryRateLimiter) ReserveWithRetryAfter(key string, maxRequests int, duration int64) (*RateLimitReservation, int64) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
 	now := time.Now()
 	entry := l.touchEntry(key, now)
 	entry.requests.removeExpired(now.Unix(), duration)
+	if entry.requests.length >= maxRequests {
+		return nil, entry.requests.retryAfter(now.Unix(), duration)
+	}
 	if entry.requests.length+l.reservations[key] >= maxRequests {
-		return nil
+		return nil, 1
 	}
 	l.reservations[key]++
-	return &RateLimitReservation{limiter: l, key: key}
+	return &RateLimitReservation{limiter: l, key: key}, 0
 }
 
 // Complete releases the reservation. A successful outcome records the request
