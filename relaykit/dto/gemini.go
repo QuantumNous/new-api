@@ -349,6 +349,9 @@ type GeminiPart struct {
 	FileData            *GeminiFileData                `json:"fileData,omitempty"`
 	ExecutableCode      *GeminiPartExecutableCode      `json:"executableCode,omitempty"`
 	CodeExecutionResult *GeminiPartCodeExecutionResult `json:"codeExecutionResult,omitempty"`
+	// textAbsent records that the part was decoded from JSON without a text
+	// member, so an unrecognized part is not re-marshaled as empty text.
+	textAbsent bool
 }
 
 // UnmarshalJSON accepts snake_case aliases for inline data and media processing.
@@ -357,6 +360,7 @@ func (p *GeminiPart) UnmarshalJSON(data []byte) error {
 	type Alias GeminiPart
 	var aux struct {
 		Alias
+		Text                 *string           `json:"text"`
 		InlineDataSnake      *GeminiInlineData `json:"inline_data,omitempty"`
 		MediaProcessingSnake json.RawMessage   `json:"media_processing,omitempty"`
 	}
@@ -367,6 +371,11 @@ func (p *GeminiPart) UnmarshalJSON(data []byte) error {
 
 	// Assign fields from alias
 	*p = GeminiPart(aux.Alias)
+	if aux.Text != nil {
+		p.Text = *aux.Text
+	} else {
+		p.textAbsent = true
+	}
 
 	// Prioritize snake_case for InlineData if present
 	if aux.InlineDataSnake != nil {
@@ -380,6 +389,24 @@ func (p *GeminiPart) UnmarshalJSON(data []byte) error {
 	// Other fields like Text, FunctionCall etc. are already populated via aux.Alias
 
 	return nil
+}
+
+// MarshalJSON keeps an empty "text" when it is the part's only data field,
+// unless the part was decoded without one. Gemini models Part.data as a proto
+// oneof, so {"text": ""} is a valid text part (models emit it as a closing
+// chunk, alone or with thoughtSignature), while omitempty would leave {} and
+// upstream rejects the request with "required oneof field 'data' must have
+// one initialized field".
+func (p GeminiPart) MarshalJSON() ([]byte, error) {
+	type partFields GeminiPart
+	if p.textAbsent || p.Text != "" || p.InlineData != nil || p.FunctionCall != nil || p.FunctionResponse != nil ||
+		p.FileData != nil || p.ExecutableCode != nil || p.CodeExecutionResult != nil {
+		return kitutil.Marshal(partFields(p))
+	}
+	return kitutil.Marshal(struct {
+		Text string `json:"text"`
+		partFields
+	}{partFields: partFields(p)})
 }
 
 type GeminiChatContent struct {
