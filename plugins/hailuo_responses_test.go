@@ -43,8 +43,9 @@ func TestHailuoResponsesProtocol(t *testing.T) {
 			"size":     "1920x1080",
 			"metadata": map[string]any{"first_frame_image": "https://cdn.example/frame.png"},
 		},
-		wantUsageKeys:  []string{"input_images", "input_video_seconds", "resolution", "seconds"},
-		wantVendorName: "hailuo",
+		wantUsageKeys:       []string{"characters", "input_images", "input_video_seconds", "resolution", "seconds"},
+		wantSubmitUsageKeys: []string{"input_images", "input_video_seconds", "resolution", "seconds"},
+		wantVendorName:      "hailuo",
 	})
 }
 
@@ -59,9 +60,21 @@ func TestHailuoUsageProfilesPerModel(t *testing.T) {
 		resolutions []string
 	}{
 		{
+			models: []string{
+				"speech-2.8-hd-async", "speech-2.8-turbo-async", "speech-2.6-hd-async",
+				"speech-2.6-turbo-async", "speech-02-hd-async", "speech-02-turbo-async",
+			},
+			fields: []string{"characters"},
+		},
+		{
 			models:      []string{"MiniMax-H3"},
 			fields:      []string{"input_images", "input_video_seconds", "resolution", "seconds"},
 			resolutions: []string{"768P", "2K"},
+		},
+		{
+			models:      []string{"MiniMax-H3-Max"},
+			fields:      []string{"input_images", "input_video_seconds", "resolution", "seconds"},
+			resolutions: []string{"480P", "768P"},
 		},
 		{
 			models:      []string{"MiniMax-Hailuo-2.3", "MiniMax-Hailuo-2.3-Fast"},
@@ -328,6 +341,78 @@ func TestHailuoH3BuildSubmitRequest(t *testing.T) {
 
 // Every MiniMax-H3 request bound is rejected before the upstream call, so an
 // out-of-range duration can never reach quota calculation as a billing fact.
+func hailuoH3MaxSubmitContext(requestBody map[string]any) map[string]any {
+	ctx := hailuoH3SubmitContext(requestBody)
+	ctx["model"] = "MiniMax-H3-Max"
+	ctx["upstreamModel"] = "MiniMax-H3-Max"
+	return ctx
+}
+
+// MiniMax-H3-Max shares the /v2 contract at its own 480P/768P resolutions
+// and a 5 to 15 second duration.
+func TestHailuoH3MaxBuildSubmitRequest(t *testing.T) {
+	plugin := loadHailuoPlugin(t)
+	testCases := []struct {
+		name       string
+		request    map[string]any
+		wantBody   string
+		wantAction string
+	}{
+		{
+			name:       "text to video defaults to 768P",
+			request:    map[string]any{"prompt": "a cat napping"},
+			wantBody:   `{"model":"MiniMax-H3-Max","content":[{"type":"text","text":"a cat napping"}],"resolution":"768P","duration":5,"ratio":"16:9"}`,
+			wantAction: "text_to_video",
+		},
+		{
+			name:       "480P resolution from size at the longest duration",
+			request:    map[string]any{"prompt": "p", "duration": 15, "size": "480P"},
+			wantBody:   `{"model":"MiniMax-H3-Max","content":[{"type":"text","text":"p"}],"resolution":"480P","duration":15,"ratio":"16:9"}`,
+			wantAction: "text_to_video",
+		},
+		{
+			name:    "frame images keep the multimodal content contract",
+			request: map[string]any{"prompt": "p", "images": []any{"first.png", "last.png"}},
+			wantBody: `{"model":"MiniMax-H3-Max","content":[
+				{"type":"text","text":"p"},
+				{"type":"image_url","role":"first_frame","image_url":{"url":"first.png"}},
+				{"type":"image_url","role":"last_frame","image_url":{"url":"last.png"}}],
+				"resolution":"768P","duration":5,"ratio":"adaptive"}`,
+			wantAction: "image_to_video",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			descriptor := callHailuoHook(t, plugin, "buildSubmitRequest", hailuoH3MaxSubmitContext(testCase.request))
+			assert.Equal(t, "https://api.minimax.example/v2/video_generation", descriptor["url"])
+			assert.Equal(t, "POST", descriptor["method"])
+			assert.Equal(t, testCase.wantAction, descriptor["action"])
+			body, err := common.Marshal(descriptor["body"])
+			require.NoError(t, err)
+			assert.JSONEq(t, testCase.wantBody, string(body))
+		})
+	}
+}
+
+func TestHailuoH3MaxRejectsOutOfContractRequests(t *testing.T) {
+	plugin := loadHailuoPlugin(t)
+	testCases := []struct {
+		name    string
+		request map[string]any
+		wantErr string
+	}{
+		{"H3's four second duration", map[string]any{"prompt": "p", "duration": 4}, "duration must be an integer between 5 and 15"},
+		{"duration above the maximum", map[string]any{"prompt": "p", "duration": 16}, "duration must be an integer between 5 and 15"},
+		{"2K belongs to MiniMax-H3 only", map[string]any{"prompt": "p", "size": "2K"}, "resolution must be 480P or 768P"},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, err := plugin.Engine.Call(t.Context(), "buildSubmitRequest", hailuoH3MaxSubmitContext(testCase.request))
+			require.ErrorContains(t, err, testCase.wantErr)
+		})
+	}
+}
+
 func TestHailuoH3RejectsOutOfContractRequests(t *testing.T) {
 	plugin := loadHailuoPlugin(t)
 	tenReferenceImages := make([]any, 0, 10)
@@ -432,6 +517,11 @@ func TestHailuoQueryRequestEndpointByModel(t *testing.T) {
 			want: "https://api.minimax.example/v2/query/video_generation/t1",
 		},
 		{
+			name: "H3-Max uses the v2 path parameter",
+			ctx:  map[string]any{"taskId": "t1", "upstreamModel": "MiniMax-H3-Max"},
+			want: "https://api.minimax.example/v2/query/video_generation/t1",
+		},
+		{
 			name: "legacy models keep the v1 query parameter",
 			ctx:  map[string]any{"taskId": "t1", "upstreamModel": "MiniMax-Hailuo-2.3"},
 			want: "https://api.minimax.example/v1/query/video_generation?task_id=t1",
@@ -529,6 +619,12 @@ func TestHailuoExtractUsageFacts(t *testing.T) {
 		{"legacy model", "MiniMax-Hailuo-2.3", map[string]any{"prompt": "p", "duration": 10}, map[string]any{
 			"seconds": float64(10), "resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0),
 		}},
+		{"H3-Max defaults", "MiniMax-H3-Max", map[string]any{"prompt": "p"}, map[string]any{
+			"seconds": float64(5), "resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0),
+		}},
+		{"H3-Max 480P", "MiniMax-H3-Max", map[string]any{"prompt": "p", "duration": 15, "size": "480P"}, map[string]any{
+			"seconds": float64(15), "resolution": "480P", "input_images": float64(0), "input_video_seconds": float64(0),
+		}},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -571,6 +667,21 @@ func TestHailuoH3CompletionUsageFacts(t *testing.T) {
 			name: "out of contract usage cannot become a billing multiplier",
 			body: `{"task":{"id":"1","status":"succeeded","resolution":"2K","usage":{"output_seconds":16,"input_seconds":16,"input_image_count":10}}}`,
 			want: map[string]any{"resolution": "2K"},
+		},
+		{
+			name: "H3-Max actual usage settles at 480P",
+			body: `{"task":{"id":"1","model":"MiniMax-H3-Max","status":"succeeded","resolution":"480P","usage":{"output_seconds":5,"input_seconds":0,"input_image_count":1}}}`,
+			want: map[string]any{"seconds": float64(5), "resolution": "480P", "input_images": float64(1), "input_video_seconds": float64(0)},
+		},
+		{
+			name: "H3-Max four second output stays out of settlement",
+			body: `{"task":{"id":"1","model":"MiniMax-H3-Max","status":"succeeded","resolution":"768P","usage":{"output_seconds":4,"input_seconds":0,"input_image_count":0}}}`,
+			want: map[string]any{"resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0)},
+		},
+		{
+			name: "H3-Max drops a resolution the model does not render",
+			body: `{"task":{"id":"1","model":"MiniMax-H3-Max","status":"succeeded","resolution":"2K"}}`,
+			want: nil,
 		},
 	}
 	for _, testCase := range testCases {
@@ -1016,4 +1127,268 @@ func TestHailuoNativeFileIDIsTheTaskAndRetrieveReturnsTheGatewayDownload(t *test
 	h3Status, err := call("h3TaskStatus", map[string]any{}, h3)
 	require.NoError(t, err)
 	assert.NotContains(t, h3Status, "file_id")
+}
+
+// A native /v2 body is sent as is for MiniMax to check; the plugin validates
+// the duration per model and reserves unreadable resolutions at the model's
+// dearest for the usage estimate.
+func TestHailuoH3MaxNativeBody(t *testing.T) {
+	plugin := loadHailuoPlugin(t)
+	t.Run("native body passes through", func(t *testing.T) {
+		body := map[string]any{"model": "MiniMax-H3-Max", "content": []any{
+			map[string]any{"type": "text", "text": "p"},
+		}, "duration": 5, "resolution": "480P", "ratio": "16:9"}
+		value, err := plugin.Engine.CallPath(t.Context(), "native", []string{"createH3Task"}, map[string]any{
+			"body": map[string]any{"kind": "json", "value": body},
+		})
+		require.NoError(t, err)
+		result, ok := value.(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "submit", result["kind"])
+		assert.Equal(t, "MiniMax-H3-Max", result["model"])
+		assert.Equal(t, "text_to_video", result["action"])
+		// The forwarded native body reaches the upstream unchanged.
+		driver := map[string]any{"requestBody": result["requestBody"], "model": "MiniMax-H3-Max", "upstreamModel": "MiniMax-H3-Max", "baseUrl": "https://api.minimax.example", "apiKey": "vendor-key"}
+		sent := callHailuoHook(t, plugin, "buildSubmitRequest", driver)
+		assert.Equal(t, "https://api.minimax.example/v2/video_generation", sent["url"])
+		wantBody := decodePluginValue(t, body)
+		assert.Equal(t, wantBody, sent["body"])
+	})
+	t.Run("native duration below the H3 minimum is rejected with the model named", func(t *testing.T) {
+		body := map[string]any{"model": "MiniMax-H3-Max", "content": []any{
+			map[string]any{"type": "text", "text": "p"},
+		}, "duration": 4, "resolution": "480P", "ratio": "16:9"}
+		_, err := plugin.Engine.CallPath(t.Context(), "native", []string{"createH3Task"}, map[string]any{
+			"body": map[string]any{"kind": "json", "value": body},
+		})
+		require.ErrorContains(t, err, "MiniMax-H3-Max duration must be an integer between 5 and 15")
+	})
+	t.Run("an unreadable native resolution is reserved at the model's dearest", func(t *testing.T) {
+		ctx := hailuoH3MaxSubmitContext(map[string]any{
+			"model": "MiniMax-H3-Max",
+			"vendorBody": map[string]any{"content": []any{map[string]any{"type": "text", "text": "p"}}, "duration": 5, "resolution": "2K"},
+		})
+		facts := callHailuoHook(t, plugin, "extractUsage", ctx)
+		assert.Equal(t, map[string]any{
+			"seconds": float64(5), "resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0),
+		}, facts)
+	})
+}
+
+// The async long-form T2A family: /v1/t2a_async_v2 submit with a task poll
+// on /v1/query/t2a_async_query_v2 and the audio behind the file id.
+func TestHailuoT2aAsync(t *testing.T) {
+	plugin := loadHailuoPlugin(t)
+	t2aCtx := func(requestBody map[string]any) map[string]any {
+		ctx := hailuoH3SubmitContext(requestBody)
+		ctx["model"] = "speech-2.8-turbo-async"
+		ctx["upstreamModel"] = "speech-2.8-turbo-async"
+		return ctx
+	}
+	t.Run("submit strips the async suffix from the upstream model", func(t *testing.T) {
+		descriptor := callHailuoHook(t, plugin, "buildSubmitRequest", t2aCtx(map[string]any{
+			"model": "speech-2.8-turbo-async", "prompt": "第一章", "voice": "male-qn-qingse",
+		}))
+		assert.Equal(t, "https://api.minimax.example/v1/t2a_async_v2", descriptor["url"])
+		assert.Equal(t, "text_to_speech", descriptor["action"])
+		body, err := common.Marshal(descriptor["body"])
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"model":"speech-2.8-turbo","text":"第一章","voice_setting":{"voice_id":"male-qn-qingse"}}`, string(body))
+	})
+	t.Run("metadata.t2a passes MiniMax fields through", func(t *testing.T) {
+		descriptor := callHailuoHook(t, plugin, "buildSubmitRequest", t2aCtx(map[string]any{
+			"model": "speech-2.8-turbo-async",
+			"metadata": map[string]any{"t2a": map[string]any{
+				"text_file_id": 12345, "audio_setting": map[string]any{"format": "mp3"},
+			}},
+		}))
+		body, err := common.Marshal(descriptor["body"])
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"model":"speech-2.8-turbo","text_file_id":12345,"audio_setting":{"format":"mp3"},"voice_setting":{"voice_id":"male-qn-qingse"}}`, string(body))
+	})
+	t.Run("a native body goes out as is", func(t *testing.T) {
+		native := map[string]any{"model": "speech-2.8-turbo-async", "text": "原生", "voice_setting": map[string]any{"voice_id": "Calm_Woman"}}
+		value, err := plugin.Engine.CallPath(t.Context(), "native", []string{"createT2aAsyncTask"}, map[string]any{
+			"body": map[string]any{"kind": "json", "value": native},
+		})
+		require.NoError(t, err)
+		result, ok := value.(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "text_to_speech", result["action"])
+		// The forwarded body carries the upstream model name.
+		sent := callHailuoHook(t, plugin, "buildSubmitRequest", map[string]any{
+			"requestBody": result["requestBody"], "model": "speech-2.8-turbo-async", "upstreamModel": "speech-2.8-turbo-async",
+			"baseUrl": "https://api.minimax.example", "apiKey": "vendor-key",
+		})
+		assert.Equal(t, "https://api.minimax.example/v1/t2a_async_v2", sent["url"])
+		wantBody := decodePluginValue(t, native)
+		wantBody["model"] = "speech-2.8-turbo"
+		assert.Equal(t, wantBody, sent["body"])
+	})
+	t.Run("text or text_file_id is required", func(t *testing.T) {
+		_, err := plugin.Engine.Call(t.Context(), "buildSubmitRequest", t2aCtx(map[string]any{"model": "speech-2.8-turbo-async"}))
+		require.ErrorContains(t, err, "text or text_file_id is required")
+	})
+	t.Run("usage estimates characters with CJK doubling", func(t *testing.T) {
+		facts := callHailuoHook(t, plugin, "extractUsage", t2aCtx(map[string]any{"model": "speech-2.8-turbo-async", "prompt": "你好abc"}))
+		assert.Equal(t, map[string]any{"characters": float64(4)}, facts)
+	})
+	t.Run("query hits the t2a_async poll path", func(t *testing.T) {
+		descriptor := callHailuoHook(t, plugin, "buildQueryRequest", map[string]any{
+			"taskId": "t1", "upstreamModel": "speech-2.8-turbo-async", "baseUrl": "https://api.minimax.example", "apiKey": "k",
+		})
+		assert.Equal(t, "https://api.minimax.example/v1/query/t2a_async_query_v2?task_id=t1", descriptor["url"])
+	})
+	t.Run("statuses map and success reports the file id", func(t *testing.T) {
+		t2aQueryCtx := map[string]any{"upstreamModel": "speech-2.8-turbo-async"}
+		var body any
+		require.NoError(t, common.UnmarshalJsonStr(`{"status":"Processing","task_id":"t1","file_id":"t1"}`, &body))
+		result := callHailuoHook(t, plugin, "parseTaskResult", t2aQueryCtx, body)
+		assert.Equal(t, "IN_PROGRESS", result["status"])
+		require.NoError(t, common.UnmarshalJsonStr(`{"status":"Success","task_id":"t1","file_id":"f9","base_resp":{"status_code":0}}`, &body))
+		result = callHailuoHook(t, plugin, "parseTaskResult", t2aQueryCtx, body)
+		assert.Equal(t, "SUCCESS", result["status"])
+		assert.Equal(t, "f9", result["file_id"])
+		require.NoError(t, common.UnmarshalJsonStr(`{"status":"Fail","task_id":"t1","file_id":"t1","base_resp":{"status_code":0,"status_msg":"audio failed"}}`, &body))
+		result = callHailuoHook(t, plugin, "parseTaskResult", t2aQueryCtx, body)
+		assert.Equal(t, "FAILURE", result["status"])
+		assert.Contains(t, result["reason"], "audio failed")
+	})
+	t.Run("the audio artifact downloads under the file id", func(t *testing.T) {
+		task := &model.Task{TaskID: "t1", Status: model.TaskStatusSuccess, Action: "text_to_speech"}
+		data, err := common.Marshal(map[string]any{"file_id": "f9"})
+		require.NoError(t, err)
+		task.Data = data
+		artifacts, err := taskplugin.New(plugin).ListArtifacts(task)
+		require.NoError(t, err)
+		assert.Equal(t, []channel.TaskArtifact{{Key: "audio", Type: "audio", MimeType: "audio/mpeg"}}, artifacts)
+	})
+}
+
+// Every declared model must select a usage profile; the async family bills
+// characters.
+func TestHailuoT2aAsyncUsageProfile(t *testing.T) {
+	plugin := loadHailuoPlugin(t)
+	schema, examples := plugin.Meta.UsageForModel("speech-2.8-turbo-async")
+	assert.Equal(t, []string{"characters"}, slices.Sorted(maps.Keys(schema)))
+	assert.NotEmpty(t, examples)
+}
+
+// The async T2A create answers a numeric task_id; the host persists task ids
+// as strings.
+func TestHailuoT2aAsyncNumericTaskID(t *testing.T) {
+	plugin := loadHailuoPlugin(t)
+	ctx := map[string]any{"upstreamModel": "speech-2.8-turbo-async"}
+	value := callHailuoHook(t, plugin, "parseSubmitResponse", ctx, map[string]any{
+		"body": map[string]any{"task_id": 465314564125293, "task_token": "jwt", "base_resp": map[string]any{"status_code": 0}},
+	})
+	assert.Equal(t, "465314564125293", value["taskId"])
+}
+
+// The review round fixes: the selected model wins over metadata.t2a.model,
+// gateway requests keep the async alias, file-only submissions reserve the
+// documented maximum, envelope errors fail a task whatever the status says,
+// and the decoded voice reaches the request.
+func TestHailuoT2aAsyncReviewFixes(t *testing.T) {
+	plugin := loadHailuoPlugin(t)
+	t2aCtx := func(requestBody map[string]any) map[string]any {
+		ctx := hailuoH3SubmitContext(requestBody)
+		ctx["model"] = "speech-2.8-turbo-async"
+		ctx["upstreamModel"] = "speech-2.8-turbo-async"
+		return ctx
+	}
+	t.Run("metadata.t2a.model cannot redirect the selected model", func(t *testing.T) {
+		descriptor := callHailuoHook(t, plugin, "buildSubmitRequest", t2aCtx(map[string]any{
+			"model": "speech-2.8-turbo-async", "prompt": "p",
+			"metadata": map[string]any{"t2a": map[string]any{"model": "speech-2.8-hd"}},
+		}))
+		body, err := common.Marshal(descriptor["body"])
+		require.NoError(t, err)
+		var decoded map[string]any
+		require.NoError(t, common.Unmarshal(body, &decoded))
+		assert.Equal(t, "speech-2.8-turbo", decoded["model"])
+	})
+	t.Run("a gateway request keeps the async alias", func(t *testing.T) {
+		ctx := t2aCtx(map[string]any{"model": "speech-2.8-turbo-async", "prompt": "p"})
+		ctx["upstream"] = map[string]any{"kind": "new_api"}
+		descriptor := callHailuoHook(t, plugin, "buildSubmitRequest", ctx)
+		assert.Equal(t, "https://api.minimax.example/hailuo/v1/t2a_async_v2", descriptor["url"])
+		body, err := common.Marshal(descriptor["body"])
+		require.NoError(t, err)
+		var decoded map[string]any
+		require.NoError(t, common.Unmarshal(body, &decoded))
+		assert.Equal(t, "speech-2.8-turbo-async", decoded["model"])
+	})
+	t.Run("a file-only submission reserves the documented maximum", func(t *testing.T) {
+		facts := callHailuoHook(t, plugin, "extractUsage", t2aCtx(map[string]any{
+			"model": "speech-2.8-turbo-async",
+			"metadata": map[string]any{"t2a": map[string]any{"text_file_id": 12345}},
+		}))
+		assert.Equal(t, map[string]any{"characters": float64(50000)}, facts)
+	})
+	t.Run("the completion hook settles with the reported usage characters", func(t *testing.T) {
+		facts := callHailuoHook(t, plugin, "extractUsageOnComplete", nil, nil, map[string]any{
+			"status": "Success", "usage_characters": 52,
+		})
+		assert.Equal(t, map[string]any{"characters": float64(26)}, facts)
+	})
+	t.Run("an envelope error fails the task whatever the status says", func(t *testing.T) {
+		var body any
+		require.NoError(t, common.UnmarshalJsonStr(
+			`{"status":"Success","file_id":"f9","base_resp":{"status_code":1001,"status_msg":"internal error"}}`, &body))
+		result := callHailuoHook(t, plugin, "parseTaskResult", map[string]any{"upstreamModel": "speech-2.8-turbo-async"}, body)
+		assert.Equal(t, "FAILURE", result["status"])
+		assert.Contains(t, result["reason"], "internal error")
+	})
+	t.Run("metadata.voice reaches the speech request", func(t *testing.T) {
+		descriptor := callHailuoHook(t, plugin, "buildSubmitRequest", t2aCtx(map[string]any{
+			"model": "speech-2.8-turbo-async", "prompt": "p",
+			"metadata": map[string]any{"voice": "Calm_Woman"},
+		}))
+		body, err := common.Marshal(descriptor["body"])
+		require.NoError(t, err)
+		var decoded map[string]any
+		require.NoError(t, common.Unmarshal(body, &decoded))
+		voiceSetting, ok := decoded["voice_setting"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "Calm_Woman", voiceSetting["voice_id"])
+	})
+}
+
+// The persisted upstream model decides the H3 duration minimum: a query
+// response without its own model falls back to the task's properties, so an
+// H3-Max completion of 4 seconds cannot settle below the 5-second
+// reservation.
+func TestHailuoH3MaxCompletionWithoutResponseModel(t *testing.T) {
+	plugin := loadHailuoPlugin(t)
+	task := map[string]any{
+		"properties": map[string]any{"upstream_model_name": "MiniMax-H3-Max"},
+		"model":      "MiniMax-H3-Max",
+	}
+	facts := callHailuoHook(t, plugin, "extractUsageOnComplete", task, nil, map[string]any{
+		"task": map[string]any{"id": "1", "status": "succeeded", "resolution": "768P", "usage": map[string]any{
+			"output_seconds": 4, "input_seconds": 0, "input_image_count": 0,
+		}},
+	})
+	// 4 seconds is below the H3-Max minimum, so it stays out of settlement.
+	assert.Equal(t, map[string]any{"resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0)}, facts)
+	facts = callHailuoHook(t, plugin, "extractUsageOnComplete", task, nil, map[string]any{
+		"task": map[string]any{"id": "1", "status": "succeeded", "resolution": "768P", "usage": map[string]any{
+			"output_seconds": 5, "input_seconds": 0, "input_image_count": 0,
+		}},
+	})
+	assert.Equal(t, map[string]any{"seconds": float64(5), "resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0)}, facts)
+}
+
+
+// A legacy /v1 video response also carries a status and a file_id; the async
+// T2A branch keys on the task's model, so the legacy parse path is unchanged.
+func TestHailuoLegacyResponseWithFileIDNotSwallowed(t *testing.T) {
+	plugin := loadHailuoPlugin(t)
+	var body any
+	require.NoError(t, common.UnmarshalJsonStr(
+		`{"status":"Success","file_id":"t1","task_id":"t1","base_resp":{"status_code":0}}`, &body))
+	result := callHailuoHook(t, plugin, "parseTaskResult", map[string]any{"upstreamModel": "MiniMax-Hailuo-2.3"}, body)
+	assert.Equal(t, "SUCCESS", result["status"])
+	assert.Empty(t, result["file_id"])
 }

@@ -36,4 +36,13 @@ var builtinBillingExpr = map[string]string{
 	// requests each, the same pricing page. The calls carry no tokens.
 	constant.DeepSeekSearchModel: `tier("request", fixed(0.00075))`,
 	constant.DeepSeekFetchModel:  `tier("request", fixed(0.00075))`,
+	// MiniMax H3 video bills per output second at the output resolution; the
+	// H3 family bills input video per input second at its output price while
+	// H3-Max has its own input prices, and input images bill beyond a free
+	// allowance (H3: 5 images, H3-Max: 2). Audio input is free.
+	// https://platform.minimax.io/docs/pricing/overview (Video, 2026-11-20).
+	"MiniMax-H3": `u("resolution") == "2K" ? tier("2k", (u("seconds") + u("input_video_seconds")) * 0.13 + (u("input_images") > 5 ? (u("input_images") - 5) * 0.04 : 0)) : tier("768p", (u("seconds") + u("input_video_seconds")) * 0.08 + (u("input_images") > 5 ? (u("input_images") - 5) * 0.04 : 0))`,
+	// H3-Max: output $0.08/s at 768P and $0.05/s at 480P, input video $0.143/s
+	// and $0.0553/s, input images $0.074 beyond the first 2.
+	"MiniMax-H3-Max": `u("resolution") == "768P" ? tier("768p", u("seconds") * 0.08 + u("input_video_seconds") * 0.143 + (u("input_images") > 2 ? (u("input_images") - 2) * 0.074 : 0)) : tier("480p", u("seconds") * 0.05 + u("input_video_seconds") * 0.0553 + (u("input_images") > 2 ? (u("input_images") - 2) * 0.074 : 0))`,
 }
