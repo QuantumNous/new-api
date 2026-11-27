@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -192,6 +193,27 @@ func FlushWriter(c *gin.Context) (err error) {
 
 func requestContextDone(c *gin.Context) bool {
 	return c != nil && c.Request != nil && c.Request.Context().Err() != nil
+}
+
+// ClientRequestCanceled reports whether the downstream HTTP request context was canceled.
+func ClientRequestCanceled(c *gin.Context) bool {
+	return c != nil && c.Request != nil && c.Request.Context() != nil && errors.Is(c.Request.Context().Err(), context.Canceled)
+}
+
+// ReadResponseBody reads a non-streaming upstream response body and maps
+// client cancellations to a non-retryable 499 request_cancelled error.
+func ReadResponseBody(c *gin.Context, resp *http.Response, readErrCode types.ErrorCode) ([]byte, *types.NewAPIError) {
+	if resp == nil || resp.Body == nil {
+		return nil, types.NewOpenAIError(errors.New("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+	responseBody, err := io.ReadAll(resp.Body)
+	if err == nil {
+		return responseBody, nil
+	}
+	if ClientRequestCanceled(c) {
+		return nil, types.NewError(err, types.ErrorCodeRequestCancelled, types.ErrOptionWithStatusCode(499), types.ErrOptionWithSkipRetry(), types.ErrOptionWithHideErrMsg("client closed request"))
+	}
+	return nil, types.NewOpenAIError(err, readErrCode, http.StatusInternalServerError)
 }
 
 func SetEventStreamHeaders(c *gin.Context) {

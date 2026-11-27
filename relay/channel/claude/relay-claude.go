@@ -3,7 +3,6 @@ package claude
 import (
 	"cmp"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 
@@ -448,9 +447,9 @@ func ClaudeHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayI
 		ResponseText: strings.Builder{},
 		Usage:        &dto.Usage{},
 	}
-	responseBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+	responseBody, apiErr := helper.ReadResponseBody(c, resp, types.ErrorCodeBadResponseBody)
+	if apiErr != nil {
+		return nil, apiErr
 	}
 	logger.LogDebug(c, "responseBody: %s", responseBody)
 	handleErr := HandleClaudeResponseData(c, info, claudeInfo, resp, responseBody)

@@ -18,6 +18,7 @@ import (
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/relay"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relaytypes "github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -655,6 +656,16 @@ export function buildQueryRequest(){throw new Error("completed submissions must 
 func TestAcceptedSubmitStreamNeverRetries(t *testing.T) {
 	c := taskSubmissionTestContext()
 	assert.Equal(t, service.PolicyDecision{Action: "stop", Reason: "task_accepted", Source: "system"}, decideTaskRetry(c, &dto.TaskError{StatusCode: 502, LocalError: true, NoRetry: true}, 3))
+}
+
+func TestCancelledTaskSubmitNeverRetries(t *testing.T) {
+	c := taskSubmissionTestContext()
+	assert.Equal(t, service.PolicyDecision{Action: "stop", Reason: "client_cancelled", Source: "client"}, decideTaskRetry(c, &dto.TaskError{Code: string(relaytypes.ErrorCodeRequestCancelled), StatusCode: 499, LocalError: true}, 3))
+
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", nil).WithContext(canceledCtx)
+	assert.Equal(t, service.PolicyDecision{Action: "stop", Reason: "client_cancelled", Source: "client"}, decideTaskRetry(c, &dto.TaskError{StatusCode: 500}, 3))
 }
 
 // Local task rejections carry a message but no cause; the response and the

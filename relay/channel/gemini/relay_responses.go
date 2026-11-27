@@ -3,7 +3,6 @@ package gemini
 import (
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/MoeForge/moego/ojson"
@@ -22,9 +21,9 @@ import (
 func GeminiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
-	responseBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	responseBody, apiErr := helper.ReadResponseBody(c, resp, types.ErrorCodeBadResponseBody)
+	if apiErr != nil {
+		return nil, apiErr
 	}
 	logger.LogDebug(c, "Gemini responses response body: %s", responseBody)
 

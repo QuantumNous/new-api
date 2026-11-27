@@ -2,7 +2,6 @@ package openai
 
 import (
 	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/QuantumNous/new-api/common"
@@ -23,11 +22,11 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 
 	// read response body
 	var responsesResponse dto.OpenAIResponsesResponse
-	responseBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
+	responseBody, apiErr := helper.ReadResponseBody(c, resp, types.ErrorCodeReadResponseBodyFailed)
+	if apiErr != nil {
+		return nil, apiErr
 	}
-	err = common.Unmarshal(responseBody, &responsesResponse)
+	err := common.Unmarshal(responseBody, &responsesResponse)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
