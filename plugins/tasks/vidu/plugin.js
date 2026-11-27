@@ -427,7 +427,7 @@ export function parseTaskResult(ctx, body) {
   const statuses = { created: "SUBMITTED", queueing: "SUBMITTED", processing: "IN_PROGRESS", success: "SUCCESS", failed: "FAILURE" };
   const status = statuses[body.state];
   if (!status) return { status: "UNKNOWN", reason: "unknown task state: " + String(body.state || "") };
-  const url = body.creations && body.creations.length ? body.creations[0].url || "" : "";
+  const url = body.creations && body.creations.length ? body.creations[0].watermarked_url || body.creations[0].url || "" : "";
   const result = { status: status, reason: body.state === "failed" ? body.err_code || "" : "" };
   if (url) result.url = url;
   return result;
@@ -441,7 +441,7 @@ function artifactData(ctx) {
 
 function artifactVideoURL(ctx) {
   const creations = artifactData(ctx).creations;
-  return Array.isArray(creations) && creations.length ? String(creations[0].url || "").trim() : "";
+  return Array.isArray(creations) && creations.length ? String(creations[0].watermarked_url || creations[0].url || "").trim() : "";
 }
 
 export function listArtifacts(task) {
