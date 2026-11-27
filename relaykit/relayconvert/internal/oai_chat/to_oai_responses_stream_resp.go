@@ -437,7 +437,7 @@ func (s *ChatToResponsesStreamState) startText() []ChatToResponsesStreamEvent {
 		events := s.finishReasoning(s.outputStatus())
 		s.textStarted = true
 		s.textOutputIndex = s.nextIndex(chatToResponsesOutputRef{Kind: "message", Segment: s.textSegment})
-		return append(events, s.event(responsesEventOutputItemAdded, dto.ResponsesStreamResponse{
+		events = append(events, s.event(responsesEventOutputItemAdded, dto.ResponsesStreamResponse{
 			Type:        responsesEventOutputItemAdded,
 			OutputIndex: intPtr(s.textOutputIndex),
 			Item: &dto.ResponsesOutput{
@@ -448,6 +448,17 @@ func (s *ChatToResponsesStreamState) startText() []ChatToResponsesStreamEvent {
 				Content: []dto.ResponsesOutputContent{},
 			},
 		}))
+		if s.EmitSequenceNumber {
+			// The output_text part the deltas append to is announced first.
+			events = append(events, s.event(responsesEventContentPartAdded, dto.ResponsesStreamResponse{
+				Type:         responsesEventContentPartAdded,
+				OutputIndex:  intPtr(s.textOutputIndex),
+				ContentIndex: intPtr(0),
+				ItemID:       s.messageID(),
+				Part:         &dto.ResponsesReasoningSummaryPart{Type: "output_text"},
+			}))
+		}
+		return events
 	}
 	return nil
 }
@@ -632,6 +643,16 @@ func (s *ChatToResponsesStreamState) finishText(status string) []ChatToResponses
 	}
 	events := []ChatToResponsesStreamEvent{s.event("response.output_text.done", textDone)}
 	closedMessage := s.messageOutput(status)
+	if s.EmitSequenceNumber {
+		part := closedMessage.Content[0]
+		events = append(events, s.event(responsesEventContentPartDone, dto.ResponsesStreamResponse{
+			Type:         responsesEventContentPartDone,
+			OutputIndex:  intPtr(s.textOutputIndex),
+			ContentIndex: intPtr(0),
+			ItemID:       s.messageID(),
+			Part:         &dto.ResponsesReasoningSummaryPart{Type: part.Type, Text: part.Text, Annotations: part.Annotations},
+		}))
+	}
 	events = append(events, s.event(responsesEventOutputItemDone, dto.ResponsesStreamResponse{
 		Type:        responsesEventOutputItemDone,
 		OutputIndex: intPtr(s.textOutputIndex),

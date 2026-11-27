@@ -275,6 +275,41 @@ func TestChatCompletionsStreamToResponsesEmitsReasoningSummaryPartLifecycle(t *t
 	assert.Equal(t, dto.ResponsesReasoningSummaryPart{Type: "summary_text", Text: "think"}, *partDone.Part)
 }
 
+// SDK stream accumulators append output_text deltas to the content part that
+// response.content_part.added announced, so the part lifecycle wraps the text.
+func TestChatCompletionsStreamToResponsesEmitsOutputTextPartLifecycle(t *testing.T) {
+	state := NewChatToResponsesStreamState("resp_1", "gpt-test")
+	state.EmitSequenceNumber = true
+	stop := "stop"
+
+	var events []ChatToResponsesStreamEvent
+	events = append(events, mustResponsesEventsFromChatChunk(t, state, &dto.ChatCompletionsStreamResponse{
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{
+			Delta:        dto.ChatCompletionsStreamResponseChoiceDelta{Content: lo.ToPtr("answer")},
+			FinishReason: &stop,
+		}},
+	})...)
+	events = append(events, FinalizeChatCompletionsStreamToResponses(state)...)
+
+	assert.Equal(t, []string{
+		responsesEventCreated,
+		responsesEventOutputItemAdded,
+		responsesEventContentPartAdded,
+		responsesEventOutputTextDelta,
+		"response.output_text.done",
+		responsesEventContentPartDone,
+		responsesEventOutputItemDone,
+		responsesEventCompleted,
+	}, responsesEventTypes(events))
+
+	partAdded, err := kitutil.Marshal(events[2].Payload)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"type":"response.content_part.added","sequence_number":2,"output_index":0,"content_index":0,"item_id":"resp_1_msg_0","part":{"type":"output_text","text":"","annotations":[]}}`, string(partAdded))
+	partDone, err := kitutil.Marshal(events[5].Payload)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"type":"response.content_part.done","sequence_number":5,"output_index":0,"content_index":0,"item_id":"resp_1_msg_0","part":{"type":"output_text","text":"answer","annotations":[]}}`, string(partDone))
+}
+
 func TestChatCompletionsStreamToResponsesReopensItemsAfterMidStreamFinishReason(t *testing.T) {
 	for _, emitSequenceNumber := range []bool{false, true} {
 		t.Run(map[bool]string{false: "legacy", true: "sequence_numbers"}[emitSequenceNumber], func(t *testing.T) {
