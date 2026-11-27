@@ -47,6 +47,18 @@ func GetGroupEnabledModels(group string) []string {
 	return models
 }
 
+// IsModelConfiguredForGroups checks enabled and disabled channel abilities for
+// the requested model and its routing name.
+func IsModelConfiguredForGroups(groups []string, modelName string) (bool, error) {
+	names := []string{modelName}
+	if normalized := ratio_setting.RoutingMatchModelName(modelName); normalized != "" && normalized != modelName {
+		names = append(names, normalized)
+	}
+	var ability Ability
+	result := DB.Select("channel_id").Where(map[string]any{"group": groups, "model": names}).Limit(1).Find(&ability)
+	return result.RowsAffected > 0, result.Error
+}
+
 func GetEnabledModels() []string {
 	var models []string
 	// Find distinct models

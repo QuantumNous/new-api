@@ -122,7 +122,7 @@ func Distribute() func(c *gin.Context) {
 				}
 				message := selectErr.Message
 				if selectErr.NoAvailableChannel {
-					message = noAvailableChannelMessage(c, usingGroup, modelRequest.Model)
+					message = noAvailableChannelMessage(c, usingGroup, modelRequest.Model, selectErr.MessageID)
 				} else if selectErr.MessageID != "" {
 					message = i18n.T(c, selectErr.MessageID, selectErr.Params)
 				}
@@ -139,10 +139,9 @@ func Distribute() func(c *gin.Context) {
 	}
 }
 
-// noAvailableChannelMessage explains a 503 for a task-plugin-claimed model.
-// The response tells the caller the model is plugin-claimed without naming the
-// plugin; the candidate plugin keys go to the server log under the request id.
-func noAvailableChannelMessage(c *gin.Context, group, modelName string) string {
+// noAvailableChannelMessage logs candidate plugin keys under the request ID.
+// A 503 also tells the caller when a task plugin claims the model.
+func noAvailableChannelMessage(c *gin.Context, group, modelName, messageID string) string {
 	value, exists := c.Get(jsplugin.ContextKeyPinnedPlugin)
 	pinned, ok := value.(jsplugin.PinnedPlugin)
 	if exists && ok && pinned.Plugin != nil {
@@ -156,9 +155,11 @@ func noAvailableChannelMessage(c *gin.Context, group, modelName string) string {
 			}
 		}
 		logger.LogWarn(c, common.LogText("task_plugin subsystem=distribution event=no_available_channel group=%q model=%q plugins=%q reason=no_eligible_channel", group, modelName, strings.Join(keys, ",")))
-		return i18n.T(c, i18n.MsgDistributorNoAvailableChannelTaskPlugin, map[string]any{"Group": group, "Model": modelName})
+		if messageID == i18n.MsgDistributorNoAvailableChannel {
+			messageID = i18n.MsgDistributorNoAvailableChannelTaskPlugin
+		}
 	}
-	return i18n.T(c, i18n.MsgDistributorNoAvailableChannel, map[string]any{"Group": group, "Model": modelName})
+	return i18n.T(c, messageID, map[string]any{"Group": group, "Model": modelName})
 }
 
 func channelMatchesExpectedTaskPlugin(c *gin.Context, channel *model.Channel, expected string) bool {

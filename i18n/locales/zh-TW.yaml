@@ -24,6 +24,7 @@ distributor.model_name_required: "未指定模型名稱，模型名稱不能為�
 distributor.invalid_playground_request: "無效的playground請求，{{.Error}}"
 distributor.group_access_denied: "無權存取該分組"
 distributor.get_channel_failed: "獲取分組 {{.Group}} 下模型 {{.Model}} 的可用管道失敗（distributor）：{{.Error}}"
+distributor.model_not_found: "目前請求可用的分組中未設定模型 {{.Model}}"
 distributor.no_available_channel: "分組 {{.Group}} 下模型 {{.Model}} 無可用管道（distributor）"
 distributor.no_available_channel_task_plugin: "分組 {{.Group}} 下模型 {{.Model}} 無可用管道：該模型由任務插件認領，但目前沒有啟用的管道可服務此模型（distributor）"
 distributor.invalid_request_parse_model: "無法解析模型"
