@@ -204,6 +204,15 @@ func refreshTieredBillingGroup(relayInfo *relaycommon.RelayInfo) (*billingexpr.B
 // estimate before sending. If the initial group was free and skipped
 // pre-consume, switching to a paid group creates the session at that point.
 func PrepareTieredBillingForSelectedGroup(c *gin.Context, relayInfo *relaycommon.RelayInfo) *types.NewAPIError {
+	// Retry preparation reserves on the existing session directly, so the
+	// group guard must run here too, before any snapshot refresh or reserve.
+	if relayInfo != nil && relayInfo.Billing != nil {
+		if session, ok := relayInfo.Billing.(*BillingSession); ok {
+			if err := session.EnsureSubscriptionGroupEligible(relayInfo.UsingGroup); err != nil {
+				return types.NewErrorWithStatusCode(err, types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry())
+			}
+		}
+	}
 	snap, err := refreshTieredBillingGroup(relayInfo)
 	if err != nil {
 		return types.NewErrorWithStatusCode(

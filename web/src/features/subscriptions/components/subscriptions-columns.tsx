@@ -194,6 +194,40 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         size: 120,
       },
       {
+        id: 'quota_usable_groups',
+        header: t('Quota Usable Groups'),
+        cell: ({ row }) => {
+          const groups = (row.original.plan.quota_usable_groups || '')
+            .split(',')
+            .map((group) => group.trim())
+            .filter(Boolean)
+          if (groups.length === 0) {
+            return (
+              <span className='text-muted-foreground whitespace-normal'>
+                {t('All Groups')}
+              </span>
+            )
+          }
+          return (
+            <BadgeCell className='flex-wrap'>
+              {groups.map((group) => (
+                <GroupBadge
+                  key={group}
+                  group={group}
+                  label={group}
+                  className='h-auto whitespace-normal'
+                >
+                  <span className='min-w-0 leading-normal wrap-anywhere'>
+                    {group}
+                  </span>
+                </GroupBadge>
+              ))}
+            </BadgeCell>
+          )
+        },
+        size: 200,
+      },
+      {
         id: 'actions',
         header: () => t('Actions'),
         cell: ({ row }) => <DataTableRowActions row={row} />,

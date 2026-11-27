@@ -21,6 +21,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { GroupBadge } from '@/components/group-badge'
 import {
   StatusBadge,
   dotColorMap,
@@ -534,6 +535,10 @@ export function SubscriptionPlansCard({
               const limit = Number(plan.max_purchase_per_user || 0)
               const count = planPurchaseCountMap.get(plan.id) || 0
               const reached = limit > 0 && count >= limit
+              const quotaUsableGroups = (plan.quota_usable_groups || '')
+                .split(',')
+                .map((group) => group.trim())
+                .filter(Boolean)
 
               const benefits = [
                 `${t('Validity Period')}: ${formatDuration(plan, t)}`,
@@ -595,6 +600,31 @@ export function SubscriptionPlansCard({
                           <span>{label}</span>
                         </div>
                       ))}
+                      <div className='text-muted-foreground flex min-w-0 items-start gap-2 text-xs'>
+                        <Check
+                          className='text-primary mt-0.5 size-3 shrink-0'
+                          aria-hidden='true'
+                        />
+                        <div className='flex min-w-0 flex-1 flex-wrap items-center gap-1'>
+                          <span>{t('Quota Usable Groups')}:</span>
+                          {quotaUsableGroups.length > 0 ? (
+                            quotaUsableGroups.map((group) => (
+                              <GroupBadge
+                                key={group}
+                                group={group}
+                                label={group}
+                                className='h-auto whitespace-normal'
+                              >
+                                <span className='min-w-0 leading-normal wrap-anywhere'>
+                                  {group}
+                                </span>
+                              </GroupBadge>
+                            ))
+                          ) : (
+                            <span>{t('All Groups')}</span>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     <Separator className='mb-3' />

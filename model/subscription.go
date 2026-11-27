@@ -187,6 +187,9 @@ type SubscriptionPlan struct {
 	// Upgrade user group after purchase (empty = no change)
 	UpgradeGroup string `json:"upgrade_group" gorm:"type:varchar(64);default:''"`
 
+	// Restrict subscription quota to these groups (comma-separated; empty = all groups).
+	QuotaUsableGroups string `json:"quota_usable_groups" gorm:"type:varchar(255);default:''"`
+
 	// Downgrade user group on expiry (empty = revert to the group held before purchase)
 	DowngradeGroup string `json:"downgrade_group" gorm:"type:varchar(64);default:''"`
 
@@ -894,22 +897,88 @@ func HasActiveUserSubscription(userId int) (bool, error) {
 	return count > 0, nil
 }
 
-// UserActiveSubscriptionsAllowWalletOverflow returns whether wallet balance may be used
-// after the user's subscription quota is exhausted. A single active subscription that
-// disallows wallet overflow (allow_wallet_overflow = false) blocks the fallback.
-func UserActiveSubscriptionsAllowWalletOverflow(userId int) (bool, error) {
+// IsSubscriptionPlanEligibleForGroup reports whether a plan can fund a request in usingGroup.
+// Empty QuotaUsableGroups means unrestricted (all groups), preserving legacy behavior.
+func IsSubscriptionPlanEligibleForGroup(plan *SubscriptionPlan, usingGroup string) bool {
+	if plan == nil {
+		return false
+	}
+	raw := strings.TrimSpace(plan.QuotaUsableGroups)
+	if raw == "" {
+		return true
+	}
+	for _, g := range strings.Split(raw, ",") {
+		if strings.TrimSpace(g) == usingGroup {
+			return true
+		}
+	}
+	return false
+}
+
+// HasActiveUserSubscriptionForGroup returns whether an active subscription can fund usingGroup.
+func HasActiveUserSubscriptionForGroup(userId int, usingGroup string) (bool, error) {
 	if userId <= 0 {
 		return false, errors.New("invalid userId")
 	}
 	now := common.GetTimestamp()
-	var strictCount int64
-	if err := DB.Model(&UserSubscription{}).
-		Where("user_id = ? AND status = ? AND end_time > ? AND allow_wallet_overflow = ?",
-			userId, "active", now, false).
-		Count(&strictCount).Error; err != nil {
+	var subs []UserSubscription
+	if err := DB.Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
+		Find(&subs).Error; err != nil {
 		return false, err
 	}
-	return strictCount == 0, nil
+	for _, sub := range subs {
+		plan, err := getSubscriptionPlanByIdTx(nil, sub.PlanId)
+		if err != nil {
+			return false, err
+		}
+		if IsSubscriptionPlanEligibleForGroup(plan, usingGroup) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// UserActiveSubscriptionsAllowWalletOverflow returns whether wallet balance may be used
+// after the subscriptions eligible for usingGroup are exhausted. Only subscriptions
+// whose plan can fund usingGroup participate: an eligible subscription with
+// allow_wallet_overflow = false blocks the fallback, while subscriptions restricted
+// to other groups never block it.
+func UserActiveSubscriptionsAllowWalletOverflow(userId int, usingGroup string) (bool, error) {
+	if userId <= 0 {
+		return false, errors.New("invalid userId")
+	}
+	now := common.GetTimestamp()
+	var subs []UserSubscription
+	if err := DB.Where("user_id = ? AND status = ? AND end_time > ? AND allow_wallet_overflow = ?",
+		userId, "active", now, false).
+		Find(&subs).Error; err != nil {
+		return false, err
+	}
+	for _, sub := range subs {
+		plan, err := getSubscriptionPlanByIdTx(nil, sub.PlanId)
+		if err != nil {
+			return false, err
+		}
+		if IsSubscriptionPlanEligibleForGroup(plan, usingGroup) {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+// IsUserSubscriptionEligibleForGroup reports whether the plan behind an existing
+// user subscription can fund usingGroup. Used to guard billing session reuse when
+// a retry switches the request to another group.
+func IsUserSubscriptionEligibleForGroup(subscriptionId int, usingGroup string) (bool, error) {
+	var sub UserSubscription
+	if err := DB.First(&sub, subscriptionId).Error; err != nil {
+		return false, err
+	}
+	plan, err := getSubscriptionPlanByIdTx(nil, sub.PlanId)
+	if err != nil {
+		return false, err
+	}
+	return IsSubscriptionPlanEligibleForGroup(plan, usingGroup), nil
 }
 
 // GetAllUserSubscriptions returns all subscriptions (active and expired) for a user.
@@ -1312,8 +1381,8 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 	return tx.Save(sub).Error
 }
 
-// PreConsumeUserSubscription pre-consumes from any active subscription total quota.
-func PreConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
+// PreConsumeUserSubscription pre-consumes from an active subscription eligible for usingGroup.
+func PreConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64, usingGroup string) (*SubscriptionPreConsumeResult, error) {
 	if userId <= 0 {
 		return nil, errors.New("invalid userId")
 	}
@@ -1341,6 +1410,13 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			if err := tx.Where("id = ?", existing.UserSubscriptionId).First(&sub).Error; err != nil {
 				return err
 			}
+			plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
+			if err != nil {
+				return err
+			}
+			if !IsSubscriptionPlanEligibleForGroup(plan, usingGroup) {
+				return fmt.Errorf("subscription %d is not eligible for group %q", sub.Id, usingGroup)
+			}
 			returnValue.UserSubscriptionId = sub.Id
 			returnValue.PreConsumed = existing.PreConsumed
 			returnValue.AmountTotal = sub.AmountTotal
@@ -1364,6 +1440,9 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
 			if err != nil {
 				return err
+			}
+			if !IsSubscriptionPlanEligibleForGroup(plan, usingGroup) {
+				continue
 			}
 			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
 				return err
@@ -1430,12 +1509,11 @@ func RefundSubscriptionPreConsume(requestId string) error {
 		if record.Status == "refunded" {
 			return nil
 		}
-		if record.PreConsumed <= 0 {
-			record.Status = "refunded"
-			return tx.Save(&record).Error
-		}
-		if err := PostConsumeUserSubscriptionDelta(record.UserSubscriptionId, -record.PreConsumed); err != nil {
-			return err
+		if record.PreConsumed > 0 {
+			// 必须在同一事务内回滚：另开事务会在 SQLite 上与外层事务互相锁死。
+			if err := postConsumeUserSubscriptionDeltaTx(tx, record.UserSubscriptionId, -record.PreConsumed); err != nil {
+				return err
+			}
 		}
 		record.Status = "refunded"
 		return tx.Save(&record).Error
@@ -1533,17 +1611,21 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 		return nil
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
-		var sub UserSubscription
-		if err := lockForUpdate(tx).
-			Where("id = ?", userSubscriptionId).
-			First(&sub).Error; err != nil {
-			return err
-		}
-		newUsed := max(sub.AmountUsed+delta, 0)
-		if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
-			return fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
-		}
-		sub.AmountUsed = newUsed
-		return tx.Save(&sub).Error
+		return postConsumeUserSubscriptionDeltaTx(tx, userSubscriptionId, delta)
 	})
+}
+
+func postConsumeUserSubscriptionDeltaTx(tx *gorm.DB, userSubscriptionId int, delta int64) error {
+	var sub UserSubscription
+	if err := lockForUpdate(tx).
+		Where("id = ?", userSubscriptionId).
+		First(&sub).Error; err != nil {
+		return err
+	}
+	newUsed := max(sub.AmountUsed+delta, 0)
+	if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
+		return fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
+	}
+	sub.AmountUsed = newUsed
+	return tx.Save(&sub).Error
 }
