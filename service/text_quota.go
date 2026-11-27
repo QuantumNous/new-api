@@ -64,6 +64,7 @@ type textQuotaSummary struct {
 	UsageSemantic          string
 	AudioInputPrice        float64
 	ToolSurchargeItems     []ToolSurchargeItem
+	ClaudeIterationQuota   decimal.Decimal
 	ToolCallSurchargeQuota decimal.Decimal
 	FixedPriceBilling      bool
 }
@@ -174,7 +175,8 @@ func calculateTextToolCallSurcharge(ctx *gin.Context, relayInfo *relaycommon.Rel
 	}
 
 	summary.ToolSurchargeItems = mergeToolSurchargeItems(items)
-	var surcharge decimal.Decimal
+	summary.ClaudeIterationQuota = claudeIterationQuota(relayInfo, summary)
+	surcharge := summary.ClaudeIterationQuota
 	for _, item := range summary.ToolSurchargeItems {
 		surcharge = surcharge.Add(decimal.NewFromFloat(item.Price).
 			Mul(decimal.NewFromInt(int64(item.Count))).
@@ -184,6 +186,79 @@ func calculateTextToolCallSurcharge(ctx *gin.Context, relayInfo *relaycommon.Rel
 	}
 
 	return surcharge
+}
+
+// claudeIterationQuota adds only the documented passes excluded from top-level
+// usage. Executor messages are already charged; fallback billing has separate semantics.
+func claudeIterationQuota(relayInfo *relaycommon.RelayInfo, summary *textQuotaSummary) decimal.Decimal {
+	total := decimal.Zero
+	if relayInfo == nil || relayInfo.PriceData.UsePrice {
+		return total
+	}
+	for _, it := range relayInfo.ClaudeUsageIterations {
+		if it.Type != "advisor_message" && it.Type != "compaction" {
+			continue
+		}
+		pricing := relaycommon.ClaudeIterationPricing{PriceData: relayInfo.PriceData, Snapshot: relayInfo.TieredBillingSnapshot, RequestInput: relayInfo.BillingRequestInput}
+		if it.Type == "advisor_message" {
+			var ok bool
+			pricing, ok = relayInfo.ClaudeAdvisorPricing[it.Model]
+			if !ok {
+				common.SysError(common.LogText("Claude advisor usage has no admitted pricing snapshot: %s", it.Model))
+				continue
+			}
+		}
+		// Upstream usage must never turn a charge into a credit.
+		input, output := max(it.InputTokens, 0), max(it.OutputTokens, 0)
+		read, write := max(it.CacheReadInputTokens, 0), max(it.CacheCreationInputTokens, 0)
+		short, long := write, 0
+		if it.CacheCreation != nil {
+			long = min(max(it.CacheCreation.Ephemeral1hInputTokens, 0), write)
+			short = write - long
+		}
+		price := pricing.PriceData
+		group := decimal.NewFromFloat(summary.GroupRatio)
+		if snap := pricing.Snapshot; snap != nil {
+			usage := &dto.Usage{PromptTokens: input, CompletionTokens: output, UsageSemantic: "anthropic", ClaudeCacheCreation5mTokens: short, ClaudeCacheCreation1hTokens: long}
+			usage.PromptTokensDetails.CachedTokens = read
+			usage.PromptTokensDetails.CachedCreationTokens = write
+			params := BuildTieredTokenParams(usage, true, billingexpr.UsedVarsByHash(snap.ExprString, snap.ExprHash))
+			request := billingexpr.RequestInput{}
+			if pricing.RequestInput != nil {
+				request = *pricing.RequestInput
+			}
+			snapshot := *snap
+			snapshot.GroupRatio = summary.GroupRatio
+			result, err := billingexpr.ComputeTieredQuotaWithRequest(&snapshot, params, request)
+			if err != nil {
+				common.SysError(common.LogText("Claude iteration expression failed: %s", err.Error()))
+				total = total.Add(decimal.NewFromInt(int64(max(snapshot.EstimatedQuotaAfterGroup, 0))))
+				continue
+			}
+			// A fixed price covers this request's executor passes, including compaction.
+			if it.Type == "compaction" && result.BillingUnit == billingexpr.BillingUnitRequest {
+				continue
+			}
+			noteQuotaClamp(relayInfo, result.Clamp)
+			if result.Clamp != nil {
+				total = total.Add(decimal.NewFromInt(int64(result.ActualQuotaAfterGroup)))
+			} else {
+				total = total.Add(decimal.NewFromFloat(result.ActualQuotaBeforeGroup).Mul(group))
+			}
+			continue
+		}
+		if price.UsePrice {
+			total = total.Add(decimal.NewFromFloat(price.ModelPrice).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).Mul(group))
+			continue
+		}
+		tokens := decimal.NewFromInt(int64(input)).
+			Add(decimal.NewFromInt(int64(read)).Mul(decimal.NewFromFloat(price.CacheRatio))).
+			Add(decimal.NewFromInt(int64(short)).Mul(decimal.NewFromFloat(price.CacheCreationRatio))).
+			Add(decimal.NewFromInt(int64(long)).Mul(decimal.NewFromFloat(price.CacheCreation1hRatio))).
+			Add(decimal.NewFromInt(int64(output)).Mul(decimal.NewFromFloat(price.CompletionRatio)))
+		total = total.Add(tokens.Mul(decimal.NewFromFloat(price.ModelRatio)).Mul(group))
+	}
+	return total
 }
 
 // noteQuotaClamp records the first quota saturation event onto relayInfo so it
@@ -500,6 +575,10 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		other.SetPublic("image_output", summary.ImageTokens)
 	}
 	appendToolSurchargeLogInfo(other, summary.ToolSurchargeItems)
+	if len(relayInfo.ClaudeUsageIterations) > 0 {
+		other.SetPublic("claude_usage_iterations", relayInfo.ClaudeUsageIterations)
+		other.SetPublic("claude_iteration_quota", summary.ClaudeIterationQuota.String())
+	}
 	if summary.AudioInputPrice > 0 && summary.AudioTokens > 0 {
 		other.SetPublic("audio_input_seperate_price", true)
 		other.SetPublic("audio_input_token_count", summary.AudioTokens)
