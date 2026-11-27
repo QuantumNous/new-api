@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -566,6 +567,9 @@ func RelayTask(c *gin.Context) {
 		return
 	}
 
+	if prepareTaskSubmissionKey(c, relayInfo) {
+		return
+	}
 	var outcome *taskSubmissionOutcome
 	outcome, taskErr = executeTaskSubmission(c, relayInfo)
 	if taskErr != nil {
@@ -609,6 +613,8 @@ func executeTaskSubmissionWith(
 	diagnostics.start(relayInfo)
 	var result *relay.TaskSubmitResult
 	var taskErr *taskdto.TaskError
+	keyReserved := c.GetBool(taskSubmissionKeyReserved)
+	confirmed := false
 	durable := false
 	stage := "start"
 	defer func() {
@@ -712,7 +718,8 @@ func executeTaskSubmissionWith(
 
 		stage = "submit"
 		result, taskErr = submit(c, relayInfo)
-		if requestErr := c.Request.Context().Err(); requestErr != nil {
+		confirmed = keyReserved && taskErr == nil && result != nil && result.UpstreamTaskID != ""
+		if requestErr := c.Request.Context().Err(); requestErr != nil && !confirmed {
 			diagnostics.cancelled("after_submit", retryParam.GetRetry()+1)
 			taskErr = service.TaskErrorWrapperLocal(requestErr, "request_cancelled", http.StatusRequestTimeout)
 			break
@@ -724,7 +731,11 @@ func executeTaskSubmissionWith(
 
 		taskAPIError := taskSubmissionAPIError(taskErr)
 		relayInfo.LastError = taskAPIError
-		decision := decideTaskRetry(c, taskErr, common.RetryTimes-retryParam.GetRetry())
+		remainingRetries := common.RetryTimes - retryParam.GetRetry()
+		if keyReserved {
+			remainingRetries = 0
+		}
+		decision := decideTaskRetry(c, taskErr, remainingRetries)
 		service.RecordPolicyFailure(c, channel.Id, taskAPIError, decision)
 		if !taskErr.LocalError {
 			processChannelError(c,
@@ -760,7 +771,15 @@ func executeTaskSubmissionWith(
 		diagnostics.failed("submit", "missing_result", taskErr, false)
 		return nil, taskErr
 	}
-	if requestErr := c.Request.Context().Err(); requestErr != nil {
+	// A keyed task with a provider receipt must remain replayable if the client
+	// disconnects. Give the post-submit insert its own bounded deadline.
+	persistContext := c.Request.Context()
+	if confirmed {
+		var cancel context.CancelFunc
+		persistContext, cancel = context.WithTimeout(context.WithoutCancel(persistContext), 5*time.Second)
+		defer cancel()
+	}
+	if requestErr := persistContext.Err(); requestErr != nil {
 		diagnostics.cancelled("before_reserve", retryParam.GetRetry()+1)
 		return nil, service.TaskErrorWrapperLocal(requestErr, "request_cancelled", http.StatusRequestTimeout)
 	}
@@ -784,7 +803,7 @@ func executeTaskSubmissionWith(
 			diagnostics.reserve("reserve_complete", result.Quota)
 		}
 	}
-	if requestErr := c.Request.Context().Err(); requestErr != nil {
+	if requestErr := persistContext.Err(); requestErr != nil {
 		diagnostics.cancelled("before_insert", retryParam.GetRetry()+1)
 		return nil, service.TaskErrorWrapperLocal(requestErr, "request_cancelled", http.StatusRequestTimeout)
 	}
@@ -843,7 +862,7 @@ func executeTaskSubmissionWith(
 		}
 	}
 	diagnostics.insertStart(task)
-	if insertErr := task.InsertWithContext(c.Request.Context(), insertOmits...); insertErr != nil {
+	if insertErr := task.InsertWithContext(persistContext, insertOmits...); insertErr != nil {
 		common.SysError(common.LogText("insert task error: %s", insertErr.Error()))
 		taskErr = service.TaskErrorWrapperLocal(errors.New("failed to persist task"), "task_insert_failed", http.StatusInternalServerError)
 		diagnostics.failed("insert", "database_error", taskErr, false)
