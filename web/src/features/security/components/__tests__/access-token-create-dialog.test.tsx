@@ -268,7 +268,11 @@ describe('create access token dialog', () => {
     expect(verifyBody).toEqual(
       expect.objectContaining({
         scope: 'access_token.generate',
-        context: { scopes: input.scopes, expires_at: input.expires_at },
+        context: {
+          scopes: input.scopes,
+          expires_at: input.expires_at,
+          allow_unattended: false,
+        },
       })
     )
   })
@@ -325,12 +329,21 @@ describe('create access token dialog', () => {
     expect(verifyBody).toEqual(
       expect.objectContaining({
         scope: 'access_token.generate',
-        context: { scopes: ['tokens:read'], expires_at: 0 },
+        context: {
+          scopes: ['tokens:read'],
+          expires_at: 0,
+          allow_unattended: false,
+        },
       })
     )
     expect(api.post).toHaveBeenCalledWith(
       '/api/user/access_tokens',
-      { name: 'nightly', scopes: ['tokens:read'], expires_at: 0 },
+      {
+        name: 'nightly',
+        scopes: ['tokens:read'],
+        expires_at: 0,
+        allow_unattended: false,
+      },
       expect.objectContaining({
         headers: { 'X-Security-Proof': 'one-use-proof-1' },
         singleUseAuthorization: true,
@@ -418,6 +431,77 @@ describe('create access token dialog', () => {
       expect(
         within(personal).queryByRole('group', { name: 'API keys' })
       ).not.toBeInTheDocument()
+    )
+  })
+
+  it('offers unattended access only with Users permission and binds it to the proof', async () => {
+    vi.mocked(api.post).mockImplementation(async (url, data) => {
+      if (url === '/api/verify') {
+        return passwordProof((data as { scope: string }).scope)
+      }
+      return {
+        data: {
+          success: true,
+          data: { token: 'nap_unattended', item: {} },
+        },
+      }
+    })
+    catalog = {
+      ...catalog,
+      groups: [
+        personalGroup,
+        {
+          group: 'admin',
+          resources: [
+            {
+              resource: 'user',
+              label_key: 'Users',
+              actions: [
+                {
+                  action: 'write',
+                  label_key: 'Edit',
+                  description_key: 'Edit users',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    }
+    renderCard()
+    const user = userEvent.setup()
+    const dialog = await openCreate(user)
+    const checkbox = within(dialog).getByRole('checkbox', {
+      name: 'Allow unattended management',
+    })
+    expect(checkbox).toHaveAttribute('data-disabled')
+    await user.type(within(dialog).getByLabelText('Token name'), 'automation')
+    await user.click(permission(dialog, 'Users', 'Edit'))
+    expect(checkbox).not.toHaveAttribute('data-disabled')
+    await user.click(checkbox)
+    await user.click(permission(dialog, 'Users', 'Edit'))
+    expect(checkbox).toHaveAttribute('data-disabled')
+    expect(checkbox).toHaveAttribute('data-unchecked')
+    await user.click(permission(dialog, 'Users', 'Edit'))
+    await user.click(checkbox)
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Create access token' })
+    )
+    await verifyPassword(user)
+    await waitFor(() =>
+      expect(postCalls('/api/user/access_tokens')).toHaveLength(1)
+    )
+    const [[, body]] = postCalls('/api/user/access_tokens')
+    expect((body as AccessTokenInput).allow_unattended).toBe(true)
+    const [[, verifyBody]] = postCalls('/api/verify')
+    expect(verifyBody).toEqual(
+      expect.objectContaining({
+        scope: 'access_token.generate',
+        context: expect.objectContaining({
+          scopes: ['user:write'],
+          allow_unattended: true,
+        }),
+      })
     )
   })
 

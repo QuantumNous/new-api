@@ -76,6 +76,7 @@ function tokenItem(overrides: Partial<AccessTokenItem>): AccessTokenItem {
     token_ref: 'a'.repeat(64),
     token_hint: 'Ab12',
     scopes: ['tokens:read'],
+    allow_unattended: false,
     expires_at: NOW + 30 * 24 * 60 * 60,
     last_used_at: 0,
     last_used_ip: '',

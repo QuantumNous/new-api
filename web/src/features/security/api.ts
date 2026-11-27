@@ -31,6 +31,7 @@ export interface AccessTokenItem {
   token_ref: string
   token_hint: string
   scopes: string[]
+  allow_unattended: boolean
   /** Unix seconds; 0 means the token never expires. */
   expires_at: number
   last_used_at: number
@@ -65,6 +66,7 @@ export interface AccessTokenInput {
   name: string
   scopes: string[]
   expires_at: number
+  allow_unattended: boolean
 }
 
 /** A token edit; scopes is present only when the grant changes. */

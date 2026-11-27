@@ -84,6 +84,9 @@ export function AccessTokenItem(props: AccessTokenItemProps) {
           <code className='text-muted-foreground text-xs'>
             nap_…{token.token_hint}
           </code>
+          {token.allow_unattended && (
+            <Badge variant='outline'>{t('Unattended')}</Badge>
+          )}
         </div>
         <div className='flex flex-wrap gap-1'>
           {labels.slice(0, VISIBLE_RESOURCE_BADGES).map((label) => (
