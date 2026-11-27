@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
@@ -306,9 +307,18 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			if data == "" {
 				continue
 			}
-			if data != "[DONE]" {
+		if data != "[DONE]" {
+			// For Responses API, metadata events (response.created, response.in_progress)
+			// don't carry generated tokens — exclude them from TTFT measurement.
+			if info.RelayMode == relayconstant.RelayModeResponses {
+				if !strings.Contains(data, `"type":"response.created"`) &&
+					!strings.Contains(data, `"type":"response.in_progress"`) {
+					info.SetFirstResponseTime()
+				}
+			} else {
 				info.SetFirstResponseTime()
-				info.ReceivedResponseCount++
+			}
+			info.ReceivedResponseCount++
 
 				select {
 				case dataChan <- data:
