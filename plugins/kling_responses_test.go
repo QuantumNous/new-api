@@ -327,6 +327,13 @@ func TestKling4(t *testing.T) {
 			{"omni with an element", "kling4OmniVideo", "omni-video",
 				map[string]any{"contents": []any{map[string]any{"type": "prompt", "text": "<<<element_1>>> waves"}, map[string]any{"type": "element", "element_id": "123", "id": "element_1"}},
 					"settings": map[string]any{"resolution": "720p", "duration": 30}}, 36},
+			{"text at 4k with HDR for 10 seconds", "kling4TextToVideo", "text-to-video",
+				map[string]any{"prompt": "a cat", "settings": map[string]any{"resolution": "4k", "dynamic_range": "hdr", "duration": 10}}, 40},
+			{"omni with a reference video and HDR at the default 1080p", "kling4OmniVideo", "omni-video",
+				map[string]any{"contents": []any{map[string]any{"type": "prompt", "text": "in the style of <<<video_1>>>"}, map[string]any{"type": "feature_video", "url": "https://cdn.example/a.mp4", "id": "video_1"}},
+					"settings": map[string]any{"dynamic_range": "hdr", "duration": 10}}, 39},
+			{"a resolution Kling does not list reserves 4k", "kling4TextToVideo", "text-to-video",
+				map[string]any{"prompt": "a cat", "settings": map[string]any{"resolution": "2160p", "duration": 10}}, 35},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				sent := submit(t, []string{"native", tc.decoder}, "kling-4.0", tc.body)
@@ -402,38 +409,42 @@ func TestKling4(t *testing.T) {
 	// Settles on deducted units (package amount, cash list_price), else on the reported durations.
 	t.Run("settlement", func(t *testing.T) {
 		for _, tc := range []struct {
-			name       string
-			resolution string
-			entry      map[string]any
-			wantUnits  any
+			name      string
+			state     map[string]any
+			entry     map[string]any
+			wantUnits any
 		}{
-			{"resource package units", "1080p", map[string]any{"billing": []any{
+			{"resource package units", map[string]any{"resolution": "1080p"}, map[string]any{"billing": []any{
 				map[string]any{"charge_type": "unit", "amount": "6", "package_type": "video"},
 				map[string]any{"charge_type": "unit", "amount": "4.5", "package_type": "video"},
 			}}, 10.5},
-			{"cash without an input video", "720p", map[string]any{"billing": []any{map[string]any{"charge_type": "cash", "amount": "10", "currency": "CNY"}}}, 10.0},
-			{"no billing at 1080p", "1080p", map[string]any{}, 15.0},
-			{"part cash, input shorter than the output", "1080p", map[string]any{"usage": map[string]any{"input_duration": "4"}, "billing": []any{
+			{"cash without an input video", map[string]any{"resolution": "720p"}, map[string]any{"billing": []any{map[string]any{"charge_type": "cash", "amount": "10", "currency": "CNY"}}}, 10.0},
+			{"no billing at 1080p", map[string]any{"resolution": "1080p"}, map[string]any{}, 15.0},
+			{"part cash, input shorter than the output", map[string]any{"resolution": "1080p"}, map[string]any{"usage": map[string]any{"input_duration": "4"}, "billing": []any{
 				map[string]any{"charge_type": "unit", "amount": "3", "package_type": "video"},
 				map[string]any{"charge_type": "cash", "amount": "15", "currency": "CNY"},
 			}}, 18.0},
-			{"cash, input longer than the output", "1080p", map[string]any{"usage": map[string]any{"input_duration": 25}, "billing": []any{map[string]any{"charge_type": "cash", "amount": "31.5", "currency": "CNY"}}}, 31.5},
-			{"cash at 720p with an input video", "720p", map[string]any{"usage": map[string]any{"input_duration": "10"}}, 12.0},
-			{"balance at its list price, not the reported duration", "720p", map[string]any{
+			{"cash, input longer than the output", map[string]any{"resolution": "1080p"}, map[string]any{"usage": map[string]any{"input_duration": 25}, "billing": []any{map[string]any{"charge_type": "cash", "amount": "31.5", "currency": "CNY"}}}, 31.5},
+			{"cash at 720p with an input video", map[string]any{"resolution": "720p"}, map[string]any{"usage": map[string]any{"input_duration": "10"}}, 12.0},
+			{"balance at its list price, not the reported duration", map[string]any{"resolution": "720p"}, map[string]any{
 				"outputs": []any{map[string]any{"type": "video", "url": "https://cdn.example/out.mp4", "duration": "3.041"}},
 				"billing": []any{map[string]any{"charge_type": "cash", "cash_type": "balance", "amount": "2.55", "list_price": "3", "currency": "CNY"}},
 			}, 3.0},
+			{"no billing at 4k with HDR", map[string]any{"resolution": "4k", "dynamic_range": "hdr"}, map[string]any{}, 40.0},
+			{"no billing at 4k with HDR and a longer input video", map[string]any{"resolution": "4k", "dynamic_range": "hdr"}, map[string]any{"usage": map[string]any{"input_duration": 25}}, 78.5},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				entry := map[string]any{"id": "kling_4", "status": "succeeded", "outputs": []any{map[string]any{"type": "video", "url": "https://cdn.example/out.mp4", "duration": "10"}}}
 				for key, value := range tc.entry {
 					entry[key] = value
 				}
-				facts := call(t, "extractUsageOnComplete", map[string]any{"taskId": "kling_4", "state": map[string]any{"resolution": tc.resolution}}, map[string]any{"status": "SUCCESS"},
+				facts := call(t, "extractUsageOnComplete", map[string]any{"taskId": "kling_4", "state": tc.state}, map[string]any{"status": "SUCCESS"},
 					map[string]any{"code": 0, "data": []any{entry}})
 				assert.InDelta(t, tc.wantUnits, facts["units"], 1e-9)
 			})
 		}
+		sent := submit(t, []string{"native", "kling4TextToVideo"}, "kling-4.0", map[string]any{"prompt": "a cat", "settings": map[string]any{"resolution": "4K", "dynamic_range": "HDR"}})
+		assert.Equal(t, map[string]any{"resolution": "4k", "dynamic_range": "hdr"}, sent.state, "the task keeps the settings it is billed by")
 		running := call(t, "extractUsageOnComplete", map[string]any{"taskId": "kling_4", "state": map[string]any{"resolution": "1080p"}}, map[string]any{"status": "IN_PROGRESS"},
 			map[string]any{"code": 0, "data": []any{map[string]any{"id": "kling_4", "status": "processing"}}})
 		assert.Nil(t, running, "an unfinished task keeps its reservation")
