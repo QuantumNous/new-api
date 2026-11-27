@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"net/http/httptest"
@@ -196,6 +197,68 @@ func TestRedisFixedWindowRepairsCounterWithoutTTL(t *testing.T) {
 
 	redisServer.FastForward(time.Duration(duration) * time.Second)
 	assert.False(t, redisServer.Exists(key), "a recovered counter must not remain permanently rate-limited")
+}
+
+func TestRedisRateLimiterContextErrors(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tc := range []struct {
+		name       string
+		user       bool
+		deadline   bool
+		wantStatus int
+	}{
+		{name: "ip cancellation", wantStatus: 499},
+		{name: "user cancellation", user: true, wantStatus: 499},
+		{name: "ip deadline", deadline: true, wantStatus: http.StatusInternalServerError},
+		{name: "user deadline", user: true, deadline: true, wantStatus: http.StatusInternalServerError},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			useRateLimitMiniRedis(t)
+			var logs bytes.Buffer
+			common.LogWriterMu.Lock()
+			previousErrorWriter := gin.DefaultErrorWriter
+			gin.DefaultErrorWriter = &logs
+			common.LogWriterMu.Unlock()
+			t.Cleanup(func() {
+				common.LogWriterMu.Lock()
+				gin.DefaultErrorWriter = previousErrorWriter
+				common.LogWriterMu.Unlock()
+			})
+
+			router := gin.New()
+			require.NoError(t, router.SetTrustedProxies(nil))
+			reachedHandler := false
+			limiter := rateLimitFactory(1, 30, "CONTEXT-IP")
+			if tc.user {
+				router.Use(func(c *gin.Context) { c.Set("id", 7) })
+				limiter = userRateLimitFactory(1, 30, "CONTEXT-USER")
+			}
+			router.GET("/limited", limiter, func(c *gin.Context) {
+				reachedHandler = true
+				c.Status(http.StatusNoContent)
+			})
+
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			if tc.deadline {
+				ctx, cancel = context.WithDeadline(context.Background(), time.Time{})
+				defer cancel()
+			}
+			request := httptest.NewRequest(http.MethodGet, "/limited", nil).WithContext(ctx)
+			request.RemoteAddr = "192.0.2.80:12345"
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+
+			assert.Equal(t, tc.wantStatus, response.Code)
+			assert.Empty(t, response.Body.String())
+			assert.False(t, reachedHandler)
+			if tc.deadline {
+				assert.NotEmpty(t, logs.String())
+			} else {
+				assert.Empty(t, logs.String(), "a client cancellation is not a Redis server failure")
+			}
+		})
+	}
 }
 
 func TestRedisFailurePolicies(t *testing.T) {
