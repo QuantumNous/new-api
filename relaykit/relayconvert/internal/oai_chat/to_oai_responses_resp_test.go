@@ -199,13 +199,21 @@ func TestChatCompletionsStreamToResponsesEventsAggregatesUsageAndToolArgs(t *tes
 	})...)
 	events = append(events, FinalizeChatCompletionsStreamToResponses(state)...)
 
-	require.Len(t, events, 10)
-	assert.Equal(t, responsesEventCreated, events[0].Type)
-	assert.Equal(t, responsesEventOutputTextDelta, events[2].Type)
+	// The message item is done before the tool call that follows it is added.
+	assert.Equal(t, []string{
+		responsesEventCreated,
+		responsesEventOutputItemAdded,
+		responsesEventOutputTextDelta,
+		"response.output_text.done",
+		responsesEventOutputItemDone,
+		responsesEventOutputItemAdded,
+		responsesEventFunctionArgsDelta,
+		responsesEventFunctionArgsDone,
+		responsesEventOutputItemDone,
+		responsesEventCompleted,
+	}, responsesEventTypes(events))
 	assert.Equal(t, "hello", events[2].Payload.Delta)
-	assert.Equal(t, responsesEventFunctionArgsDelta, events[4].Type)
-	assert.Equal(t, `{"q":"x"}`, events[4].Payload.Delta)
-	assert.Equal(t, responsesEventCompleted, events[9].Type)
+	assert.Equal(t, `{"q":"x"}`, events[6].Payload.Delta)
 	require.NotNil(t, events[9].Payload.Response)
 	assert.Equal(t, 6, events[9].Payload.Response.Usage.TotalTokens)
 	require.Len(t, events[9].Payload.Response.Output, 2)
@@ -232,24 +240,21 @@ func TestChatCompletionsStreamToResponsesEmitsReasoningSummaryPartLifecycle(t *t
 	})...)
 	events = append(events, FinalizeChatCompletionsStreamToResponses(state)...)
 
-	types := make([]string, 0, len(events))
-	for _, event := range events {
-		types = append(types, event.Type)
-	}
+	// The reasoning item is done before the message that follows it is added.
 	assert.Equal(t, []string{
 		responsesEventCreated,
 		responsesEventOutputItemAdded,
 		responsesEventReasoningSummaryPartAdded,
 		responsesEventReasoningSummaryDelta,
+		responsesEventReasoningSummaryDone,
+		responsesEventReasoningSummaryPartDone,
+		responsesEventOutputItemDone,
 		responsesEventOutputItemAdded,
 		responsesEventOutputTextDelta,
 		"response.output_text.done",
 		responsesEventOutputItemDone,
-		responsesEventReasoningSummaryDone,
-		responsesEventReasoningSummaryPartDone,
-		responsesEventOutputItemDone,
 		responsesEventCompleted,
-	}, types)
+	}, responsesEventTypes(events))
 
 	// The Responses schema requires summary on every reasoning item, including
 	// the one announced before any summary text exists.
@@ -264,7 +269,7 @@ func TestChatCompletionsStreamToResponsesEmitsReasoningSummaryPartLifecycle(t *t
 	require.NotNil(t, partAdded.Part)
 	assert.Equal(t, dto.ResponsesReasoningSummaryPart{Type: "summary_text"}, *partAdded.Part)
 
-	partDone := events[9].Payload
+	partDone := events[5].Payload
 	assert.Equal(t, "resp_1_reasoning_0", partDone.ItemID)
 	require.NotNil(t, partDone.Part)
 	assert.Equal(t, dto.ResponsesReasoningSummaryPart{Type: "summary_text", Text: "think"}, *partDone.Part)
@@ -358,6 +363,54 @@ func TestChatCompletionsStreamToResponsesReopensItemsAfterMidStreamFinishReason(
 			}
 		})
 	}
+}
+
+// Claude interleaves text with hosted web searches. Each text run before and
+// after the search is its own message item, and every item is done before the
+// next one is added.
+func TestChatCompletionsStreamToResponsesHostedCallSeparatesMessages(t *testing.T) {
+	state := NewChatToResponsesStreamState("resp_1", "gpt-test")
+	state.EmitSequenceNumber = true
+
+	var events []ChatToResponsesStreamEvent
+	events = append(events, mustResponsesEventsFromChatChunk(t, state, &dto.ChatCompletionsStreamResponse{
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{
+			Delta: dto.ChatCompletionsStreamResponseChoiceDelta{Content: lo.ToPtr("I'll search.")},
+		}},
+	})...)
+	started, err := state.StartHostedTool(HostedToolStreamStart{Type: "web_search_call", ID: "srvtoolu_1", Action: []byte(`{"query":"go"}`)})
+	require.NoError(t, err)
+	events = append(events, started...)
+	completed, err := state.CompleteHostedTool(HostedToolStreamResult{Type: "web_search_call", ID: "srvtoolu_1"})
+	require.NoError(t, err)
+	events = append(events, completed...)
+	events = append(events, mustResponsesEventsFromChatChunk(t, state, &dto.ChatCompletionsStreamResponse{
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{
+			Delta: dto.ChatCompletionsStreamResponseChoiceDelta{Content: lo.ToPtr("Found it.")},
+		}},
+	})...)
+	events = append(events, FinalizeChatCompletionsStreamToResponses(state)...)
+
+	open := ""
+	for _, event := range events {
+		switch event.Type {
+		case responsesEventOutputItemAdded:
+			require.Emptyf(t, open, "item %q added while %q is still open", event.Payload.Item.ID, open)
+			open = event.Payload.Item.ID
+		case responsesEventOutputItemDone:
+			require.Equal(t, open, event.Payload.Item.ID)
+			open = ""
+		}
+	}
+	assert.Empty(t, open)
+
+	final := events[len(events)-1]
+	require.Equal(t, responsesEventCompleted, final.Type)
+	output := final.Payload.Response.Output
+	require.Len(t, output, 3)
+	assert.Equal(t, []string{"resp_1_msg_0", "srvtoolu_1", "resp_1_msg_1"}, []string{output[0].ID, output[1].ID, output[2].ID})
+	assert.Equal(t, "I'll search.", output[0].Content[0].Text)
+	assert.Equal(t, "Found it.", output[2].Content[0].Text)
 }
 
 func execCustomToolState() *convmeta.ResponsesToolState {
@@ -578,4 +631,12 @@ func mustResponsesEventsFromChatChunk(t *testing.T, state *ChatToResponsesStream
 	events, err := ChatCompletionsStreamChunkToResponsesEvents(chunk, state)
 	require.NoError(t, err)
 	return events
+}
+
+func responsesEventTypes(events []ChatToResponsesStreamEvent) []string {
+	types := make([]string, 0, len(events))
+	for _, event := range events {
+		types = append(types, event.Type)
+	}
+	return types
 }
