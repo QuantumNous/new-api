@@ -554,9 +554,16 @@ func attachClaudeRequest(request any, set Set, options *convmeta.Options) (any, 
 				return nil, diagnostics, err
 			}
 			diagnostics = append(diagnostics, schemaDiagnostics...)
-			inputSchema, ok := sharedclaude.FunctionParametersToInputSchema(parameters)
+			inputSchema, flattened, ok := sharedclaude.FunctionParametersToInputSchema(parameters)
 			if !ok {
 				return nil, diagnostics, fmt.Errorf("tools[%d].input_schema: function parameters must be a JSON object", index)
+			}
+			if len(flattened) > 0 {
+				diagnostics = append(diagnostics, presentationLoss(
+					fmt.Sprintf("tools[%d].input_schema", index),
+					"claude_top_level_schema_union_flattened",
+					fmt.Sprintf("Claude input_schema does not support %s at the top level; the branches were merged into one object schema", strings.Join(flattened, ", ")),
+				))
 			}
 			tools = append(tools, &dto.Tool{
 				Name:        definition.Function.Name,

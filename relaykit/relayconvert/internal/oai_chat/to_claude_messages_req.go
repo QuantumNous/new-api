@@ -24,7 +24,7 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 		if kitutil.GetJsonType(tool.Function.Parameters) != "object" && tool.Type != "function" {
 			continue
 		}
-		inputSchema, _ := sharedclaude.FunctionParametersToInputSchema(tool.Function.Parameters)
+		inputSchema, _, _ := sharedclaude.FunctionParametersToInputSchema(tool.Function.Parameters)
 		claudeTools = append(claudeTools, &dto.Tool{
 			Name:        tool.Function.Name,
 			Description: tool.Function.Description,

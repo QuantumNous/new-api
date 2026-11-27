@@ -171,7 +171,7 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 func responsesFunctionDeclarationsToClaudeTools(functions []dto.FunctionRequest) []any {
 	tools := make([]any, 0, len(functions))
 	for _, function := range functions {
-		inputSchema, _ := sharedclaude.FunctionParametersToInputSchema(function.Parameters)
+		inputSchema, _, _ := sharedclaude.FunctionParametersToInputSchema(function.Parameters)
 		tools = append(tools, &dto.Tool{
 			Name:        function.Name,
 			Description: function.Description,
