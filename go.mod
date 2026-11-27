@@ -131,7 +131,7 @@ require (
 	github.com/jfreymuth/vorbis v1.0.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
-	github.com/json-iterator/go v1.1.12
+	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
@@ -170,9 +170,12 @@ require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.46.0
 	github.com/MoeForge/moego v0.1.0-alpha.5
 	github.com/MoeForge/moejs v0.1.0
-	github.com/QuantumNous/new-api/relaykit v0.0.0
+	github.com/QuantumNous/new-api/pluginkit v0.0.0
+	github.com/QuantumNous/new-api/relaykit v0.3.8
 	github.com/QuantumNous/new-api/tokenkit v0.0.0
 )
+
+replace github.com/QuantumNous/new-api/pluginkit => ./pluginkit
 
 replace github.com/QuantumNous/new-api/relaykit => ./relaykit
 

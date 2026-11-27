@@ -1,4 +1,4 @@
-package jsplugin
+package pluginkit
 
 import (
 	"context"
@@ -17,9 +17,6 @@ import (
 
 	"github.com/MoeForge/moego/regexp"
 	"github.com/MoeForge/moejs"
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/logger"
 )
 
 const (
@@ -27,20 +24,14 @@ const (
 	DefaultConcurrency = 8
 )
 
-// callMemoryLimit is the memory, in bytes, the JavaScript of one hook call may
-// keep before the runtime stops it; 0 means no limit. When the call's
-// allocations reach it, the runtime measures what is still in use, so garbage
-// does not count. It is part of the published plugin contract
-// (docs/plugin-api/v1.md) and set by PLUGIN_MEMORY_LIMIT_MB. Each call starts
-// a new budget.
-func callMemoryLimit() int64 {
-	return int64(max(constant.PluginMemoryLimitMB, 0)) << 20
-}
-
 var ErrCallAdmissionTimeout = errors.New("plugin call admission timed out")
 
-// errCallTimeout is what interrupts a hook that runs past the call timeout.
-var errCallTimeout = errors.New("plugin call timed out")
+// ErrCallTimeout is what interrupts a hook that runs past the call timeout.
+var ErrCallTimeout = errors.New("plugin call timed out")
+
+// ErrMemoryLimit is what stops a hook whose JavaScript keeps more memory
+// than Host.MemoryLimit allows.
+var ErrMemoryLimit = moejs.ErrMemoryLimit
 
 const hookErrorMessageLimit = 512
 
@@ -379,6 +370,13 @@ func (e *Engine) CallPathInto(ctx context.Context, target any, exportName string
 	return err
 }
 
+// CallPathJSONInto is CallJSONInto for a function nested below an exported
+// object, such as native.render: objects keep their member order.
+func (e *Engine) CallPathJSONInto(ctx context.Context, target any, exportName string, members []string, args ...any) error {
+	_, _, err := e.call(ctx, callOptions{target: target, stringify: true}, exportName, members, args...)
+	return err
+}
+
 // CallPathWithAdmissionTimeout gives long-lived observers a separate bound for
 // waiting on JavaScript capacity. Once admitted, the hook receives the
 // engine's full execution timeout instead of inheriting time already spent in
@@ -481,7 +479,7 @@ func (e *Engine) call(ctx context.Context, opts callOptions, exportName string, 
 		} else if converted, err = instance.runtime.ParseJSONString(unsafe.String(unsafe.SliceData(raw), len(raw))); err != nil {
 			// JSON.parse stops at a lower nesting depth than the host codec.
 			var decoded any
-			if err = common.Unmarshal(raw, &decoded); err == nil {
+			if err = unmarshalJSON(raw, &decoded); err == nil {
 				converted, err = instance.runtime.FromGo(decoded)
 			}
 		}
@@ -491,7 +489,7 @@ func (e *Engine) call(ctx context.Context, opts callOptions, exportName string, 
 		callArgs = append(callArgs, converted)
 	}
 
-	call.watchdog = watchRuntimeContext(instance.runtime, ctx, e.timeout, errCallTimeout)
+	call.watchdog = watchRuntimeContext(instance.runtime, ctx, e.timeout, ErrCallTimeout)
 	// utils.fetch pauses and restarts the watchdog; stop whichever watch is
 	// current when the call ends.
 	defer call.watchdog.stop()
@@ -676,7 +674,7 @@ func pluginValue(rt *moejs.Runtime, v any, depth int) (converted any, changed bo
 		}
 		// JSON.parse stops at a lower nesting depth than the host codec.
 		var decoded any
-		if err := common.Unmarshal(typed, &decoded); err != nil {
+		if err := unmarshalJSON(typed, &decoded); err != nil {
 			return v, false
 		}
 		return decoded, true
@@ -747,12 +745,12 @@ func pluginValue(rt *moejs.Runtime, v any, depth int) (converted any, changed bo
 			}
 		}
 	}
-	data, err := common.Marshal(v)
+	data, err := marshalJSON(v)
 	if err != nil {
 		return v, false
 	}
 	var decoded any
-	if err = common.Unmarshal(data, &decoded); err != nil {
+	if err = unmarshalJSON(data, &decoded); err != nil {
 		return v, false
 	}
 	return decoded, true
@@ -879,7 +877,7 @@ func (e *Engine) newRuntime(ctx context.Context) (*runtimeInstance, error) {
 	logOutput := e.log
 	if logOutput == nil {
 		logOutput = func(message string) {
-			logger.LogDebug(logContext.context, "task_plugin subsystem=runtime event=console message=%q", message)
+			debugLog(logContext.context, "task_plugin subsystem=runtime event=console message=%q", message)
 		}
 	}
 	if err := injectGlobals(runtime, func() string {

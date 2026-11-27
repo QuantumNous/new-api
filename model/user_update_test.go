@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -9,8 +10,11 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -360,6 +364,61 @@ func TestValidateAndFillRejectsPasswordlessUser(t *testing.T) {
 	var stored User
 	require.NoError(t, DB.Where("username = ?", "passwordless-user").First(&stored).Error)
 	assert.Empty(t, stored.Password)
+}
+
+func TestExactAccountEmailLookup(t *testing.T) {
+	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
+		t.Run(dialect, func(t *testing.T) {
+			var driver gorm.Dialector = sqlite.Open(":memory:")
+			emailType := "varchar(80)"
+			switch dialect {
+			case "mysql":
+				dsn := os.Getenv("TEST_MYSQL_DSN")
+				if dsn == "" {
+					t.Skip("TEST_MYSQL_DSN is not configured")
+				}
+				driver = mysql.Open(dsn)
+				emailType += " CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+			case "postgres":
+				dsn := os.Getenv("TEST_POSTGRES_DSN")
+				if dsn == "" {
+					t.Skip("TEST_POSTGRES_DSN is not configured")
+				}
+				driver = postgres.Open(dsn)
+			}
+			db, err := gorm.Open(driver, &gorm.Config{})
+			require.NoError(t, err)
+			sqlDB, err := db.DB()
+			require.NoError(t, err)
+			sqlDB.SetMaxOpenConns(1) // Keep the temporary users table on one connection.
+			previous := DB
+			DB = db
+			t.Cleanup(func() { DB = previous; assert.NoError(t, sqlDB.Close()) })
+			require.NoError(t, db.Exec("CREATE TEMPORARY TABLE users (id integer primary key, username varchar(20), email "+emailType+", password varchar(256), status integer, deleted_at timestamp null)").Error)
+			password := "test-lookup-password"
+			hash, err := common.HashAccountPassword(password)
+			require.NoError(t, err)
+			const domain = "@" + "example.test"
+			address := "cafe" + domain
+			for i, local := range []string{"café", "cafè"} {
+				require.NoError(t, db.Exec("INSERT INTO users (id, email) VALUES (?, ?)", i+1, local+domain).Error)
+			}
+			lookup := User{Email: address}
+			require.ErrorIs(t, lookup.FillUserByEmail(), ErrEmailNotFound)
+			require.NoError(t, db.Exec("INSERT INTO users (id, username, email, password, status) VALUES (3, ?, ?, ?, ?)", "member", address, hash, common.UserStatusEnabled).Error)
+			require.NoError(t, lookup.FillUserByEmail())
+			assert.Equal(t, 3, lookup.Id)
+			for _, identifier := range []string{"member", "CAFE" + domain} {
+				login := User{Username: identifier, Password: password}
+				require.NoError(t, login.ValidateAndFill())
+				assert.Equal(t, 3, login.Id)
+			}
+			require.NoError(t, db.Exec("INSERT INTO users (id, email) VALUES (4, ?)", address).Error)
+			require.ErrorIs(t, lookup.FillUserByEmail(), ErrEmailAmbiguous)
+			login := User{Username: address, Password: password}
+			require.ErrorIs(t, login.ValidateAndFill(), ErrInvalidCredentials)
+		})
+	}
 }
 
 func TestResetUserPasswordByEmailRequiresSingleActiveMatch(t *testing.T) {

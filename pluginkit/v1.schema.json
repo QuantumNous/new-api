@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/QuantumNous/new-api/docs/plugin-api/v1.schema.json",
+  "$id": "https://github.com/QuantumNous/new-api/pluginkit/v1.schema.json",
   "title": "new-api Task Plugin v1 manifest",
   "type": "object",
   "additionalProperties": false,

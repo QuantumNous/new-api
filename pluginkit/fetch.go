@@ -1,4 +1,4 @@
-package jsplugin
+package pluginkit
 
 import (
 	"context"
@@ -46,7 +46,7 @@ type FetchResponse struct {
 }
 
 // The utils.fetch limits are part of the published plugin contract
-// (docs/plugin-api/v1.md). MaxFetchBodyBytes applies to the POST body
+// (v1.md). MaxFetchBodyBytes applies to the POST body
 // before the host expands media references.
 const (
 	maxFetchesPerCall            = 4

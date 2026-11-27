@@ -687,7 +687,14 @@ type ClaudeUsage struct {
 	ClaudeCacheCreation5mTokens int                  `json:"claude_cache_creation_5_m_tokens"`
 	ClaudeCacheCreation1hTokens int                  `json:"claude_cache_creation_1_h_tokens"`
 	ServerToolUse               *ClaudeServerToolUse `json:"server_tool_use,omitempty"`
-	BillingUsage                *BillingUsage        `json:"billing_usage,omitempty"`
+	// OutputTokensDetails breaks down output_tokens; thinking_tokens is a
+	// subset of output_tokens, which stays the billed total.
+	OutputTokensDetails *ClaudeOutputTokensDetails `json:"output_tokens_details,omitempty"`
+	BillingUsage        *BillingUsage              `json:"billing_usage,omitempty"`
+}
+
+type ClaudeOutputTokensDetails struct {
+	ThinkingTokens int `json:"thinking_tokens"`
 }
 
 type ClaudeCacheCreationUsage struct {
@@ -707,6 +714,15 @@ func (u *ClaudeUsage) GetCacheCreation1hTokens() int {
 		return 0
 	}
 	return u.CacheCreation.Ephemeral1hInputTokens
+}
+
+// GetThinkingTokens returns the reported reasoning tokens, bounded by
+// output_tokens so the OpenAI reasoning_tokens never exceeds completion_tokens.
+func (u *ClaudeUsage) GetThinkingTokens() int {
+	if u == nil || u.OutputTokensDetails == nil {
+		return 0
+	}
+	return min(max(u.OutputTokensDetails.ThinkingTokens, 0), max(u.OutputTokens, 0))
 }
 
 func (u *ClaudeUsage) GetCacheCreationTotalTokens() int {

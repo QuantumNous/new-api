@@ -502,3 +502,75 @@ func TestClaudeResponsePassesInputTransformationsThrough(t *testing.T) {
 	require.Nil(t, HandleStreamResponseData(c, info, &ClaudeResponseInfo{Usage: &dto.Usage{}}, event))
 	assert.Contains(t, w.Body.String(), "data: "+event+"\n")
 }
+
+func TestClaudeThinkingTokensMapToOpenAIReasoningTokens(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("non-stream", func(t *testing.T) {
+		info := &relaycommon.RelayInfo{
+			RelayFormat: types.RelayFormatOpenAI,
+			ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "claude-opus-5-5"},
+		}
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+		body := `{"id":"msg_1","type":"message","role":"assistant","model":"claude-opus-5-5",` +
+			`"content":[{"type":"thinking","thinking":"short summary","signature":"sig"},{"type":"text","text":"hi"}],` +
+			`"stop_reason":"end_turn","usage":{"input_tokens":4,"output_tokens":120,"output_tokens_details":{"thinking_tokens":40}}}`
+		claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{}}
+		require.Nil(t, HandleClaudeResponseData(c, info, claudeInfo, nil, []byte(body)))
+
+		var resp dto.OpenAITextResponse
+		require.NoError(t, common.Unmarshal(w.Body.Bytes(), &resp))
+		assert.Equal(t, 120, resp.Usage.CompletionTokens)
+		assert.Equal(t, 40, resp.Usage.CompletionTokenDetails.ReasoningTokens)
+	})
+
+	t.Run("stream message_delta", func(t *testing.T) {
+		claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{PromptTokens: 4, CompletionTokens: 2}}
+		ok := FormatClaudeResponseInfo(&dto.ClaudeResponse{
+			Type: "message_delta",
+			Usage: &dto.ClaudeUsage{
+				OutputTokens:        300,
+				OutputTokensDetails: &dto.ClaudeOutputTokensDetails{ThinkingTokens: 75},
+			},
+		}, nil, claudeInfo)
+		require.True(t, ok)
+		usage := buildOpenAIStyleUsageFromClaudeUsage(claudeInfo.Usage)
+		assert.Equal(t, 300, usage.CompletionTokens)
+		assert.Equal(t, 75, usage.CompletionTokenDetails.ReasoningTokens)
+	})
+
+	t.Run("stream message_delta reported zero replaces, absent keeps", func(t *testing.T) {
+		for _, tc := range []struct {
+			name    string
+			details *dto.ClaudeOutputTokensDetails
+			want    int
+		}{
+			{name: "explicit zero", details: &dto.ClaudeOutputTokensDetails{ThinkingTokens: 0}, want: 0},
+			{name: "absent", details: nil, want: 40},
+		} {
+			claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{PromptTokens: 4, CompletionTokens: 50}}
+			claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens = 40
+			require.True(t, FormatClaudeResponseInfo(&dto.ClaudeResponse{
+				Type:  "message_delta",
+				Usage: &dto.ClaudeUsage{OutputTokens: 120, OutputTokensDetails: tc.details},
+			}, nil, claudeInfo))
+			assert.Equal(t, tc.want, claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens, tc.name)
+		}
+	})
+
+	t.Run("bounded by output_tokens", func(t *testing.T) {
+		for _, tc := range []struct{ thinking, output, want int }{
+			{thinking: 500, output: 100, want: 100},
+			{thinking: -5, output: 100, want: 0},
+		} {
+			usage := relayconvert.UsageFromClaudeAPIUsage(&dto.ClaudeUsage{
+				InputTokens:         1,
+				OutputTokens:        tc.output,
+				OutputTokensDetails: &dto.ClaudeOutputTokensDetails{ThinkingTokens: tc.thinking},
+			})
+			assert.Equal(t, tc.want, usage.CompletionTokenDetails.ReasoningTokens)
+		}
+	})
+}

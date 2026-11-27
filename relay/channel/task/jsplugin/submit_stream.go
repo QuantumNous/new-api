@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/QuantumNous/new-api/pluginkit"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/gin-gonic/gin"
 )
@@ -114,44 +115,15 @@ func (a *TaskAdaptor) readSubmitEvents(parent context.Context, resp *http.Respon
 		if eventName == "" {
 			eventName = "message"
 		}
-		event := map[string]any{"event": eventName, "id": lastID, "data": strings.Join(data, "\n")}
-		value, err := a.plugin.Engine.Call(ctx, hook, driverContext, event, state)
+		event := pluginkit.SubmitEvent{Event: eventName, ID: lastID, Data: strings.Join(data, "\n")}
+		result, err := a.plugin.CallSubmitEvent(ctx, hook, driverContext, event, state)
 		if err != nil {
 			readErr = err
 			break
 		}
-		result, ok := value.(map[string]any)
-		if !ok {
-			readErr = fmt.Errorf("%s must return an object", hook)
-			break
-		}
-		nextState, hasState := result["state"]
-		done, hasDone := result["done"].(bool)
-		if !hasState || !hasDone {
-			readErr = fmt.Errorf("%s must return state and a boolean done", hook)
-			break
-		}
-		encoded, err := common.Marshal(nextState)
-		if err != nil {
-			readErr = fmt.Errorf("invalid submit stream state: %w", err)
-			break
-		}
-		if len(encoded) > maxTaskPluginPersistedJSONBytes {
-			readErr = fmt.Errorf("task submit stream state exceeds size limit")
-			break
-		}
+		nextState, encoded, done := result.State, result.StateJSON, result.Done
 		if accumulated != nil {
-			if len(result) != 3 {
-				readErr = fmt.Errorf("parseSubmitEventDelta must return only changes, state and done")
-				break
-			}
-			// Control state is separate from the full result and is the only
-			// snapshot passed back to JS on the next event.
-			if len(encoded) > 64<<10 {
-				readErr = fmt.Errorf("task submit stream control state exceeds size limit")
-				break
-			}
-			if err = accumulated.Apply(ctx, result["changes"]); err != nil {
+			if err = accumulated.Apply(ctx, result.Changes); err != nil {
 				readErr = fmt.Errorf("invalid submit stream changes: %w", err)
 				accumulated, state = nil, nil
 				break

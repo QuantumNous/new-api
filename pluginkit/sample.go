@@ -1,4 +1,4 @@
-package jsplugin
+package pluginkit
 
 import (
 	"encoding/json"
@@ -9,12 +9,11 @@ import (
 	"unicode/utf8"
 
 	"github.com/MoeForge/moego/regexp"
-	"github.com/QuantumNous/new-api/common"
 	"github.com/tidwall/gjson"
 )
 
 // Limits of meta.samples, part of the published plugin contract
-// (docs/plugin-api/v1.md).
+// (v1.md).
 const (
 	maxSamples           = 8
 	maxSamplesPerLang    = 3
@@ -72,7 +71,7 @@ func decodeSamples(text []byte) ([]Sample, error) {
 			return nil, fmt.Errorf("%s must be an object", subject)
 		}
 		var object map[string]any
-		if err := common.UnmarshalJsonStr(item.Raw, &object); err != nil {
+		if err := unmarshalJSONString(item.Raw, &object); err != nil {
 			return nil, fmt.Errorf("%s must be an object", subject)
 		}
 		for member := range object {

@@ -4,9 +4,16 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -20,6 +27,7 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/QuantumNous/new-api/pluginkit"
 	"github.com/QuantumNous/new-api/plugins"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
@@ -1141,4 +1149,58 @@ func TestSecurityRoutesDisableCachingBeforeAuthentication(t *testing.T) {
 			assert.Contains(t, response.Header().Get("Cache-Control"), "no-store")
 		})
 	}
+}
+
+// pluginkit.NewAPIReservedKeys lists the keys whose /{key} collides with a
+// host path: api, the first segment of each route SetRouter registers before
+// the plugin router and of each reserved route namespace, and the prefixes
+// built-in plugins own.
+func TestNewAPIReservedKeysMatchHostRoutes(t *testing.T) {
+	outer := gin.New()
+	SetApiRouter(outer)
+	SetDashboardRouter(outer)
+	SetRelayRouter(outer)
+	SetTaskPluginProtocolRouter(outer)
+	SetVideoRouter(outer)
+	SetTaskRouter(outer)
+	keys := map[string]struct{}{"api": {}}
+	addFirstSegment := func(path string) {
+		first, _, _ := strings.Cut(strings.TrimPrefix(path, "/"), "/")
+		if first != "" && !strings.HasPrefix(first, ":") && !strings.HasPrefix(first, "*") {
+			keys[first] = struct{}{}
+		}
+	}
+	for _, route := range outer.Routes() {
+		addFirstSegment(route.Path)
+	}
+	// The namespaces are unexported in pkg/jsplugin; read them from its source.
+	file, err := parser.ParseFile(token.NewFileSet(), filepath.Join("..", "pkg", "jsplugin", "host.go"), nil, 0)
+	require.NoError(t, err)
+	namespaces := 0
+	ast.Inspect(file, func(node ast.Node) bool {
+		spec, ok := node.(*ast.ValueSpec)
+		if !ok || len(spec.Names) != 1 || spec.Names[0].Name != "reservedRouteNamespaces" {
+			return true
+		}
+		for _, element := range spec.Values[0].(*ast.CompositeLit).Elts {
+			namespace, unquoteErr := strconv.Unquote(element.(*ast.BasicLit).Value)
+			require.NoError(t, unquoteErr)
+			addFirstSegment(namespace)
+			namespaces++
+		}
+		return false
+	})
+	require.NotZero(t, namespaces)
+	generation := jsplugin.DefaultRegistry.Generation()
+	for _, plugin := range generation.Plugins() {
+		if !generation.FactoryKey(plugin.Meta.Key) {
+			continue
+		}
+		for _, binding := range jsplugin.PluginRouteBindings(plugin) {
+			if first, _, _ := strings.Cut(strings.TrimPrefix(binding.Route.Path, "/"), "/"); binding.OwnPrefix && first != plugin.Meta.Key {
+				keys[first] = struct{}{}
+			}
+		}
+	}
+	assert.Equal(t, slices.Sorted(maps.Keys(keys)), pluginkit.NewAPIReservedKeys())
 }

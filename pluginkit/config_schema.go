@@ -1,4 +1,4 @@
-package jsplugin
+package pluginkit
 
 import (
 	"bytes"
@@ -15,7 +15,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/MoeForge/moego/regexp"
-	"github.com/QuantumNous/new-api/common"
 	"github.com/tidwall/gjson"
 )
 
@@ -113,7 +112,7 @@ func (p *LoadedPlugin) ConfigURLHosts(config json.RawMessage) []string {
 		return nil
 	}
 	var value any
-	if err := common.Unmarshal(config, &value); err != nil {
+	if err := unmarshalJSON(config, &value); err != nil {
 		return nil
 	}
 	return p.Meta.ConfigSchema.root.urlHosts(value, nil)
@@ -160,7 +159,7 @@ func (p *LoadedPlugin) ValidateConfig(config json.RawMessage) (json.RawMessage, 
 		config = json.RawMessage("{}")
 	}
 	var value any
-	if err := common.Unmarshal(config, &value); err != nil {
+	if err := unmarshalJSON(config, &value); err != nil {
 		return nil, fmt.Errorf("config must be a JSON object")
 	}
 	object, ok := value.(map[string]any)
@@ -177,7 +176,7 @@ func (p *LoadedPlugin) ValidateConfig(config json.RawMessage) (json.RawMessage, 
 		if err != nil {
 			return nil, err
 		}
-		if validated, err = common.Marshal(value); err != nil {
+		if validated, err = marshalJSON(value); err != nil {
 			return nil, err
 		}
 	}
@@ -195,7 +194,7 @@ func (p *LoadedPlugin) ValidateConfig(config json.RawMessage) (json.RawMessage, 
 		switch {
 		case errors.As(err, &hookErr):
 			return nil, errors.New(truncateRunes(hookErr.Message, maxValidateConfigMessageRunes))
-		case errors.Is(err, errCallTimeout), errors.Is(err, ErrCallAdmissionTimeout), errors.Is(err, context.DeadlineExceeded):
+		case errors.Is(err, ErrCallTimeout), errors.Is(err, ErrCallAdmissionTimeout), errors.Is(err, context.DeadlineExceeded):
 			return nil, fmt.Errorf("plugin %s validateConfig timed out", p.Meta.Key)
 		}
 		return nil, fmt.Errorf("plugin %s validateConfig failed", p.Meta.Key)
@@ -242,7 +241,7 @@ func (p *LoadedPlugin) ValidateChannelConfig(config json.RawMessage) (json.RawMe
 			delete(validated, name)
 		}
 	}
-	return common.Marshal(validated)
+	return marshalJSON(validated)
 }
 
 // ChannelConfigFor returns a channel's stored plugin config as its hooks get
@@ -269,21 +268,21 @@ func (p *LoadedPlugin) ChannelConfigFor(stored json.RawMessage) json.RawMessage 
 			continue
 		}
 		var item any
-		if common.Unmarshal(property.field.Default, &item) == nil {
+		if unmarshalJSON(property.field.Default, &item) == nil {
 			object[property.name] = item
 		}
 	}
 	// validate normalizes url values in place; a rejected config keeps them
 	// as stored.
-	if encoded, err := common.Marshal(object); err == nil {
+	if encoded, err := marshalJSON(object); err == nil {
 		var checked map[string]any
-		if common.Unmarshal(encoded, &checked) == nil {
+		if unmarshalJSON(encoded, &checked) == nil {
 			if value, validateErr := schema.root.validate(checked, "plugin_config"); validateErr == nil {
 				object = value.(map[string]any)
 			}
 		}
 	}
-	encoded, err := common.Marshal(object)
+	encoded, err := marshalJSON(object)
 	if err != nil {
 		return json.RawMessage("{}")
 	}
@@ -310,7 +309,7 @@ func configObject(config json.RawMessage) (map[string]any, error) {
 		return map[string]any{}, nil
 	}
 	var value any
-	if err := common.Unmarshal(config, &value); err != nil {
+	if err := unmarshalJSON(config, &value); err != nil {
 		return nil, fmt.Errorf("plugin_config must be a JSON object")
 	}
 	object, ok := value.(map[string]any)
@@ -383,11 +382,11 @@ func (p configProperties) MarshalJSON() ([]byte, error) {
 		if index > 0 {
 			encoded.WriteByte(',')
 		}
-		name, err := common.Marshal(property.name)
+		name, err := marshalJSON(property.name)
 		if err != nil {
 			return nil, err
 		}
-		field, err := common.Marshal(property.field)
+		field, err := marshalJSON(property.field)
 		if err != nil {
 			return nil, err
 		}
@@ -417,7 +416,7 @@ func decodeSchema(text []byte, subject string, channel bool) (*ConfigSchema, err
 	if err != nil {
 		return nil, err
 	}
-	normalized, err := common.Marshal(root)
+	normalized, err := marshalJSON(root)
 	if err != nil {
 		return nil, err
 	}
@@ -674,7 +673,7 @@ func decodeConfigField(value gjson.Result, subject string, depth int, channel bo
 		field.Default = json.RawMessage(member.Raw)
 		// A channel address default reads as a saved address does.
 		if address, ok := channelAddress(member.Str); ok && field.channel && field.Format == "url" {
-			field.Default, _ = common.Marshal(address)
+			field.Default, _ = marshalJSON(address)
 		}
 	}
 	if member, exists := members["examples"]; exists {
@@ -718,7 +717,7 @@ func configCount(members map[string]gjson.Result, name, subject string) (*int, e
 // example.
 func (f *configField) checkValue(raw string, path string) error {
 	var value any
-	if err := common.UnmarshalJsonStr(raw, &value); err != nil {
+	if err := unmarshalJSONString(raw, &value); err != nil {
 		return fmt.Errorf("%s must be JSON", path)
 	}
 	_, err := f.validate(value, path)
@@ -852,7 +851,7 @@ func (f *configField) validate(value any, path string) (any, error) {
 				continue
 			}
 			// The host codec writes maps sorted, so equal values encode equally.
-			encoded, err := common.Marshal(items[index])
+			encoded, err := marshalJSON(items[index])
 			if err != nil {
 				return nil, err
 			}
@@ -896,7 +895,7 @@ func (f *configField) validate(value any, path string) (any, error) {
 					continue
 				}
 				// A fresh copy: the result must not share the schema's default.
-				if err := common.Unmarshal(property.field.Default, &item); err != nil {
+				if err := unmarshalJSON(property.field.Default, &item); err != nil {
 					return nil, err
 				}
 			}
