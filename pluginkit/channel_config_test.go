@@ -127,3 +127,60 @@ func TestServesResponsesWebSocket(t *testing.T) {
 	chatOnly := compileProviderPlugin(t, simpleRelay, "")
 	assert.False(t, chatOnly.Meta.ServesResponsesWebSocket(""))
 }
+
+// A relay route with enabled_by serves a channel only when that boolean
+// property of the channel's plugin config is true, after its default.
+func TestRelayRoutesEnabledByChannelConfig(t *testing.T) {
+	const toggles = `channelConfig: {type: "object", properties: {
+  responses: {type: "boolean", title: {en: "Accept Responses"}, default: false},
+  socket: {type: "boolean", title: {en: "Responses WebSocket"}, default: true},
+  region: {type: "string", title: {en: "Region"}},
+}}`
+	relay := `[
+  {incoming_path: "/v1/chat/completions", upstream_path: "/chat"},
+  {incoming_path: "/v1/responses", upstream_path: "/chat", converter: "openai_responses_to_openai_chat_completions", models: ["m1"], enabled_by: "responses"},
+  {incoming_path: "/v1/responses", upstream_path: "/responses", models: ["m2"], enabled_by: "socket"},
+  {incoming_path: "/v1/models", upstream_path: "/models"}
+]`
+	plugin, err := CompilePlugin(`export const meta = {`+providerMeta+`, relay: `+relay+`, `+toggles+`};`, Options{})
+	require.NoError(t, err)
+
+	defaults := plugin.ChannelConfigFor(nil)
+	_, ok := plugin.Meta.ChannelRelayRoute(defaults, "/v1/responses", "m1")
+	assert.False(t, ok, "the route is off by default")
+	_, ok = plugin.Meta.ChannelRelayRoute(defaults, "/v1/chat/completions", "m1")
+	assert.True(t, ok, "a route without enabled_by is always on")
+	assert.True(t, plugin.Meta.ChannelServesResponsesWebSocket(defaults, "m2"))
+	assert.Len(t, plugin.Meta.ChannelRelayConfig(defaults).Routes, 3)
+
+	on := plugin.ChannelConfigFor(json.RawMessage(`{"responses":true,"socket":false}`))
+	route, ok := plugin.Meta.ChannelRelayRoute(on, "/v1/responses", "m1")
+	require.True(t, ok)
+	assert.Equal(t, "openai_responses_to_openai_chat_completions", route.Converter)
+	assert.False(t, plugin.Meta.ChannelServesResponsesWebSocket(on, "m2"))
+	relayConfig := plugin.Meta.ChannelRelayConfig(on)
+	require.NoError(t, relayConfig.Validate())
+	_, ok = relayConfig.MatchPathForModel("/v1/responses", "m1")
+	assert.True(t, ok)
+	_, ok = relayConfig.MatchPathForModel("/v1/responses", "m2")
+	assert.False(t, ok)
+
+	_, ok = plugin.Meta.RelayRoute("/v1/responses", "m1")
+	assert.True(t, ok, "the manifest keeps every route")
+	assert.Len(t, plugin.Meta.Relay, 4)
+
+	for name, tc := range map[string]struct{ relay, message string }{
+		"not a string":     {`[{incoming_path: "/v1/chat/completions", upstream_path: "/chat", enabled_by: true}]`, "enabled_by must be a non-empty string"},
+		"empty":            {`[{incoming_path: "/v1/chat/completions", upstream_path: "/chat", enabled_by: " "}]`, "enabled_by must be a non-empty string"},
+		"unknown property": {`[{incoming_path: "/v1/chat/completions", upstream_path: "/chat", enabled_by: "missing"}]`, "must name a boolean property of meta.channelConfig"},
+		"not boolean":      {`[{incoming_path: "/v1/chat/completions", upstream_path: "/chat", enabled_by: "region"}]`, "must name a boolean property of meta.channelConfig"},
+		"model list route": {`[{incoming_path: "/v1/chat/completions", upstream_path: "/chat"}, {incoming_path: "/v1/models", upstream_path: "/models", enabled_by: "responses"}]`, "enabled_by is not allowed on /v1/models"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := CompilePlugin(`export const meta = {`+providerMeta+`, relay: `+tc.relay+`, `+toggles+`};`, Options{})
+			assert.ErrorContains(t, err, tc.message)
+		})
+	}
+	_, err = CompilePlugin(`export const meta = {`+providerMeta+`, relay: [{incoming_path: "/v1/chat/completions", upstream_path: "/chat", enabled_by: "responses"}]};`, Options{})
+	assert.ErrorContains(t, err, "must name a boolean property of meta.channelConfig", "a plugin without channelConfig")
+}

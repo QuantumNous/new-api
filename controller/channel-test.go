@@ -67,15 +67,17 @@ var providerTestEndpoints = []constant.EndpointType{
 }
 
 // providerTestEndpoint returns the endpoint a task plugin channel test uses
-// for model instead of requestPath, which meta's relay routes do not serve.
-// ok is false when they serve requestPath or none of the test endpoints.
-func providerTestEndpoint(meta jsplugin.Meta, requestPath, model string) (endpoint constant.EndpointType, ok bool) {
-	if _, served := meta.RelayRoute(requestPath, model); served {
+// for model instead of requestPath, which meta's relay routes that are on for
+// the channel do not serve. config is the channel's plugin config as
+// ChannelConfigFor returns it. ok is false when they serve requestPath or
+// none of the test endpoints.
+func providerTestEndpoint(meta jsplugin.Meta, config []byte, requestPath, model string) (endpoint constant.EndpointType, ok bool) {
+	if _, served := meta.ChannelRelayRoute(config, requestPath, model); served {
 		return "", false
 	}
 	for _, endpoint := range providerTestEndpoints {
 		info, _ := common.GetDefaultEndpointInfo(endpoint)
-		if _, served := meta.RelayRoute(strings.ReplaceAll(info.Path, "{model}", model), model); served {
+		if _, served := meta.ChannelRelayRoute(config, strings.ReplaceAll(info.Path, "{model}", model), model); served {
 			return endpoint, true
 		}
 	}
@@ -181,7 +183,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	// A task plugin channel tests on an endpoint its relay routes serve for the
 	// model: the default one when they serve it, else the first they serve.
 	if providerChannel && endpointType == "" {
-		if endpoint, ok := providerTestEndpoint(plugin.Meta, requestPath, testModel); ok {
+		if endpoint, ok := providerTestEndpoint(plugin.Meta, plugin.ChannelConfigFor(channel.GetOtherSettings().PluginConfig), requestPath, testModel); ok {
 			endpointType = string(endpoint)
 			endpointInfo, _ := common.GetDefaultEndpointInfo(endpoint)
 			requestPath = strings.ReplaceAll(endpointInfo.Path, "{model}", testModel)
