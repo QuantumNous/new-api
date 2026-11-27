@@ -138,7 +138,8 @@ func ResponsesWebSocketHelper(c *gin.Context, client *websocket.Conn, runner Res
 	if maxMB <= 0 {
 		maxMB = 128
 	}
-	client.SetReadLimit(int64(maxMB) << 20)
+	limit := int64(maxMB) << 20
+	client.SetReadLimit(limit)
 	defer func() {
 		// Unless an earlier shutdown ended the read, the client closed or left.
 		// Gorilla already answered a client close frame, so this tells the upstream.
@@ -147,7 +148,7 @@ func ResponsesWebSocketHelper(c *gin.Context, client *websocket.Conn, runner Res
 	}()
 
 	for {
-		_, message, err := client.ReadMessage()
+		_, message, err := readResponsesWSMessage(client, limit)
 		if err != nil {
 			return nil
 		}
@@ -781,6 +782,22 @@ func buildResponsesWSCreatePayload(c *gin.Context, info *relaycommon.RelayInfo, 
 	return event, nil
 }
 
+// Gorilla's SetReadLimit bounds frame payload bytes before decompression.
+// Apply the same limit to the decoded message before buffering it.
+func readResponsesWSMessage(conn *websocket.Conn, limit int64) (int, []byte, error) {
+	kind, reader, err := conn.NextReader()
+	if err != nil {
+		return kind, nil, err
+	}
+	message, err := io.ReadAll(io.LimitReader(reader, limit+1))
+	if int64(len(message)) > limit {
+		closeMessage := websocket.FormatCloseMessage(websocket.CloseMessageTooBig, "")
+		_ = conn.WriteControl(websocket.CloseMessage, closeMessage, time.Now().Add(time.Second))
+		return kind, nil, websocket.ErrReadLimit
+	}
+	return kind, message, err
+}
+
 func (s *responsesWSSession) startTargetReader(target *websocket.Conn) {
 	limit := int64(helper.DefaultMaxScannerBufferSize)
 	if appconstant.StreamScannerMaxBufferMB > 0 {
@@ -789,7 +806,7 @@ func (s *responsesWSSession) startTargetReader(target *websocket.Conn) {
 	target.SetReadLimit(limit)
 	s.workers.Go(func() {
 		for {
-			kind, body, err := target.ReadMessage()
+			kind, body, err := readResponsesWSMessage(target, limit)
 			incoming := responsesWSMessage{kind: kind, body: body, err: err}
 			if state := s.getCurrent(); state != nil {
 				select {
