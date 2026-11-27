@@ -295,6 +295,12 @@ func ChannelConfigURL(config json.RawMessage, name string) string {
 	return strings.TrimSpace(gjson.GetBytes(config, gjson.Escape(name)).String())
 }
 
+// channelConfigTrue reports whether the boolean property name of a channel
+// plugin config is true.
+func channelConfigTrue(config json.RawMessage, name string) bool {
+	return gjson.GetBytes(config, gjson.Escape(name)).Type == gjson.True
+}
+
 // hasAddress reports whether the schema has a top-level url property name.
 func (s *ConfigSchema) hasAddress(name string) bool {
 	if s == nil || s.root.Properties == nil {
@@ -302,6 +308,15 @@ func (s *ConfigSchema) hasAddress(name string) bool {
 	}
 	index := slices.IndexFunc(*s.root.Properties, func(property configProperty) bool { return property.name == name })
 	return index >= 0 && (*s.root.Properties)[index].field.Type == "string" && (*s.root.Properties)[index].field.Format == "url"
+}
+
+// hasBoolean reports whether the schema has a top-level boolean property name.
+func (s *ConfigSchema) hasBoolean(name string) bool {
+	if s == nil || s.root.Properties == nil {
+		return false
+	}
+	index := slices.IndexFunc(*s.root.Properties, func(property configProperty) bool { return property.name == name })
+	return index >= 0 && (*s.root.Properties)[index].field.Type == "boolean"
 }
 
 func configObject(config json.RawMessage) (map[string]any, error) {

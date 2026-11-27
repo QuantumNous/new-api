@@ -137,9 +137,10 @@ func channelMatchesFilter(ch *Channel, modelName string, filter dto.ChannelFilte
 			route, ok := ch.GetOtherSettings().AdvancedCustom.MatchPathForModel("/v1/responses", modelName)
 			return ok && route.IsNative()
 		case constant.ChannelTypeTaskPlugin:
-			// The same rule on the relay routes of the channel's plugin.
+			// The same rule on the relay routes of the channel's plugin that
+			// are on for the channel.
 			plugin, ok := jsplugin.DefaultRegistry.Get(ch.GetSetting().TaskPluginKey)
-			return ok && plugin.Meta.ServesResponsesWebSocket(modelName)
+			return ok && plugin.Meta.ChannelServesResponsesWebSocket(plugin.ChannelConfigFor(ch.GetOtherSettings().PluginConfig), modelName)
 		default:
 			return false
 		}
@@ -149,8 +150,8 @@ func channelMatchesFilter(ch *Channel, modelName string, filter dto.ChannelFilte
 }
 
 // providerChannelServes reports a task plugin channel whose plugin relays
-// requestPath for modelName through its relay routes, as an Advanced Custom
-// channel with those routes would.
+// requestPath for modelName through its relay routes that are on for the
+// channel, as an Advanced Custom channel with those routes would.
 func providerChannelServes(ch *Channel, requestPath, modelName string) bool {
 	if ch.Type != constant.ChannelTypeTaskPlugin || requestPath == "" {
 		return false
@@ -159,6 +160,6 @@ func providerChannelServes(ch *Channel, requestPath, modelName string) bool {
 	if !ok || !plugin.Meta.HasProviderPart() {
 		return false
 	}
-	_, ok = plugin.Meta.RelayRoute(requestPath, modelName)
+	_, ok = plugin.Meta.ChannelRelayRoute(plugin.ChannelConfigFor(ch.GetOtherSettings().PluginConfig), requestPath, modelName)
 	return ok
 }

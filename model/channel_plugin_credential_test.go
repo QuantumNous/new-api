@@ -191,6 +191,55 @@ func TestProviderChannelSelectionFollowsRelayRoutes(t *testing.T) {
 	}
 }
 
+// Two channels bound to one plugin: the /v1/responses route with enabled_by
+// serves only the channel whose plugin config turns it on.
+func TestProviderChannelSelectionFollowsChannelRouteToggles(t *testing.T) {
+	truncateTables(t)
+	registerModelTestPlugin(t, `
+export const meta = {apiVersion: 1, key: "%KEY%", name: "Toggles", version: "1.0.0", author: {name: "Test"},
+  channelConfig: {type: "object", properties: {responses: {type: "boolean", title: {en: "Accept Responses"}, default: false}}},
+  relay: [
+    {incoming_path: "/v1/chat/completions", upstream_path: "/chat"},
+    {incoming_path: "/v1/responses", upstream_path: "/chat", converter: "openai_responses_to_openai_chat_completions", enabled_by: "responses"}
+  ]};
+`, "select-toggles")
+	originalMemoryCache := common.MemoryCacheEnabled
+	t.Cleanup(func() { common.MemoryCacheEnabled = originalMemoryCache; InitChannelCache() })
+	priority := int64(0)
+	weight := uint(1)
+	setting := `{"task_plugin_key":"select-toggles"}`
+	for _, channel := range []Channel{
+		{Id: 960011, Type: constant.ChannelTypeTaskPlugin, Status: common.ChannelStatusEnabled, Name: "off", Models: "m", Group: "default", Priority: &priority, Weight: &weight, Setting: &setting},
+		{Id: 960012, Type: constant.ChannelTypeTaskPlugin, Status: common.ChannelStatusEnabled, Name: "on", Models: "m", Group: "default", Priority: &priority, Weight: &weight, Setting: &setting,
+			OtherSettings: `{"plugin_config":{"responses":true}}`},
+	} {
+		require.NoError(t, channel.Insert())
+	}
+
+	for _, tc := range []struct {
+		id         int
+		path       string
+		wantServes bool
+	}{
+		{id: 960011, path: "/v1/responses", wantServes: false},
+		{id: 960012, path: "/v1/responses", wantServes: true},
+		{id: 960011, path: "/v1/chat/completions", wantServes: true},
+		{id: 960012, path: "/v1/chat/completions", wantServes: true},
+	} {
+		channel, err := GetChannelById(tc.id, true)
+		require.NoError(t, err)
+		assert.Equal(t, tc.wantServes, providerChannelServes(channel, tc.path, "m"), "%s %s", channel.Name, tc.path)
+	}
+	for _, memoryCache := range []bool{false, true} {
+		common.MemoryCacheEnabled = memoryCache
+		InitChannelCache()
+		selected, err := GetChannel("default", "m", 0, []dto.ChannelFilter{{Kind: dto.FilterTaskPluginIdentity, RequestPath: "/v1/responses"}})
+		require.NoError(t, err)
+		require.NotNil(t, selected, "memory cache %v", memoryCache)
+		assert.Equal(t, "on", selected.Name, "memory cache %v", memoryCache)
+	}
+}
+
 func TestPricingProviderChannelUsesRelayRoutes(t *testing.T) {
 	resetPricingEndpointTestTables(t)
 	registerModelTestPlugin(t, dualPluginSource, "pricing-dual")
