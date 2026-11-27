@@ -62,6 +62,84 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) hostty
 	return groupRatioInfo
 }
 
+// producesBilledCompletionTokens reports whether the request can bill output
+// tokens. Requests that never produce a billable completion — embedding,
+// rerank, image, audio, realtime, per-call task and standalone search — are
+// excluded, because reserving output for them would charge for tokens that are
+// never billed. Every other format keeps the reservation, so a new generation
+// format cannot silently reopen the gap between reservation and settlement.
+func producesBilledCompletionTokens(info *relaycommon.RelayInfo) bool {
+	switch info.RelayFormat {
+	case types.RelayFormatEmbedding, types.RelayFormatRerank, types.RelayFormatOpenAIImage,
+		types.RelayFormatOpenAIAudio, types.RelayFormatOpenAIRealtime, types.RelayFormatTask,
+		types.RelayFormatMjProxy, types.RelayFormatOpenAIAlphaSearch:
+		return false
+	}
+	switch info.Request.(type) {
+	case *dto.ImageRequest, *dto.EmbeddingRequest, *dto.GeminiEmbeddingRequest,
+		*dto.GeminiBatchEmbeddingRequest, *dto.RerankRequest, *dto.AudioRequest:
+		return false
+	}
+	return true
+}
+
+// declaredCompletionCount returns the number of completions the request asks
+// for. Every completion can produce its own output tokens, and the settlement
+// charges the sum across them.
+func declaredCompletionCount(info *relaycommon.RelayInfo) int {
+	switch request := info.Request.(type) {
+	case *dto.GeneralOpenAIRequest:
+		if request.N != nil && *request.N > 1 {
+			return *request.N
+		}
+	case *dto.GeminiChatRequest:
+		if request.GenerationConfig.CandidateCount != nil && *request.GenerationConfig.CandidateCount > 1 {
+			return *request.GenerationConfig.CandidateCount
+		}
+	}
+	return 1
+}
+
+// ReservedOutputTokens returns the output token ceiling this request counts in
+// the pre-consume estimate.
+//
+// A client-declared output limit is the only trustworthy upper bound because
+// the upstream honors it. Without a declared limit the configured default is
+// reserved conservatively. The configured ceiling caps the reservation, so
+// output above the ceiling stays unreserved.
+func ReservedOutputTokens(info *relaycommon.RelayInfo, meta *types.TokenCountMeta) int {
+	if !operation_setting.OutputReserveEnabled() {
+		return 0
+	}
+	limit := operation_setting.OutputReserveTokenLimit()
+	if limit <= 0 {
+		return 0
+	}
+	if !producesBilledCompletionTokens(info) {
+		return 0
+	}
+	reserved := limit
+	if meta != nil && meta.MaxTokens > 0 {
+		completions := declaredCompletionCount(info)
+		// The ceiling caps the total, so a request that declares many
+		// completions reserves the ceiling instead of an unbounded amount.
+		if int64(meta.MaxTokens) > int64(limit)/int64(completions) {
+			reserved = limit
+		} else {
+			reserved = min(meta.MaxTokens*completions, limit)
+		}
+	}
+	// Claude manual thinking raises the upstream max_tokens above the client's
+	// declaration so the thinking budget fits, so the declared budget is part
+	// of the ceiling the upstream will honor.
+	if claude, ok := info.Request.(*dto.ClaudeRequest); ok && claude.Thinking != nil {
+		if budget := claude.Thinking.GetBudgetTokens(); budget > 0 && budget+1 > reserved {
+			reserved = min(budget+1, limit)
+		}
+	}
+	return reserved
+}
+
 func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) (hosttypes.PriceData, error) {
 	if info != nil {
 		if matched := resolveBillingModelName(info.GetOriginModelName()); matched != "" && matched != info.OriginModelName {
@@ -75,7 +153,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 
 	// Check if this model uses tiered_expr billing
 	if billing_setting.GetBillingMode(billingModelName) == billing_setting.BillingModeTieredExpr {
-		return modelPriceHelperTiered(c, info, billingModelName, promptTokens, groupRatioInfo)
+		return modelPriceHelperTiered(c, info, billingModelName, promptTokens, meta, groupRatioInfo)
 	}
 
 	var preConsumedQuota int
@@ -95,7 +173,6 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		if err != nil {
 			return hosttypes.PriceData{}, err
 		}
-		preConsumedTokens := float64(promptTokens) * preConsumeMultiplier
 		var success bool
 		var matchName string
 		modelRatio, success, matchName = ratio_setting.GetModelRatio(billingModelName)
@@ -109,6 +186,12 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 			}
 		}
 		completionRatio = ratio_setting.GetCompletionRatio(billingModelName)
+		preConsumedTokens := float64(promptTokens) * preConsumeMultiplier
+		if reservedOutput := ReservedOutputTokens(info, meta); reservedOutput > 0 {
+			// The output reservation mirrors the settlement's completionQuota,
+			// so the reservation becomes an upper bound of the settlement.
+			preConsumedTokens += float64(reservedOutput) * completionRatio
+		}
 		cacheRatio, _ = ratio_setting.GetCacheRatio(billingModelName)
 		cacheCreationRatio, _ = ratio_setting.GetCreateCacheRatio(billingModelName)
 		cacheCreationRatio5m = cacheCreationRatio
@@ -341,7 +424,7 @@ func resolveBillingModelName(origin string) string {
 	return matched
 }
 
-func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, billingModelName string, promptTokens int, groupRatioInfo hosttypes.GroupRatioInfo) (hosttypes.PriceData, error) {
+func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, billingModelName string, promptTokens int, meta *types.TokenCountMeta, groupRatioInfo hosttypes.GroupRatioInfo) (hosttypes.PriceData, error) {
 	exprStr, ok := billing_setting.GetBillingExpr(billingModelName)
 	if !ok {
 		return hosttypes.PriceData{}, fmt.Errorf("model %s is configured as tiered_expr but has no billing expression", billingModelName)
@@ -393,9 +476,10 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, billing
 		}
 	}
 
+	reservedOutput := ReservedOutputTokens(info, meta)
 	rawCost, trace, err := billingexpr.RunExprByHashWithRequest(exprStr, exprHash, billingexpr.TokenParams{
 		P:   float64(promptTokens),
-		C:   0,
+		C:   float64(reservedOutput),
 		Len: float64(promptTokens),
 	}, requestInput)
 	if err != nil {
@@ -403,12 +487,38 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, billing
 	}
 
 	// Expression coefficients are $/1M tokens prices; convert to quota the same way per-call billing does.
-	quotaBeforeGroup := rawCost / 1_000_000 * common.QuotaPerUnit
+	reserveCost := rawCost
 	// Scale the reservation, preserving the expression's context-length tier
 	// and leaving actual settlement and fixed request prices unchanged.
 	if trace.BillingUnit != billingexpr.BillingUnitRequest {
-		quotaBeforeGroup *= preConsumeMultiplier
+		inputCost := rawCost
+		isolated := reservedOutput == 0
+		if reservedOutput > 0 {
+			// The expression mixes input and output in one formula, so it runs
+			// twice to scale only the input side: once with the reserved
+			// output for the total, once with C=0 for the input cost alone.
+			var inputTrace billingexpr.TraceResult
+			var runErr error
+			inputCost, inputTrace, runErr = billingexpr.RunExprByHashWithRequest(exprStr, exprHash, billingexpr.TokenParams{
+				P:   float64(promptTokens),
+				C:   0,
+				Len: float64(promptTokens),
+			}, requestInput)
+			if runErr != nil {
+				return hosttypes.PriceData{}, fmt.Errorf("model %s tiered expr run failed: %w", billingModelName, runErr)
+			}
+			isolated = inputTrace.MatchedTier == trace.MatchedTier
+		}
+		if isolated {
+			reserveCost = inputCost*preConsumeMultiplier + (rawCost - inputCost)
+		} else {
+			// The two runs select different leaves, so the input side cannot be
+			// isolated from the output side. Keep the pricing decision of the
+			// reserved run and reserve its total.
+			reserveCost = rawCost
+		}
 	}
+	quotaBeforeGroup := reserveCost / 1_000_000 * common.QuotaPerUnit
 	preConsumedQuota, err := billingexpr.QuotaRoundStrict(quotaBeforeGroup * groupRatioInfo.GroupRatio)
 	if err != nil {
 		return hosttypes.PriceData{}, err
@@ -431,6 +541,10 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, billing
 		GroupRatio:                groupRatioInfo.GroupRatio,
 		EstimatedPromptTokens:     promptTokens,
 		EstimatedCompletionTokens: 0,
+		// ReservedOutputTokens records the output token ceiling counted in the
+		// reservation. EstimatedCompletionTokens stays 0: it is the image
+		// re-pricing input, and a reserved value would change image pricing.
+		ReservedOutputTokens:      reservedOutput,
 		PreConsumeMultiplier:      preConsumeMultiplier,
 		EstimatedQuotaBeforeGroup: quotaBeforeGroup,
 		EstimatedQuotaAfterGroup:  preConsumedQuota,
