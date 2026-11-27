@@ -21,6 +21,7 @@ import { dataScheme as vchartDefaultDataScheme } from '@visactor/vchart/esm/them
 import { MAX_CHART_TREND_POINTS } from '@/features/dashboard/constants'
 import type {
   QuotaDataItem,
+  UserChartLabel,
   ProcessedChartData,
   ProcessedUserChartData,
 } from '@/features/dashboard/types'
@@ -706,11 +707,49 @@ const USER_COLORS = [
   '#5D7092',
 ]
 
+// Charts always group by the unique username. In display-name mode the label
+// falls back to the username when the display name is empty, and adds the
+// username only when two users would otherwise get the same label, because
+// generated usernames can be long and crowd the axis and legend.
+function buildUserLabels(
+  data: QuotaDataItem[],
+  userLabel: UserChartLabel
+): Map<string, string> {
+  const names = new Map<string, string>()
+  data.forEach((item) => {
+    const username = item.username || 'unknown'
+    if (names.has(username)) return
+    const displayName =
+      userLabel === 'display_name' ? item.display_name?.trim() : ''
+    names.set(username, displayName || username)
+  })
+
+  const counts = new Map<string, number>()
+  names.forEach((name) => counts.set(name, (counts.get(name) || 0) + 1))
+  const short = (name: string, username: string) =>
+    name === username || counts.get(name) === 1 ? name : `${name} (${username})`
+  const full = (name: string, username: string) =>
+    name === username ? name : `${name} (${username})`
+
+  // A display name written like another user's label, such as "Bob (alice)",
+  // can still collide. Then every label carries its username, and as a last
+  // resort the unique usernames are used.
+  for (const format of [short, full]) {
+    const labels = new Map<string, string>()
+    names.forEach((name, username) =>
+      labels.set(username, format(name, username))
+    )
+    if (new Set(labels.values()).size === labels.size) return labels
+  }
+  return new Map([...names.keys()].map((username) => [username, username]))
+}
+
 export function processUserChartData(
   data: QuotaDataItem[],
   timeGranularity: TimeGranularity = 'day',
   t?: TFunction,
-  limit = 10
+  limit = 10,
+  userLabel: UserChartLabel = 'username'
 ): ProcessedUserChartData {
   const tt: TFunction = t ?? ((x) => x)
   const { config } = getCurrencyDisplay()
@@ -766,19 +805,23 @@ export function processUserChartData(
   const topUsers = sorted.slice(0, limit).map(([u]) => u)
   const topUserSet = new Set(topUsers)
   const totalQuota = sorted.slice(0, limit).reduce((s, [, q]) => s + q, 0)
+  const userLabels = buildUserLabels(data, userLabel)
+  const labelOf = (username: string) => userLabels.get(username) ?? username
 
   const rankValues = sorted.slice(0, limit).map(([username, quota]) => ({
-    User: username,
+    User: labelOf(username),
     rawQuota: quota,
     Usage: Number((quota / quotaPerUnit).toFixed(4)),
   }))
 
   const userColorMap = topUsers.reduce<Record<string, string>>(
     (acc, user, i) => {
-      acc[user] = USER_COLORS[i % USER_COLORS.length]
+      acc[labelOf(user)] = USER_COLORS[i % USER_COLORS.length]
       return acc
     },
-    {}
+    // Display names are free text; a name such as "__proto__" must still
+    // become an own key.
+    Object.create(null) as Record<string, string>
   )
 
   const timeUserMap = new Map<string, Map<string, number>>()
@@ -813,7 +856,7 @@ export function processUserChartData(
       const q = timeUserMap.get(time)?.get(user) || 0
       trendValues.push({
         Time: time,
-        User: user,
+        User: labelOf(user),
         rawQuota: q,
         Usage: Number((q / quotaPerUnit).toFixed(4)),
       })

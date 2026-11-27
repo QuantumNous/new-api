@@ -38,6 +38,7 @@ import {
 } from '@/features/dashboard/lib'
 import type {
   ProcessedUserChartData,
+  UserChartLabel,
   UserChartsFilters,
 } from '@/features/dashboard/types'
 import { requireServerSuccess } from '@/lib/server-error-message'
@@ -67,6 +68,11 @@ const USER_CHARTS: {
 
 const TOP_USER_LIMIT_OPTIONS = [5, 10, 20, 50]
 
+const USER_LABEL_OPTIONS: { value: UserChartLabel; labelKey: string }[] = [
+  { value: 'username', labelKey: 'Username' },
+  { value: 'display_name', labelKey: 'Display Name' },
+]
+
 interface UserChartsProps {
   filters: UserChartsFilters
   onFiltersChange: (filters: UserChartsFilters) => void
@@ -85,6 +91,7 @@ export function UserCharts(props: UserChartsProps) {
   const timeGranularity = props.filters.timeGranularity
   const selectedRange = props.filters.selectedRange
   const topUserLimit = props.filters.topUserLimit
+  const userLabel = props.filters.userLabel
   const onFiltersChange = props.onFiltersChange
 
   const timeRange = useMemo(() => {
@@ -121,6 +128,13 @@ export function UserCharts(props: UserChartsProps) {
     [onFiltersChange, props.filters]
   )
 
+  const handleUserLabelChange = useCallback(
+    (label: UserChartLabel) => {
+      onFiltersChange({ ...props.filters, userLabel: label })
+    },
+    [onFiltersChange, props.filters]
+  )
+
   useEffect(() => {
     const updateTheme = async () => {
       setThemeReady(false)
@@ -151,9 +165,10 @@ export function UserCharts(props: UserChartsProps) {
         isLoading ? [] : (userData ?? []),
         timeGranularity,
         t,
-        topUserLimit
+        topUserLimit,
+        userLabel
       ),
-    [userData, isLoading, timeGranularity, t, topUserLimit]
+    [userData, isLoading, timeGranularity, t, topUserLimit, userLabel]
   )
 
   return (
@@ -218,6 +233,26 @@ export function UserCharts(props: UserChartsProps) {
           </TabsList>
         </Tabs>
 
+        <Tabs
+          value={userLabel}
+          onValueChange={(value) =>
+            handleUserLabelChange(value as UserChartLabel)
+          }
+          className='shrink-0'
+        >
+          <TabsList>
+            {USER_LABEL_OPTIONS.map((opt) => (
+              <TabsTrigger
+                key={opt.value}
+                value={opt.value}
+                className='px-2.5 text-xs'
+              >
+                {t(opt.labelKey)}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+
         {isLoading && (
           <Loader2 className='text-muted-foreground size-4 animate-spin' />
         )}
@@ -246,7 +281,7 @@ export function UserCharts(props: UserChartsProps) {
                   themeReady &&
                   spec && (
                     <VChart
-                      key={`user-${chart.value}-${topUserLimit}-${resolvedTheme}`}
+                      key={`user-${chart.value}-${topUserLimit}-${userLabel}-${resolvedTheme}`}
                       spec={{
                         ...spec,
                         theme: resolvedTheme === 'dark' ? 'dark' : 'light',

@@ -154,3 +154,90 @@ describe.each(cases)('dashboard $granularity chart chronology', (scenario) => {
     }
   })
 })
+
+describe('processUserChartData user labels', () => {
+  const data: QuotaDataItem[] = [
+    {
+      username: 'p_2ff8ed3c',
+      display_name: 'Alice',
+      created_at: 0,
+      quota: 300,
+    },
+    { username: 'p_28d72aae', display_name: 'Bob', created_at: 0, quota: 200 },
+    { username: 'p_94647dc5', display_name: 'Bob', created_at: 0, quota: 100 },
+    { username: 'svc_10bf2464', display_name: '', created_at: 0, quota: 50 },
+  ]
+
+  const rankLabels = (result: ReturnType<typeof processUserChartData>) =>
+    result.spec_user_rank.data[0].values.map(
+      (row: { User: string }) => row.User
+    )
+
+  test('keeps usernames by default', () => {
+    expect(rankLabels(processUserChartData(data, 'day'))).toEqual([
+      'p_2ff8ed3c',
+      'p_28d72aae',
+      'p_94647dc5',
+      'svc_10bf2464',
+    ])
+  })
+
+  test('shows display names and keeps users with the same name apart', () => {
+    const result = processUserChartData(
+      data,
+      'day',
+      undefined,
+      10,
+      'display_name'
+    )
+    expect(rankLabels(result)).toEqual([
+      'Alice',
+      'Bob (p_28d72aae)',
+      'Bob (p_94647dc5)',
+      'svc_10bf2464',
+    ])
+    const trendLabels = new Set(
+      result.spec_user_trend.data[0].values.map(
+        (row: { User: string }) => row.User
+      )
+    )
+    expect(trendLabels).toEqual(new Set(rankLabels(result)))
+    expect(Object.keys(result.spec_user_trend.color.specified)).toEqual(
+      rankLabels(result)
+    )
+  })
+
+  test('never gives two users the same label', () => {
+    const result = processUserChartData(
+      [
+        { username: 'a', display_name: 'Bob', created_at: 0, quota: 3 },
+        { username: 'b', display_name: 'Bob', created_at: 0, quota: 2 },
+        { username: 'c', display_name: 'Bob (a)', created_at: 0, quota: 1 },
+        { username: 'd', display_name: 'b', created_at: 0, quota: 1 },
+      ],
+      'day',
+      undefined,
+      10,
+      'display_name'
+    )
+    const labels = rankLabels(result)
+    expect(new Set(labels).size).toBe(4)
+    expect(labels).toEqual(['Bob (a)', 'Bob (b)', 'Bob (a) (c)', 'b (d)'])
+  })
+
+  test('gives a color to a display name that matches an object key', () => {
+    const result = processUserChartData(
+      [
+        { username: 'a', display_name: '__proto__', created_at: 0, quota: 2 },
+        { username: 'b', display_name: 'Bob', created_at: 0, quota: 1 },
+      ],
+      'day',
+      undefined,
+      10,
+      'display_name'
+    )
+    const colors = result.spec_user_rank.color.specified
+    expect(Object.hasOwn(colors, '__proto__')).toBe(true)
+    expect(Object.hasOwn(colors, 'Bob')).toBe(true)
+  })
+})

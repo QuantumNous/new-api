@@ -26,6 +26,7 @@ export interface QuotaDataItem {
   id?: number
   user_id?: number
   username?: string
+  display_name?: string
   model_name?: string
   created_at: number
   cache_read_tokens?: number
@@ -206,10 +207,13 @@ export interface DashboardChartPreferences {
 
 // User analytics selections are held by the dashboard parent so they survive
 // switching between dashboard sub-sections, matching the model/flow filters.
+export type UserChartLabel = 'username' | 'display_name'
+
 export interface UserChartsFilters {
   timeGranularity: TimeGranularity
   selectedRange: number
   topUserLimit: number
+  userLabel: UserChartLabel
 }
 
 // ============================================================================
