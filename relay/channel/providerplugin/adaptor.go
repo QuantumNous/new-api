@@ -526,8 +526,7 @@ func (a *Adaptor) bind(c *gin.Context, info *relaycommon.RelayInfo) error {
 	if c.Request != nil && c.Request.URL != nil {
 		path = c.Request.URL.Path
 	}
-	config := a.plugin.ChannelConfigFor(info.ChannelOtherSettings.PluginConfig)
-	route, ok := a.plugin.Meta.ChannelRelayRoute(config, strings.Split(path, "?")[0], info.OriginModelName)
+	route, ok := a.plugin.Meta.RelayRoute(strings.Split(path, "?")[0], info.OriginModelName)
 	if !ok {
 		return fmt.Errorf("plugin %s has no relay route for %s and model %s", a.plugin.Meta.Key, path, info.OriginModelName)
 	}

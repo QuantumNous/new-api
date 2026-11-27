@@ -180,10 +180,9 @@
           "required": ["type"],
           "properties": {"type": {"enum": ["none", "header", "query"]}, "name": {"type": "string"}, "value": {"type": "string"}}
         },
-        "pass_through_body_enabled": {"type": "boolean"},
-        "enabled_by": {"type": "string", "minLength": 1, "description": "A top-level boolean property of meta.channelConfig; the route serves a channel only when it is true. Not allowed on /v1/models or /v1/dashboard/billing/credit_grants."}
+        "pass_through_body_enabled": {"type": "boolean"}
       },
-      "description": "The keys of an Advanced Custom channel route, plus enabled_by; the host applies the same validation rules."
+      "description": "The keys of an Advanced Custom channel route; the host applies the same validation rules."
     },
     "upstreamKind": {"enum": ["vendor", "new_api"]},
     "upstreamContext": {

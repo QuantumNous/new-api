@@ -445,7 +445,7 @@ func TestGapsProviderTestEndpoint(t *testing.T) {
 		{"no test endpoint is served", routes(route("/v1/videos")), "/v1/chat/completions", "m", "", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			endpoint, ok := providerTestEndpoint(tc.meta, nil, tc.requestPath, tc.model)
+			endpoint, ok := providerTestEndpoint(tc.meta, tc.requestPath, tc.model)
 			assert.Equal(t, tc.wantOK, ok)
 			assert.Equal(t, tc.wantEndpoint, endpoint)
 		})
