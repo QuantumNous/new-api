@@ -739,6 +739,107 @@ func TestAdaptorResponsesToGeminiAddsThoughtSignatureForFunctionCallHistory(t *t
 	assert.Empty(t, geminiReq.Contents[2].Parts[0].ThoughtSignature)
 }
 
+// A /v1/responses route to Anthropic Messages converts the request, sends the
+// Claude headers and turns the Messages reply, plain or streamed, back into
+// OpenAI Responses.
+func TestAdaptorResponsesToClaudeMessages(t *testing.T) {
+	previousTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = previousTimeout })
+	config := &dto.AdvancedCustomConfig{
+		Routes: []dto.AdvancedCustomRoute{
+			{
+				IncomingPath: "/v1/responses",
+				UpstreamPath: "/v1/messages",
+				Converter:    relayconvert.ConverterOpenAIResponsesToClaudeMessages,
+				Auth: &dto.AdvancedCustomRouteAuth{
+					Type:  dto.AdvancedCustomAuthTypeHeader,
+					Name:  "x-api-key",
+					Value: "{api_key}",
+				},
+			},
+		},
+	}
+	responsesInfo := func(stream bool) *relaycommon.RelayInfo {
+		info := advancedCustomRelayInfo(config)
+		info.RelayFormat = types.RelayFormatOpenAIResponses
+		info.RelayMode = relayconstant.RelayModeResponses
+		info.RequestURLPath = "/v1/responses"
+		info.OriginModelName = "claude-test"
+		info.UpstreamModelName = "claude-test"
+		info.IsStream = stream
+		info.DisablePing = true
+		return info
+	}
+
+	adaptor := &Adaptor{}
+	info := responsesInfo(false)
+	c := advancedCustomGinContext("/v1/responses")
+	converted, err := adaptor.ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{
+		Model:        "claude-test",
+		Instructions: mustAdvancedCustomRawMessage(t, "be brief"),
+		Input:        mustAdvancedCustomRawMessage(t, "hello"),
+	})
+	require.NoError(t, err)
+	claudeReq, ok := converted.(*dto.ClaudeRequest)
+	require.True(t, ok)
+	assert.Equal(t, "claude-test", claudeReq.Model)
+	assert.NotNil(t, claudeReq.System)
+	require.Len(t, claudeReq.Messages, 1)
+	assert.Equal(t, "user", claudeReq.Messages[0].Role)
+
+	requestURL, err := adaptor.GetRequestURL(info)
+	require.NoError(t, err)
+	assert.Equal(t, "https://fallback.example/v1/messages", requestURL)
+	header := http.Header{}
+	require.NoError(t, adaptor.SetupRequestHeader(c, &header, info))
+	assert.Equal(t, "sk-test", header.Get("x-api-key"))
+	assert.Equal(t, "2023-06-01", header.Get("anthropic-version"))
+	assert.Empty(t, header.Get("Authorization"))
+
+	claudeBody := `{"id":"msg_1","type":"message","model":"claude-test","role":"assistant","content":[{"type":"text","text":"hi"}],"stop_reason":"end_turn","usage":{"input_tokens":2,"output_tokens":3}}`
+	recorder := httptest.NewRecorder()
+	plain, _ := gin.CreateTestContext(recorder)
+	plain.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	plainAdaptor := &Adaptor{}
+	usage, apiErr := plainAdaptor.DoResponse(plain, &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(strings.NewReader(claudeBody)),
+	}, responsesInfo(false))
+	require.Nil(t, apiErr)
+	assert.Equal(t, 5, usage.(*dto.Usage).TotalTokens)
+	body := recorder.Body.String()
+	assert.Contains(t, body, `"object":"response"`)
+	assert.Contains(t, body, `"type":"output_text"`)
+	assert.Contains(t, body, `"text":"hi"`)
+	assert.NotContains(t, body, `"stop_reason"`)
+
+	claudeStream := "data: " + `{"type":"message_start","message":{"id":"msg_1","type":"message","model":"claude-test","role":"assistant","content":[],"usage":{"input_tokens":2,"output_tokens":0}}}` + "\n\n" +
+		"data: " + `{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}` + "\n\n" +
+		"data: " + `{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hi"}}` + "\n\n" +
+		"data: " + `{"type":"content_block_stop","index":0}` + "\n\n" +
+		"data: " + `{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":3}}` + "\n\n" +
+		"data: " + `{"type":"message_stop"}` + "\n\n"
+	streamRecorder := httptest.NewRecorder()
+	streamCtx, _ := gin.CreateTestContext(streamRecorder)
+	streamCtx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	streamAdaptor := &Adaptor{}
+	usage, apiErr = streamAdaptor.DoResponse(streamCtx, &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(strings.NewReader(claudeStream)),
+	}, responsesInfo(true))
+	require.Nil(t, apiErr)
+	assert.Equal(t, 5, usage.(*dto.Usage).TotalTokens)
+	events := streamRecorder.Body.String()
+	assert.Contains(t, events, `"type":"response.created"`)
+	assert.Contains(t, events, `"type":"response.output_text.delta"`)
+	assert.Contains(t, events, `"delta":"hi"`)
+	assert.Contains(t, events, `"type":"response.completed"`)
+	assert.NotContains(t, events, `"message_start"`)
+}
+
 func TestAdaptorConvertsOpenAIChatRequestToResponsesUpstream(t *testing.T) {
 	adaptor := &Adaptor{}
 	info := advancedCustomRelayInfo(&dto.AdvancedCustomConfig{

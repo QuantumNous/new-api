@@ -179,6 +179,7 @@ export type AdvancedCustomConverter =
   | 'openai_chat_completions_to_openai_responses'
   | 'openai_responses_to_openai_chat_completions'
   | 'openai_responses_to_gemini_generate_content'
+  | 'openai_responses_to_claude_messages'
   | 'gemini_generate_content_to_openai_chat_completions'
   | 'openai_chat_completions_to_gemini_generate_content'
   | 'claude_messages_to_openai_responses'

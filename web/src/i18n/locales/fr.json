@@ -4597,6 +4597,7 @@
     "OpenAI only": "OpenAI uniquement",
     "OpenAI Organization": "Organisation OpenAI",
     "OpenAI Organization ID (optional)": "Identifiant d'organisation OpenAI (optionnel)",
+    "OpenAI Responses to Anthropic Messages": "OpenAI Responses vers Anthropic Messages",
     "OpenAI Responses to Gemini Generate Content": "OpenAI Responses vers Gemini Generate Content",
     "OpenAI Responses to OpenAI Chat": "OpenAI Responses vers OpenAI Chat",
     "OpenAI, Anthropic, etc.": "OpenAI, Anthropic, etc.",

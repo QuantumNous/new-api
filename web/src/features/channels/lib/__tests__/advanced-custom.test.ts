@@ -109,3 +109,30 @@ describe('advanced custom incoming path options', () => {
     expect(convertedPaths).not.toContain('/v1/tools/fetch')
   })
 })
+
+describe('advanced custom Responses to Anthropic Messages converter', () => {
+  const converter = 'openai_responses_to_claude_messages'
+
+  test('is offered on the Responses path only', () => {
+    expect(
+      getAdvancedCustomConverterOptions('/v1/responses').map(
+        (option) => option.value
+      )
+    ).toContain(converter)
+    expect(isAdvancedCustomIncomingPathAllowed('/v1/responses', converter)).toBe(
+      true
+    )
+    for (const path of ['/v1/messages', '/v1/chat/completions']) {
+      expect(isAdvancedCustomIncomingPathAllowed(path, converter)).toBe(false)
+    }
+  })
+
+  test('defaults to the Anthropic Messages upstream with the x-api-key header', () => {
+    expect(
+      getAdvancedCustomConverterDefaults(converter, '/v1/responses')
+    ).toEqual({
+      upstream_path: '/v1/messages',
+      auth: { type: 'header', name: 'x-api-key', value: '{api_key}' },
+    })
+  })
+})

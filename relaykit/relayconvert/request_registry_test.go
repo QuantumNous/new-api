@@ -148,10 +148,11 @@ func TestRequestConverterRegistryListsSupportedTextConverters(t *testing.T) {
 			advancedCustom: true,
 		},
 		{
-			converter: requestConverterResponsesToClaude,
-			from:      types.RelayFormatOpenAIResponses,
-			to:        types.RelayFormatClaude,
-			quality:   RequestConverterQualityFair,
+			converter:      requestConverterResponsesToClaude,
+			from:           types.RelayFormatOpenAIResponses,
+			to:             types.RelayFormatClaude,
+			quality:        RequestConverterQualityFair,
+			advancedCustom: true,
 		},
 		{
 			converter:      ConverterOpenAIResponsesToGemini,

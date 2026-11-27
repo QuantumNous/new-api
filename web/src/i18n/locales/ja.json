@@ -4597,6 +4597,7 @@
     "OpenAI only": "OpenAI のみ",
     "OpenAI Organization": "OpenAI組織",
     "OpenAI Organization ID (optional)": "OpenAI 組織 ID (オプション)",
+    "OpenAI Responses to Anthropic Messages": "OpenAI Responses から Anthropic Messages",
     "OpenAI Responses to Gemini Generate Content": "OpenAI Responses から Gemini Generate Content",
     "OpenAI Responses to OpenAI Chat": "OpenAI Responses から OpenAI Chat",
     "OpenAI, Anthropic, etc.": "OpenAI、Anthropicなど",
