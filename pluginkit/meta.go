@@ -106,10 +106,6 @@ type Meta struct {
 	// Relay is the provider part: the Advanced Custom routes a type-61
 	// channel bound to the plugin serves.
 	Relay []dto.AdvancedCustomRoute `json:"relay,omitempty"`
-	// RelayEnabledBy holds, per Relay route, the boolean ChannelConfig
-	// property that turns the route on for a channel; empty for a route that
-	// is always on.
-	RelayEnabledBy []string `json:"relayEnabledBy,omitempty"`
 	// ConfigSchema is the schema of a request processing instance's config.
 	ConfigSchema *ConfigSchema `json:"configSchema,omitempty"`
 	// ChannelConfig is the schema of the plugin config of a type-61 channel
@@ -198,13 +194,6 @@ func (m Meta) ChannelRelayConfig(config []byte) *dto.AdvancedCustomConfig {
 	if relay == nil {
 		return nil
 	}
-	enabled := relay.Routes[:0]
-	for index, route := range relay.Routes {
-		if m.relayRouteEnabled(index, config) {
-			enabled = append(enabled, route)
-		}
-	}
-	relay.Routes = enabled
 	for index, route := range relay.Routes {
 		name, rest, ok := configAddressPath(route.UpstreamPath)
 		if !ok {
@@ -238,28 +227,6 @@ func (m Meta) RelayRoute(requestPath, model string) (dto.AdvancedCustomRoute, bo
 	return config.MatchPathForModel(requestPath, model)
 }
 
-// ChannelRelayRoute is RelayRoute for a channel: a route whose enabled_by
-// property is off in the channel's plugin config does not serve. config is
-// the config as ChannelConfigFor returns it.
-func (m Meta) ChannelRelayRoute(config []byte, requestPath, model string) (dto.AdvancedCustomRoute, bool) {
-	relay := dto.AdvancedCustomConfig{Routes: make([]dto.AdvancedCustomRoute, 0, len(m.Relay))}
-	for index, route := range m.Relay {
-		if m.relayRouteEnabled(index, config) {
-			relay.Routes = append(relay.Routes, route)
-		}
-	}
-	return relay.MatchPathForModel(requestPath, model)
-}
-
-// relayRouteEnabled reports whether route index is on for a channel: a route
-// without enabled_by always is, else its boolean property must be true.
-func (m Meta) relayRouteEnabled(index int, config []byte) bool {
-	if index >= len(m.RelayEnabledBy) || m.RelayEnabledBy[index] == "" {
-		return true
-	}
-	return channelConfigTrue(config, m.RelayEnabledBy[index])
-}
-
 // RelaysModel reports whether a relay route accepts model for client
 // requests: the plugin serves the model on chat paths, not only as a task. The
 // model list and balance routes accept every model and serve none.
@@ -283,13 +250,6 @@ func (m Meta) ServesResponsesWebSocket(model string) bool {
 		})
 	}
 	route, ok := m.RelayRoute(responsesPath, model)
-	return ok && route.IsNative()
-}
-
-// ChannelServesResponsesWebSocket is ServesResponsesWebSocket for a channel
-// and a model, on the routes that are on for it.
-func (m Meta) ChannelServesResponsesWebSocket(config []byte, model string) bool {
-	route, ok := m.ChannelRelayRoute(config, responsesPath, model)
 	return ok && route.IsNative()
 }
 
@@ -814,7 +774,6 @@ func cloneMeta(meta Meta) Meta {
 		profile.Examples = CloneUsageExamples(profile.Examples)
 	}
 	meta.Relay = cloneRelayRoutes(meta.Relay)
-	meta.RelayEnabledBy = slices.Clone(meta.RelayEnabledBy)
 	meta.transformHooks = slices.Clone(meta.transformHooks)
 	meta.Samples = slices.Clone(meta.Samples)
 	for index := range meta.Samples {
@@ -1037,7 +996,7 @@ func decodeMeta(value any) (Meta, error) {
 		}
 	}
 	if relay, exists := object["relay"]; exists {
-		meta.Relay, meta.RelayEnabledBy, err = decodeRelayRoutes(relay)
+		meta.Relay, err = decodeRelayRoutes(relay)
 		if err != nil {
 			return Meta{}, err
 		}
@@ -1365,69 +1324,53 @@ func normalizeV1Meta(meta *Meta) error {
 			return fmt.Errorf("plugin meta usageProfiles[%d]: %w", index, err)
 		}
 	}
-	return validateRelayRoutes(meta.Relay, meta.RelayEnabledBy, meta.ChannelConfig)
+	return validateRelayRoutes(meta.Relay, meta.ChannelConfig)
 }
 
 // relayErrorNames renames Advanced Custom validation errors for manifests.
 var relayErrorNames = strings.NewReplacer("advanced_custom.advanced_routes", "plugin meta relay", "advanced_routes[", "relay[")
 
-var relayRouteFields = []string{"incoming_path", "upstream_path", "converter", "models", "auth", "pass_through_body_enabled", relayEnabledByField}
-
-// relayEnabledByField names the boolean ChannelConfig property that turns a
-// route on for a channel. Only a plugin route has it.
-const relayEnabledByField = "enabled_by"
+var relayRouteFields = []string{"incoming_path", "upstream_path", "converter", "models", "auth", "pass_through_body_enabled"}
 
 // decodeRelayRoutes reads meta.relay. Each route has exactly the keys of an
 // Advanced Custom route.
-func decodeRelayRoutes(value any) ([]dto.AdvancedCustomRoute, []string, error) {
+func decodeRelayRoutes(value any) ([]dto.AdvancedCustomRoute, error) {
 	items, ok := value.([]any)
 	if !ok {
-		return nil, nil, fmt.Errorf("plugin meta relay must be an array")
+		return nil, fmt.Errorf("plugin meta relay must be an array")
 	}
 	routes := make([]dto.AdvancedCustomRoute, len(items))
-	var enabledBy []string
 	for index, item := range items {
 		object, ok := item.(map[string]any)
 		if !ok {
-			return nil, nil, fmt.Errorf("plugin meta relay[%d] must be an object", index)
+			return nil, fmt.Errorf("plugin meta relay[%d] must be an object", index)
 		}
 		for field, fieldValue := range object {
 			if !slices.Contains(relayRouteFields, field) {
-				return nil, nil, fmt.Errorf("plugin meta relay[%d] has unknown field %q", index, field)
+				return nil, fmt.Errorf("plugin meta relay[%d] has unknown field %q", index, field)
 			}
 			if field != "auth" || fieldValue == nil {
 				continue
 			}
 			auth, isObject := fieldValue.(map[string]any)
 			if !isObject {
-				return nil, nil, fmt.Errorf("plugin meta relay[%d].auth must be an object", index)
+				return nil, fmt.Errorf("plugin meta relay[%d].auth must be an object", index)
 			}
 			for authField := range auth {
 				if authField != "type" && authField != "name" && authField != "value" {
-					return nil, nil, fmt.Errorf("plugin meta relay[%d].auth has unknown field %q", index, authField)
+					return nil, fmt.Errorf("plugin meta relay[%d].auth has unknown field %q", index, authField)
 				}
 			}
 		}
-		if fieldValue, exists := object[relayEnabledByField]; exists {
-			name, isString := fieldValue.(string)
-			if !isString || strings.TrimSpace(name) == "" {
-				return nil, nil, fmt.Errorf("plugin meta relay[%d].%s must be a non-empty string", index, relayEnabledByField)
-			}
-			if enabledBy == nil {
-				enabledBy = make([]string, len(items))
-			}
-			enabledBy[index] = strings.TrimSpace(name)
-			delete(object, relayEnabledByField)
-		}
 		encoded, err := marshalJSON(object)
 		if err != nil {
-			return nil, nil, fmt.Errorf("plugin meta relay[%d]: %w", index, err)
+			return nil, fmt.Errorf("plugin meta relay[%d]: %w", index, err)
 		}
 		if err = unmarshalJSON(encoded, &routes[index]); err != nil {
-			return nil, nil, fmt.Errorf("plugin meta relay[%d] has a member of the wrong type: %w", index, err)
+			return nil, fmt.Errorf("plugin meta relay[%d] has a member of the wrong type: %w", index, err)
 		}
 	}
-	return routes, enabledBy, nil
+	return routes, nil
 }
 
 // validateRelayRoutes applies the Advanced Custom route rules to meta.relay.
@@ -1436,20 +1379,12 @@ func decodeRelayRoutes(value any) ([]dto.AdvancedCustomRoute, []string, error) {
 // route of its registered converter. An upstream_path that
 // starts with {config.<name>} must name a url property of channelConfig and go
 // on with nothing or a path; it is checked as a full URL.
-func validateRelayRoutes(routes []dto.AdvancedCustomRoute, enabledBy []string, channelConfig *ConfigSchema) error {
+func validateRelayRoutes(routes []dto.AdvancedCustomRoute, channelConfig *ConfigSchema) error {
 	if len(routes) == 0 {
 		return nil
 	}
 	config := dto.AdvancedCustomConfig{Routes: make([]dto.AdvancedCustomRoute, len(routes))}
 	for index, route := range routes {
-		if index < len(enabledBy) && enabledBy[index] != "" {
-			if !channelConfig.hasBoolean(enabledBy[index]) {
-				return fmt.Errorf("plugin meta relay[%d].%s must name a boolean property of meta.channelConfig", index, relayEnabledByField)
-			}
-			if path := strings.TrimSpace(route.IncomingPath); path == dto.AdvancedCustomModelListPath || path == dto.AdvancedCustomBalancePath {
-				return fmt.Errorf("plugin meta relay[%d].%s is not allowed on %s", index, relayEnabledByField, path)
-			}
-		}
 		if name, rest, ok := configAddressPath(route.UpstreamPath); ok || strings.HasPrefix(strings.TrimSpace(route.UpstreamPath), configAddressPrefix) {
 			if !ok || !channelConfig.hasAddress(name) || (rest != "" && !strings.HasPrefix(rest, "/")) {
 				return fmt.Errorf("plugin meta relay[%d].upstream_path must start with {config.<name>} naming a format url property of meta.channelConfig, followed by nothing or a path", index)
