@@ -50,7 +50,7 @@ const CONFIGURATION_BLOCKS = {
   modelMapping: { section: 'routing', fields: ['model_mapping'] },
   routingStrategy: {
     section: 'routing',
-    fields: ['priority', 'weight', 'test_model', 'auto_ban'],
+    fields: ['priority', 'weight', 'retry_budget', 'test_model', 'auto_ban'],
   },
   overrideRules: {
     section: 'request',
@@ -161,6 +161,7 @@ export function getChannelConfigurationState(
     routingStrategy: Boolean(
       values.priority ||
       values.weight ||
+      values.retry_budget ||
       values.test_model?.trim() ||
       (values.auto_ban ?? 1) !== 1
     ),
