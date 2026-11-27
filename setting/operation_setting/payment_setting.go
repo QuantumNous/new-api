@@ -52,6 +52,29 @@ func GetPaymentSetting() *PaymentSetting {
 	return &paymentSetting
 }
 
+// MatchAmountDiscount returns the discount multiplier for the largest configured
+// threshold k > 0 where int64(k) <= amount and rate > 0, or 1.0 if none matches.
+func (p *PaymentSetting) MatchAmountDiscount(amount int64) float64 {
+	if p == nil || amount <= 0 || len(p.AmountDiscount) == 0 {
+		return 1.0
+	}
+	bestThreshold := 0
+	bestDiscount := 1.0
+	for threshold, rate := range p.AmountDiscount {
+		if threshold <= 0 || rate <= 0 {
+			continue
+		}
+		if int64(threshold) <= amount && threshold > bestThreshold {
+			bestThreshold = threshold
+			bestDiscount = rate
+		}
+	}
+	if bestThreshold == 0 {
+		return 1.0
+	}
+	return bestDiscount
+}
+
 func IsPaymentComplianceConfirmed() bool {
 	return paymentSetting.ComplianceConfirmed &&
 		paymentSetting.ComplianceTermsVersion == CurrentComplianceTermsVersion
