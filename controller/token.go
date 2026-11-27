@@ -341,11 +341,25 @@ func AddToken(c *gin.Context) {
 		token.CrossGroupRetry = false
 		_ = token.SetAutoGroups(nil)
 	}
-	key, err := common.GenerateKey()
-	if err != nil {
-		common.ApiErrorT(c, "Failed to generate token")
-		common.SysLog(common.LogText("failed to generate token key: %s", err.Error()))
-		return
+	// Administrators may import an existing key (for example one issued by an upstream
+	// account system) so clients keep their credential. Everyone else gets a generated key.
+	key := strings.TrimPrefix(token.Key, "sk-")
+	if key != "" {
+		if c.GetInt("role") < common.RoleAdminUser {
+			common.ApiErrorT(c, "Only administrators can specify a token key")
+			return
+		}
+		if len(key) < 32 || len(key) > 128 || strings.IndexFunc(key, func(r rune) bool { return !strings.ContainsRune(common.TokenKeyChars, r) }) >= 0 {
+			common.ApiErrorT(c, "Token key must be 32 to 128 letters or digits")
+			return
+		}
+	} else {
+		key, err = common.GenerateKey()
+		if err != nil {
+			common.ApiErrorT(c, "Failed to generate token")
+			common.SysLog(common.LogText("failed to generate token key: %s", err.Error()))
+			return
+		}
 	}
 	cleanToken := model.Token{
 		UserId:             c.GetInt("id"),
