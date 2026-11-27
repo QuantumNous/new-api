@@ -30,6 +30,11 @@ var (
 		"flux-",
 		"flux.1-",
 	}
+	AudioTranscriptionModels = []string{
+		"whisper",
+		"asr",
+		"transcri",
+	}
 )
 
 func IsOpenAIResponseOnlyModel(modelName string) bool {
@@ -50,6 +55,16 @@ func IsImageGenerationModel(modelName string) bool {
 			}
 			continue
 		}
+		if strings.Contains(modelName, m) {
+			return true
+		}
+	}
+	return false
+}
+
+func IsAudioTranscriptionModel(modelName string) bool {
+	modelName = strings.ToLower(modelName)
+	for _, m := range AudioTranscriptionModels {
 		if strings.Contains(modelName, m) {
 			return true
 		}

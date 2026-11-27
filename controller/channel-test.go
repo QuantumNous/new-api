@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -64,6 +65,8 @@ var providerTestEndpoints = []constant.EndpointType{
 	constant.EndpointTypeEmbeddings,
 	constant.EndpointTypeJinaRerank,
 	constant.EndpointTypeImageGeneration,
+	constant.EndpointTypeAudioTranscription,
+	constant.EndpointTypeAudioTranslation,
 }
 
 // providerTestEndpoint returns the endpoint a task plugin channel test uses
@@ -177,6 +180,10 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			requestPath = "/v1/responses"
 		}
 
+		if common.IsAudioTranscriptionModel(testModel) {
+			requestPath = "/v1/audio/transcriptions"
+		}
+
 	}
 	// A task plugin channel tests on an endpoint its relay routes serve for the
 	// model: the default one when they serve it, else the first they serve.
@@ -192,7 +199,12 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	if isStream && constant.EndpointType(endpointType) == constant.EndpointTypeGemini {
 		requestPath = strings.Replace(requestPath, ":generateContent", ":streamGenerateContent", 1)
 	}
-	c.Request = httptest.NewRequestWithContext(ctx, http.MethodPost, requestPath, nil)
+	audioFormBody, audioFormContentType, isAudioFormTest := buildChannelTestAudioForm(requestPath, testModel)
+	var requestBodySeed io.Reader
+	if isAudioFormTest {
+		requestBodySeed = bytes.NewReader(audioFormBody)
+	}
+	c.Request = httptest.NewRequestWithContext(ctx, http.MethodPost, requestPath, requestBodySeed)
 
 	cache, err := model.GetUserCache(testUserID)
 	if err != nil {
@@ -205,7 +217,11 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	c.Set("id", testUserID)
 
 	//c.Request.Header.Set("Authorization", "Bearer "+channel.Key)
-	c.Request.Header.Set("Content-Type", "application/json")
+	if isAudioFormTest {
+		c.Request.Header.Set("Content-Type", audioFormContentType)
+	} else {
+		c.Request.Header.Set("Content-Type", "application/json")
+	}
 	c.Set("channel", channel.Type)
 	c.Set("base_url", channel.GetBaseURL())
 	group, _ := model.GetUserGroup(testUserID, false)
@@ -241,6 +257,8 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			relayFormat = types.RelayFormatOpenAIImage
 		case constant.EndpointTypeEmbeddings:
 			relayFormat = types.RelayFormatEmbedding
+		case constant.EndpointTypeAudioTranscription, constant.EndpointTypeAudioTranslation:
+			relayFormat = types.RelayFormatOpenAIAudio
 		default:
 			relayFormat = types.RelayFormatOpenAI
 		}
@@ -252,6 +270,9 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		}
 		if c.Request.URL.Path == "/v1/images/generations" {
 			relayFormat = types.RelayFormatOpenAIImage
+		}
+		if c.Request.URL.Path == "/v1/audio/transcriptions" || c.Request.URL.Path == "/v1/audio/translations" {
+			relayFormat = types.RelayFormatOpenAIAudio
 		}
 		if c.Request.URL.Path == "/v1/messages" {
 			relayFormat = types.RelayFormatClaude
@@ -374,6 +395,16 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 				newAPIError: types.NewError(errors.New("invalid image request type"), types.ErrorCodeConvertRequestFailed),
 			}
 		}
+	case relayconstant.RelayModeAudioTranscription, relayconstant.RelayModeAudioTranslation:
+		if audioReq, ok := request.(*dto.AudioRequest); ok {
+			convertedRequest, err = adaptor.ConvertAudioRequest(c, info, *audioReq)
+		} else {
+			return testResult{
+				context:     c,
+				localErr:    errors.New("invalid audio request type"),
+				newAPIError: types.NewError(errors.New("invalid audio request type"), types.ErrorCodeConvertRequestFailed),
+			}
+		}
 	case relayconstant.RelayModeRerank:
 		// Rerank 请求 - request 已经是正确的类型
 		if rerankReq, ok := request.(*dto.RerankRequest); ok {
@@ -439,44 +470,49 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			newAPIError: types.NewError(err, types.ErrorCodeConvertRequestFailed),
 		}
 	}
-	jsonData, err := common.Marshal(convertedRequest)
-	if err != nil {
-		return testResult{
-			context:     c,
-			localErr:    err,
-			newAPIError: types.NewError(err, types.ErrorCodeJsonMarshalFailed),
-		}
-	}
 
-	//jsonData, err = relaycommon.RemoveDisabledFields(jsonData, info.ChannelOtherSettings)
-	//if err != nil {
-	//	return testResult{
-	//		context:     c,
-	//		localErr:    err,
-	//		newAPIError: types.NewError(err, types.ErrorCodeConvertRequestFailed),
-	//	}
-	//}
-
-	if len(info.ParamOverride) > 0 {
-		jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
-		if err != nil {
-			if fixedErr, ok := relaycommon.AsParamOverrideReturnError(err); ok {
-				return testResult{
-					context:     c,
-					localErr:    fixedErr,
-					newAPIError: relaycommon.NewAPIErrorFromParamOverride(fixedErr),
-				}
+	var requestBody io.Reader
+	if info.RelayMode == relayconstant.RelayModeAudioTranscription || info.RelayMode == relayconstant.RelayModeAudioTranslation {
+		audioBody, ok := convertedRequest.(io.Reader)
+		if !ok {
+			return testResult{
+				context:     c,
+				localErr:    errors.New("invalid converted audio request body"),
+				newAPIError: types.NewError(errors.New("invalid converted audio request body"), types.ErrorCodeConvertRequestFailed),
 			}
+		}
+		requestBody = audioBody
+	} else {
+		jsonData, err := common.Marshal(convertedRequest)
+		if err != nil {
 			return testResult{
 				context:     c,
 				localErr:    err,
-				newAPIError: types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid),
+				newAPIError: types.NewError(err, types.ErrorCodeJsonMarshalFailed),
 			}
 		}
-	}
 
-	requestBody := bytes.NewBuffer(jsonData)
-	c.Request.Body = io.NopCloser(bytes.NewBuffer(jsonData))
+		if len(info.ParamOverride) > 0 {
+			jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
+			if err != nil {
+				if fixedErr, ok := relaycommon.AsParamOverrideReturnError(err); ok {
+					return testResult{
+						context:     c,
+						localErr:    fixedErr,
+						newAPIError: relaycommon.NewAPIErrorFromParamOverride(fixedErr),
+					}
+				}
+				return testResult{
+					context:     c,
+					localErr:    err,
+					newAPIError: types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid),
+				}
+			}
+		}
+
+		requestBody = bytes.NewBuffer(jsonData)
+		c.Request.Body = io.NopCloser(bytes.NewBuffer(jsonData))
+	}
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
 		return testResult{
@@ -742,6 +778,27 @@ func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
 	return message
 }
 
+func buildChannelTestAudioForm(requestPath, model string) (body []byte, contentType string, ok bool) {
+	if requestPath != "/v1/audio/transcriptions" && requestPath != "/v1/audio/translations" {
+		return nil, "", false
+	}
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	_ = writer.WriteField("model", model)
+	_ = writer.WriteField("response_format", "json")
+	part, err := writer.CreateFormFile("file", "channel-test.wav")
+	if err != nil {
+		return nil, "", false
+	}
+	if _, err := part.Write(common.MinimalWAV(8000, 800)); err != nil {
+		return nil, "", false
+	}
+	if err := writer.Close(); err != nil {
+		return nil, "", false
+	}
+	return buf.Bytes(), writer.FormDataContentType(), true
+}
+
 func buildTestRequest(model string, endpointType string, channel *model.Channel, isStream bool) dto.Request {
 	testResponsesInput := json.RawMessage(`[{"role":"user","content":"hi"}]`)
 
@@ -753,6 +810,11 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			return &dto.EmbeddingRequest{
 				Model: model,
 				Input: []any{"hello world"},
+			}
+		case constant.EndpointTypeAudioTranscription, constant.EndpointTypeAudioTranslation:
+			return &dto.AudioRequest{
+				Model:          model,
+				ResponseFormat: "json",
 			}
 		case constant.EndpointTypeImageGeneration:
 			// 返回 ImageRequest
@@ -844,6 +906,13 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		return &dto.EmbeddingRequest{
 			Model: model,
 			Input: []any{"hello world"},
+		}
+	}
+
+	if common.IsAudioTranscriptionModel(model) {
+		return &dto.AudioRequest{
+			Model:          model,
+			ResponseFormat: "json",
 		}
 	}
 

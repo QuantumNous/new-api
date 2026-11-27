@@ -34,7 +34,13 @@ func TestSGLangChannelProtocols(t *testing.T) {
 	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeSGLang, ChannelBaseUrl: "https://inference.example/prefix", ApiKey: "test-key"}}
 	info.ChannelOtherSettings.AdvancedCustom = common.GetAdvancedCustomPreset(constant.ChannelTypeSGLang)
 	adaptor.Init(info)
-	for _, path := range []string{"/v1/chat/completions", "/v1/completions", "/v1/embeddings", "/v1/responses", "/v1/messages"} {
+	for _, path := range []string{
+		"/v1/chat/completions",
+		"/v1/completions",
+		"/v1/embeddings",
+		"/v1/responses",
+		"/v1/messages",
+	} {
 		info.RequestURLPath = path
 		adaptor = &advancedcustom.Adaptor{}
 		adaptor.Init(info)
@@ -42,6 +48,10 @@ func TestSGLangChannelProtocols(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "https://inference.example/prefix"+path, url)
 	}
+	assert.NotContains(t, common.GetEndpointTypesByChannelType(constant.ChannelTypeSGLang, "served-model"), constant.EndpointTypeAudioTranscription)
+	assert.NotContains(t, common.GetEndpointTypesByChannelType(constant.ChannelTypeSGLang, "served-model"), constant.EndpointTypeAudioTranslation)
+	assert.Contains(t, common.GetEndpointTypesByChannelType(constant.ChannelTypeVLLM, "whisper-1"), constant.EndpointTypeAudioTranscription)
+	assert.Contains(t, common.GetEndpointTypesByChannelType(constant.ChannelTypeVLLM, "whisper-1"), constant.EndpointTypeAudioTranslation)
 	for _, format := range []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatClaude} {
 		info.RelayFormat = format
 		info.RequestURLPath = "/v1/messages"
@@ -116,6 +126,50 @@ func TestSGLangRerankRequestAndResponse(t *testing.T) {
 	assert.Equal(t, []dto.RerankResponseResult{{Index: 1, RelevanceScore: 0.9, Document: map[string]any{"text": "second"}}}, decoded.Results)
 	assert.Equal(t, 12, decoded.Usage.PromptTokens)
 	assert.Zero(t, decoded.Usage.CompletionTokens)
+}
+
+func TestVLLMRerankRequestAndResponse(t *testing.T) {
+	service.InitHttpClient()
+	assert.Contains(t, common.GetEndpointTypesByChannelType(constant.ChannelTypeVLLM, "Qwen3-Reranker-0.6B"), constant.EndpointTypeJinaRerank)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/prefix/v1/rerank", r.URL.Path)
+		assert.Equal(t, "Bearer test-key", r.Header.Get("Authorization"))
+		var request dto.RerankRequest
+		require.NoError(t, common.DecodeJson(r.Body, &request))
+		assert.Equal(t, "Qwen3-Reranker-0.6B", request.Model)
+		assert.Equal(t, []any{"first", "second"}, request.Documents)
+		_, _ = io.WriteString(w, `{"id":"rerank-1","model":"Qwen3-Reranker-0.6B","usage":{"total_tokens":9},"results":[{"index":1,"relevance_score":0.91,"document":{"text":"second"}},{"index":0,"relevance_score":0.12,"document":{"text":"first"}}]}`)
+	}))
+	defer upstream.Close()
+	info := &relaycommon.RelayInfo{
+		ChannelMeta:    &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeVLLM, ChannelBaseUrl: upstream.URL + "/prefix", ApiKey: "test-key"},
+		RequestURLPath: "/v1/rerank", RelayMode: relayconstant.RelayModeRerank,
+		RelayFormat:     types.RelayFormatOpenAI,
+		OriginModelName: "Qwen3-Reranker-0.6B",
+		RerankerInfo:    &relaycommon.RerankerInfo{Documents: []any{"first", "second"}, ReturnDocuments: true},
+	}
+	adaptor := &advancedcustom.Adaptor{}
+	info.ChannelOtherSettings.AdvancedCustom = common.GetAdvancedCustomPreset(constant.ChannelTypeVLLM)
+	adaptor.Init(info)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/rerank", nil).WithContext(context.Background())
+	converted, err := adaptor.ConvertRerankRequest(c, info.RelayMode, dto.RerankRequest{Model: "Qwen3-Reranker-0.6B", Query: "query", Documents: info.Documents})
+	require.NoError(t, err)
+	body, err := common.Marshal(converted)
+	require.NoError(t, err)
+	response, err := adaptor.DoRequest(c, info, bytes.NewReader(body))
+	require.NoError(t, err)
+	usage, apiErr := adaptor.DoResponse(c, response.(*http.Response), info)
+	require.Nil(t, apiErr)
+	assert.Equal(t, 9, usage.(*dto.Usage).TotalTokens)
+	assert.Equal(t, 9, usage.(*dto.Usage).PromptTokens)
+	var decoded dto.RerankResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &decoded))
+	assert.Equal(t, []dto.RerankResponseResult{
+		{Index: 1, RelevanceScore: 0.91, Document: map[string]any{"text": "second"}},
+		{Index: 0, RelevanceScore: 0.12, Document: map[string]any{"text": "first"}},
+	}, decoded.Results)
 }
 
 func TestSGLangRerankRejectsMalformedResults(t *testing.T) {

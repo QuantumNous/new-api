@@ -543,6 +543,22 @@ func TestAdvancedCustomSupportedEndpointTypesForModel(t *testing.T) {
 	}, config.SupportedEndpointTypesForModel("other-model"))
 }
 
+func TestAdvancedCustomSupportedEndpointTypesForAudioPaths(t *testing.T) {
+	config := &AdvancedCustomConfig{
+		Routes: []AdvancedCustomRoute{
+			{IncomingPath: "/v1/audio/transcriptions", UpstreamPath: "/v1/audio/transcriptions", Converter: advancedCustomConverterNone},
+			{IncomingPath: "/v1/audio/translations", UpstreamPath: "/v1/audio/translations", Converter: advancedCustomConverterNone},
+			{IncomingPath: "/v1/chat/completions", UpstreamPath: "/v1/chat/completions", Converter: advancedCustomConverterNone},
+		},
+	}
+	require.NoError(t, config.Validate())
+	assert.Equal(t, []types.EndpointType{
+		types.EndpointTypeAudioTranscription,
+		types.EndpointTypeAudioTranslation,
+		types.EndpointTypeOpenAI,
+	}, config.SupportedEndpointTypesForModel("whisper-1"))
+}
+
 func TestAdvancedCustomValidateAlphaSearchConverterPath(t *testing.T) {
 	valid := &AdvancedCustomConfig{
 		Routes: []AdvancedCustomRoute{

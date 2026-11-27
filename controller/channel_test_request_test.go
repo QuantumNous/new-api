@@ -75,6 +75,39 @@ func convertChatCompatibilityRequest(t *testing.T, request *dto.GeneralOpenAIReq
 	return encoded
 }
 
+func TestChannelTestAudioRequestAndForm(t *testing.T) {
+	for _, endpoint := range []string{
+		string(constant.EndpointTypeAudioTranscription),
+		string(constant.EndpointTypeAudioTranslation),
+	} {
+		req, ok := buildTestRequest("whisper-1", endpoint, &model.Channel{}, false).(*dto.AudioRequest)
+		require.True(t, ok)
+		assert.Equal(t, "whisper-1", req.Model)
+		assert.Equal(t, "json", req.ResponseFormat)
+	}
+
+	autoReq, ok := buildTestRequest("faster-whisper", "", &model.Channel{}, false).(*dto.AudioRequest)
+	require.True(t, ok)
+	assert.Equal(t, "faster-whisper", autoReq.Model)
+
+	body, contentType, ok := buildChannelTestAudioForm("/v1/audio/transcriptions", "whisper-1")
+	require.True(t, ok)
+	assert.NotEmpty(t, body)
+	assert.Contains(t, contentType, "multipart/form-data")
+	assert.Contains(t, string(body), "whisper-1")
+	assert.Contains(t, string(body), "channel-test.wav")
+
+	_, _, ok = buildChannelTestAudioForm("/v1/chat/completions", "whisper-1")
+	assert.False(t, ok)
+
+	info, exists := common.GetDefaultEndpointInfo(constant.EndpointTypeAudioTranscription)
+	require.True(t, exists)
+	assert.Equal(t, "/v1/audio/transcriptions", info.Path)
+	info, exists = common.GetDefaultEndpointInfo(constant.EndpointTypeAudioTranslation)
+	require.True(t, exists)
+	assert.Equal(t, "/v1/audio/translations", info.Path)
+}
+
 func TestChannelTestOpenAIChatCompatibility(t *testing.T) {
 	for _, tt := range []struct {
 		name        string

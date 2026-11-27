@@ -126,7 +126,11 @@ test('a built-in channel offers every endpoint', async () => {
   )
 
   const options = await endpointOptions()
-  expect(options).toHaveLength(9)
+  expect(options).toHaveLength(11)
   expect(options).toContain('OpenAI (/v1/chat/completions)')
+  expect(options).toContain(
+    'Audio Transcriptions (/v1/audio/transcriptions)'
+  )
+  expect(options).toContain('Audio Translations (/v1/audio/translations)')
   expect(api.get).not.toHaveBeenCalledWith('/api/task_plugin_options')
 })

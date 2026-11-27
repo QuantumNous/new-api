@@ -167,6 +167,11 @@ export const ENDPOINT_TEMPLATES: Record<
   'jina-rerank': { path: '/rerank', method: 'POST' },
   'image-generation': { path: '/v1/images/generations', method: 'POST' },
   embeddings: { path: '/v1/embeddings', method: 'POST' },
+  'audio-transcription': {
+    path: '/v1/audio/transcriptions',
+    method: 'POST',
+  },
+  'audio-translation': { path: '/v1/audio/translations', method: 'POST' },
 }
 
 // ============================================================================
