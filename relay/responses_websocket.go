@@ -726,7 +726,7 @@ func connectionOtherSettings(c *gin.Context, channel *appmodel.Channel) dto.Chan
 	otherSettings := channel.GetOtherSettings()
 	pinned, _ := common.GetContextKey(c, appconstant.ContextKeyProviderPlugin)
 	if plugin, ok := pinned.(jsplugin.PinnedPlugin); ok && channel.Type == appconstant.ChannelTypeTaskPlugin {
-		otherSettings.AdvancedCustom = plugin.Plugin.Meta.ChannelRelayConfig(plugin.Plugin.ChannelConfigFor(otherSettings.PluginConfig))
+		otherSettings.AdvancedCustom = plugin.Plugin.Meta.ChannelRelayConfig(plugin.Plugin.ChannelConfigFor(otherSettings.PluginConfig), otherSettings.PluginRoutes)
 	}
 	return otherSettings
 }

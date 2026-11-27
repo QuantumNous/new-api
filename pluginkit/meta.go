@@ -106,6 +106,9 @@ type Meta struct {
 	// Relay is the provider part: the Advanced Custom routes a type-61
 	// channel bound to the plugin serves.
 	Relay []dto.AdvancedCustomRoute `json:"relay,omitempty"`
+	// RelayDefaultOff marks, aligned with Relay, a route a channel serves only
+	// after the channel turns it on (default_enabled: false in the manifest).
+	RelayDefaultOff []bool `json:"relayDefaultOff,omitempty"`
 	// ConfigSchema is the schema of a request processing instance's config.
 	ConfigSchema *ConfigSchema `json:"configSchema,omitempty"`
 	// ChannelConfig is the schema of the plugin config of a type-61 channel
@@ -173,10 +176,14 @@ func (m Meta) HasProviderPart() bool {
 // a native route of its client protocol, and a chained one as a route of its
 // registered converter; the provider adaptor converts around it.
 func (m Meta) RelayConfig() *dto.AdvancedCustomConfig {
-	if len(m.Relay) == 0 {
+	return relayConfig(m.Relay)
+}
+
+func relayConfig(relay []dto.AdvancedCustomRoute) *dto.AdvancedCustomConfig {
+	if len(relay) == 0 {
 		return nil
 	}
-	routes := cloneRelayRoutes(m.Relay)
+	routes := cloneRelayRoutes(relay)
 	for index := range routes {
 		if converter, hooks := SplitProviderConverter(routes[index].Converter); hooks {
 			routes[index].Converter = converter
@@ -185,12 +192,80 @@ func (m Meta) RelayConfig() *dto.AdvancedCustomConfig {
 	return &dto.AdvancedCustomConfig{Routes: routes}
 }
 
-// ChannelRelayConfig is RelayConfig for a channel: an upstream_path that
-// starts with {config.<name>} starts with that address of the channel's plugin
-// config instead, or is relative to the channel base URL when the address is
-// empty. config is the config as ChannelConfigFor returns it.
-func (m Meta) ChannelRelayConfig(config []byte) *dto.AdvancedCustomConfig {
-	relay := m.RelayConfig()
+// RelayRouteKey names a relay route in a channel's plugin_routes: its
+// incoming_path, followed by "|" and its models joined with "," when it lists
+// models.
+func RelayRouteKey(route dto.AdvancedCustomRoute) string {
+	key := strings.TrimSpace(route.IncomingPath)
+	if len(route.Models) > 0 {
+		key += "|" + strings.Join(route.Models, ",")
+	}
+	return key
+}
+
+// RelayRouteDefault reports whether a channel that has not switched route
+// index serves it: false only for a route declared default_enabled: false.
+func (m Meta) RelayRouteDefault(index int) bool {
+	return index >= len(m.RelayDefaultOff) || !m.RelayDefaultOff[index]
+}
+
+// RelayRouteOn reports whether route index serves a channel whose
+// plugin_routes are toggles. A management route is always on.
+func (m Meta) RelayRouteOn(index int, toggles map[string]bool) bool {
+	if relayManagementRoute(m.Relay[index]) {
+		return true
+	}
+	if on, set := toggles[RelayRouteKey(m.Relay[index])]; set {
+		return on
+	}
+	return m.RelayRouteDefault(index)
+}
+
+// ChannelRelayRoutes returns the relay routes that serve a channel whose
+// plugin_routes are toggles, with the converter as the manifest declares it.
+func (m Meta) ChannelRelayRoutes(toggles map[string]bool) []dto.AdvancedCustomRoute {
+	routes := make([]dto.AdvancedCustomRoute, 0, len(m.Relay))
+	for index, route := range m.Relay {
+		if m.RelayRouteOn(index, toggles) {
+			routes = append(routes, route)
+		}
+	}
+	return routes
+}
+
+// NormalizeRouteToggles keeps the plugin_routes entries that name a relay
+// route other than a management route and differ from its default; it
+// returns nil when none is left.
+func (m Meta) NormalizeRouteToggles(toggles map[string]bool) map[string]bool {
+	var normalized map[string]bool
+	for index, route := range m.Relay {
+		key := RelayRouteKey(route)
+		on, set := toggles[key]
+		if !set || relayManagementRoute(route) || on == m.RelayRouteDefault(index) {
+			continue
+		}
+		if normalized == nil {
+			normalized = make(map[string]bool)
+		}
+		normalized[key] = on
+	}
+	return normalized
+}
+
+// relayManagementRoute reports a /v1/models or balance route, which serves
+// channel management rather than client requests.
+func relayManagementRoute(route dto.AdvancedCustomRoute) bool {
+	path := strings.TrimSpace(route.IncomingPath)
+	return path == dto.AdvancedCustomModelListPath || path == dto.AdvancedCustomBalancePath
+}
+
+// ChannelRelayConfig is RelayConfig for a channel: only the routes its
+// plugin_routes (toggles) leave on, and an upstream_path that starts with
+// {config.<name>} starts with that address of the channel's plugin config
+// instead, or is relative to the channel base URL when the address is empty.
+// config is the config as ChannelConfigFor returns it.
+func (m Meta) ChannelRelayConfig(config []byte, toggles map[string]bool) *dto.AdvancedCustomConfig {
+	relay := relayConfig(m.ChannelRelayRoutes(toggles))
 	if relay == nil {
 		return nil
 	}
@@ -227,13 +302,20 @@ func (m Meta) RelayRoute(requestPath, model string) (dto.AdvancedCustomRoute, bo
 	return config.MatchPathForModel(requestPath, model)
 }
 
+// ChannelRelayRoute is RelayRoute among the routes that serve a channel whose
+// plugin_routes are toggles. Another route of the same path still matches
+// when a switched-off one would have.
+func (m Meta) ChannelRelayRoute(toggles map[string]bool, requestPath, model string) (dto.AdvancedCustomRoute, bool) {
+	config := dto.AdvancedCustomConfig{Routes: m.ChannelRelayRoutes(toggles)}
+	return config.MatchPathForModel(requestPath, model)
+}
+
 // RelaysModel reports whether a relay route accepts model for client
 // requests: the plugin serves the model on chat paths, not only as a task. The
 // model list and balance routes accept every model and serve none.
 func (m Meta) RelaysModel(model string) bool {
 	return slices.ContainsFunc(m.Relay, func(route dto.AdvancedCustomRoute) bool {
-		path := strings.TrimSpace(route.IncomingPath)
-		return path != dto.AdvancedCustomModelListPath && path != dto.AdvancedCustomBalancePath && route.AcceptsModel(model)
+		return !relayManagementRoute(route) && route.AcceptsModel(model)
 	})
 }
 
@@ -242,14 +324,25 @@ func (m Meta) RelaysModel(model string) bool {
 // converter, so the session forwards native events as Advanced Custom does.
 // An empty model asks whether any route of that path qualifies.
 func (m Meta) ServesResponsesWebSocket(model string) bool {
+	return servesResponsesWebSocket(m.Relay, model)
+}
+
+// ChannelServesResponsesWebSocket is ServesResponsesWebSocket on the routes
+// that serve a channel whose plugin_routes are toggles.
+func (m Meta) ChannelServesResponsesWebSocket(toggles map[string]bool, model string) bool {
+	return servesResponsesWebSocket(m.ChannelRelayRoutes(toggles), model)
+}
+
+func servesResponsesWebSocket(routes []dto.AdvancedCustomRoute, model string) bool {
 	if model == "" {
-		return slices.ContainsFunc(m.Relay, func(route dto.AdvancedCustomRoute) bool {
+		return slices.ContainsFunc(routes, func(route dto.AdvancedCustomRoute) bool {
 			config := dto.AdvancedCustomConfig{Routes: []dto.AdvancedCustomRoute{route}}
 			_, ok := config.MatchPath(responsesPath)
 			return ok && route.IsNative()
 		})
 	}
-	route, ok := m.RelayRoute(responsesPath, model)
+	config := dto.AdvancedCustomConfig{Routes: routes}
+	route, ok := config.MatchPathForModel(responsesPath, model)
 	return ok && route.IsNative()
 }
 
@@ -774,6 +867,7 @@ func cloneMeta(meta Meta) Meta {
 		profile.Examples = CloneUsageExamples(profile.Examples)
 	}
 	meta.Relay = cloneRelayRoutes(meta.Relay)
+	meta.RelayDefaultOff = slices.Clone(meta.RelayDefaultOff)
 	meta.transformHooks = slices.Clone(meta.transformHooks)
 	meta.Samples = slices.Clone(meta.Samples)
 	for index := range meta.Samples {
@@ -996,7 +1090,7 @@ func decodeMeta(value any) (Meta, error) {
 		}
 	}
 	if relay, exists := object["relay"]; exists {
-		meta.Relay, err = decodeRelayRoutes(relay)
+		meta.Relay, meta.RelayDefaultOff, err = decodeRelayRoutes(relay)
 		if err != nil {
 			return Meta{}, err
 		}
@@ -1324,53 +1418,76 @@ func normalizeV1Meta(meta *Meta) error {
 			return fmt.Errorf("plugin meta usageProfiles[%d]: %w", index, err)
 		}
 	}
+	for index, off := range meta.RelayDefaultOff {
+		if off && relayManagementRoute(meta.Relay[index]) {
+			return fmt.Errorf("plugin meta relay[%d].%s is not allowed on %s", index, relayDefaultEnabledField, strings.TrimSpace(meta.Relay[index].IncomingPath))
+		}
+	}
 	return validateRelayRoutes(meta.Relay, meta.ChannelConfig)
 }
 
 // relayErrorNames renames Advanced Custom validation errors for manifests.
 var relayErrorNames = strings.NewReplacer("advanced_custom.advanced_routes", "plugin meta relay", "advanced_routes[", "relay[")
 
-var relayRouteFields = []string{"incoming_path", "upstream_path", "converter", "models", "auth", "pass_through_body_enabled"}
+var relayRouteFields = []string{"incoming_path", "upstream_path", "converter", "models", "auth", "pass_through_body_enabled", relayDefaultEnabledField}
+
+// relayDefaultEnabledField says whether a new channel serves the route. Only a
+// plugin route has it.
+const relayDefaultEnabledField = "default_enabled"
 
 // decodeRelayRoutes reads meta.relay. Each route has exactly the keys of an
-// Advanced Custom route.
-func decodeRelayRoutes(value any) ([]dto.AdvancedCustomRoute, error) {
+// Advanced Custom route, plus default_enabled; defaultOff is aligned with the
+// routes, or nil when every route is on by default.
+func decodeRelayRoutes(value any) (routes []dto.AdvancedCustomRoute, defaultOff []bool, err error) {
 	items, ok := value.([]any)
 	if !ok {
-		return nil, fmt.Errorf("plugin meta relay must be an array")
+		return nil, nil, fmt.Errorf("plugin meta relay must be an array")
 	}
-	routes := make([]dto.AdvancedCustomRoute, len(items))
+	routes = make([]dto.AdvancedCustomRoute, len(items))
 	for index, item := range items {
 		object, ok := item.(map[string]any)
 		if !ok {
-			return nil, fmt.Errorf("plugin meta relay[%d] must be an object", index)
+			return nil, nil, fmt.Errorf("plugin meta relay[%d] must be an object", index)
 		}
 		for field, fieldValue := range object {
 			if !slices.Contains(relayRouteFields, field) {
-				return nil, fmt.Errorf("plugin meta relay[%d] has unknown field %q", index, field)
+				return nil, nil, fmt.Errorf("plugin meta relay[%d] has unknown field %q", index, field)
 			}
 			if field != "auth" || fieldValue == nil {
 				continue
 			}
 			auth, isObject := fieldValue.(map[string]any)
 			if !isObject {
-				return nil, fmt.Errorf("plugin meta relay[%d].auth must be an object", index)
+				return nil, nil, fmt.Errorf("plugin meta relay[%d].auth must be an object", index)
 			}
 			for authField := range auth {
 				if authField != "type" && authField != "name" && authField != "value" {
-					return nil, fmt.Errorf("plugin meta relay[%d].auth has unknown field %q", index, authField)
+					return nil, nil, fmt.Errorf("plugin meta relay[%d].auth has unknown field %q", index, authField)
 				}
 			}
 		}
+		if fieldValue, exists := object[relayDefaultEnabledField]; exists {
+			enabled, isBool := fieldValue.(bool)
+			if !isBool {
+				return nil, nil, fmt.Errorf("plugin meta relay[%d].%s must be a boolean", index, relayDefaultEnabledField)
+			}
+			if !enabled {
+				if defaultOff == nil {
+					defaultOff = make([]bool, len(items))
+				}
+				defaultOff[index] = true
+			}
+			delete(object, relayDefaultEnabledField)
+		}
 		encoded, err := marshalJSON(object)
 		if err != nil {
-			return nil, fmt.Errorf("plugin meta relay[%d]: %w", index, err)
+			return nil, nil, fmt.Errorf("plugin meta relay[%d]: %w", index, err)
 		}
 		if err = unmarshalJSON(encoded, &routes[index]); err != nil {
-			return nil, fmt.Errorf("plugin meta relay[%d] has a member of the wrong type: %w", index, err)
+			return nil, nil, fmt.Errorf("plugin meta relay[%d] has a member of the wrong type: %w", index, err)
 		}
 	}
-	return routes, nil
+	return routes, defaultOff, nil
 }
 
 // validateRelayRoutes applies the Advanced Custom route rules to meta.relay.

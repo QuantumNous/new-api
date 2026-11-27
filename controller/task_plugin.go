@@ -23,6 +23,7 @@ import (
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/plugins"
 	"github.com/QuantumNous/new-api/relay/requestplugin"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-gonic/gin"
@@ -921,6 +922,28 @@ func relayPaths(meta jsplugin.Meta) []string {
 	return paths
 }
 
+// relayRouteOptions lists the relay routes a channel of the plugin can switch
+// on or off, management routes left out. key is the plugin_routes key and
+// default_enabled whether a channel that has not switched it serves it.
+func relayRouteOptions(meta jsplugin.Meta) []gin.H {
+	routes := make([]gin.H, 0, len(meta.Relay))
+	for index, route := range meta.Relay {
+		path := strings.TrimSpace(route.IncomingPath)
+		if path == dto.AdvancedCustomModelListPath || path == dto.AdvancedCustomBalancePath {
+			continue
+		}
+		routes = append(routes, gin.H{
+			"key":             jsplugin.RelayRouteKey(route),
+			"incoming_path":   path,
+			"upstream_path":   route.UpstreamPath,
+			"converter":       strings.TrimSpace(route.Converter),
+			"models":          route.Models,
+			"default_enabled": meta.RelayRouteDefault(index),
+		})
+	}
+	return routes
+}
+
 func GetTaskPluginOptions(c *gin.Context) {
 	snapshot := jsplugin.DefaultRegistry.Snapshot()
 	seen := make(map[string]bool)
@@ -989,6 +1012,7 @@ func GetTaskPluginOptions(c *gin.Context) {
 				"checkKey":           loaded.HasProviderHook("checkKey"),
 				"balance":            loaded.HasProviderHook("buildBalanceRequest") && loaded.HasProviderHook("parseBalance"),
 				"relayPaths":         relayPaths(loaded.Meta),
+				"relayRoutes":        relayRouteOptions(loaded.Meta),
 				"responsesWebsocket": loaded.Meta.ServesResponsesWebSocket(""),
 			}
 			if len(loaded.Meta.KeyHint) > 0 {

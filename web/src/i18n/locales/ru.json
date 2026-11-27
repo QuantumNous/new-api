@@ -7816,6 +7816,8 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Plugin routes": "Маршруты плагина",
+    "{{on}} of {{total}} on": "Включено {{on}} из {{total}}"
   }
 }

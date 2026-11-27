@@ -96,7 +96,7 @@ func TestConfigAddressRoutes(t *testing.T) {
 	require.NoError(t, err)
 	paths := func(config string) []string {
 		var upstream []string
-		for _, route := range plugin.Meta.ChannelRelayConfig(plugin.ChannelConfigFor(json.RawMessage(config))).Routes {
+		for _, route := range plugin.Meta.ChannelRelayConfig(plugin.ChannelConfigFor(json.RawMessage(config)), nil).Routes {
 			upstream = append(upstream, route.UpstreamPath)
 		}
 		return upstream

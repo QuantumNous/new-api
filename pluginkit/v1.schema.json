@@ -180,9 +180,10 @@
           "required": ["type"],
           "properties": {"type": {"enum": ["none", "header", "query"]}, "name": {"type": "string"}, "value": {"type": "string"}}
         },
-        "pass_through_body_enabled": {"type": "boolean"}
+        "pass_through_body_enabled": {"type": "boolean"},
+        "default_enabled": {"type": "boolean", "default": true, "description": "Whether a channel serves the route before an administrator switches it on the channel. Not false on /v1/models or /v1/dashboard/billing/credit_grants."}
       },
-      "description": "The keys of an Advanced Custom channel route; the host applies the same validation rules."
+      "description": "The keys of an Advanced Custom channel route, plus default_enabled; the host applies the same validation rules."
     },
     "upstreamKind": {"enum": ["vendor", "new_api"]},
     "upstreamContext": {

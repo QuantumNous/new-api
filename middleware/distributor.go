@@ -684,7 +684,7 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 		generation := jsplugin.DefaultRegistry.Generation()
 		if plugin, ok := generation.Get(channel.GetSetting().TaskPluginKey); ok && plugin.Meta.HasProviderPart() {
 			providerPlugin = jsplugin.PinnedPlugin{Generation: generation, Plugin: plugin}
-			otherSettings.AdvancedCustom = plugin.Meta.ChannelRelayConfig(plugin.ChannelConfigFor(otherSettings.PluginConfig))
+			otherSettings.AdvancedCustom = plugin.Meta.ChannelRelayConfig(plugin.ChannelConfigFor(otherSettings.PluginConfig), otherSettings.PluginRoutes)
 		}
 	}
 	common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, otherSettings)

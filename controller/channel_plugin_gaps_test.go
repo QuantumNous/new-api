@@ -28,7 +28,10 @@ const (
 	// configPluginSource declares a channel config and checks typed-in keys.
 	configPluginSource = `
 export const meta = {apiVersion: 1, key: "%KEY%", name: "Config", version: "1.0.0", author: {name: "Test"},
-  relay: [{incoming_path: "/v1/chat/completions", upstream_path: "/chat"}],
+  relay: [
+    {incoming_path: "/v1/chat/completions", upstream_path: "/chat"},
+    {incoming_path: "/v1/responses", upstream_path: "/chat", converter: "openai_responses_to_openai_chat_completions", default_enabled: false},
+  ],
   channelConfig: {type: "object", properties: {
     region: {type: "string", title: {en: "Region"}, enum: ["us", "eu"], default: "us"},
     timeout: {type: "integer", title: {en: "Timeout"}, minimum: 1, default: 30},
@@ -172,6 +175,18 @@ func TestGapsChannelConfigAndKeyCheckOnSave(t *testing.T) {
 			fmt.Sprintf(`{"id":%d,"settings":"{\"plugin_config\":{\"region\":\"eu\",\"undeclared\":1}}"}`, channel.Id))
 		require.True(t, response.Success, raw)
 		assert.JSONEq(t, `{"region":"eu"}`, string(storedGapsChannel(t, channel.Id).GetOtherSettings().PluginConfig))
+	})
+
+	t.Run("update keeps only route switches that differ from the defaults", func(t *testing.T) {
+		channel := insertPluginChannel(t, "gaps-config", "https://vendor.example", "good-1", false)
+		settings := `{\"plugin_routes\":{\"/v1/responses\":true,\"/v1/chat/completions\":true,\"/v1/unknown\":false}}`
+		response, raw := callChannelAPI(t, UpdateChannel, http.MethodPut, "/api/channel", fmt.Sprintf(`{"id":%d,"settings":"%s"}`, channel.Id, settings))
+		require.True(t, response.Success, raw)
+		assert.Equal(t, map[string]bool{"/v1/responses": true}, storedGapsChannel(t, channel.Id).GetOtherSettings().PluginRoutes)
+
+		response, raw = callChannelAPI(t, UpdateChannel, http.MethodPut, "/api/channel", fmt.Sprintf(`{"id":%d,"settings":"{\"plugin_routes\":{\"/v1/responses\":false}}"}`, channel.Id))
+		require.True(t, response.Success, raw)
+		assert.Nil(t, storedGapsChannel(t, channel.Id).GetOtherSettings().PluginRoutes, "switching back to the default stores nothing")
 	})
 }
 
@@ -445,7 +460,7 @@ func TestGapsProviderTestEndpoint(t *testing.T) {
 		{"no test endpoint is served", routes(route("/v1/videos")), "/v1/chat/completions", "m", "", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			endpoint, ok := providerTestEndpoint(tc.meta, tc.requestPath, tc.model)
+			endpoint, ok := providerTestEndpoint(tc.meta, nil, tc.requestPath, tc.model)
 			assert.Equal(t, tc.wantOK, ok)
 			assert.Equal(t, tc.wantEndpoint, endpoint)
 		})

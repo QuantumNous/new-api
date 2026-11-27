@@ -216,9 +216,9 @@ func CacheUpdateChannelKey(id int, key string) {
 }
 
 // channelRelayConfig returns the relay routes of a task plugin channel's
-// plugin, nil for any other channel. It reads the setting without GetSetting,
-// which clears the stored setting when it is invalid, so a pricing read never
-// writes the channel.
+// plugin that are on for the channel, nil for any other channel. It reads the
+// settings without GetSetting or GetOtherSettings, which clear a stored
+// setting when it is invalid, so a pricing read never writes the channel.
 func channelRelayConfig(ch *Channel) *dto.AdvancedCustomConfig {
 	var setting dto.ChannelSettings
 	if ch.Type != constant.ChannelTypeTaskPlugin || ch.Setting == nil || common.UnmarshalJsonStr(*ch.Setting, &setting) != nil {
@@ -228,7 +228,11 @@ func channelRelayConfig(ch *Channel) *dto.AdvancedCustomConfig {
 	if !ok {
 		return nil
 	}
-	return plugin.Meta.RelayConfig()
+	var otherSettings dto.ChannelOtherSettings
+	if ch.OtherSettings != "" {
+		_ = common.UnmarshalJsonStr(ch.OtherSettings, &otherSettings)
+	}
+	return plugin.Meta.ChannelRelayConfig(nil, otherSettings.PluginRoutes)
 }
 
 // UpdateScheduledChannelLocked persists a completed scheduled result. update
