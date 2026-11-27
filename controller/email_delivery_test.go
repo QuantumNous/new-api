@@ -5,12 +5,16 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -248,4 +252,156 @@ func TestEmailKeyStatusIsDerivedAndReadOnly(t *testing.T) {
 	UpdateOption(context)
 	assert.Contains(t, response.Body.String(), `"success":false`)
 	assert.Contains(t, response.Body.String(), "read-only")
+}
+
+func TestPasswordResetUsesStoredEmailAndSingleUseToken(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}))
+	previousDB, previousRedis, previousServerAddress, previousValidMinutes := model.DB, common.RedisEnabled, system_setting.ServerAddress, common.VerificationValidMinutes
+	model.DB, common.RedisEnabled, system_setting.ServerAddress = db, false, "https://gateway.example"
+	t.Cleanup(func() {
+		model.DB = previousDB
+		common.RedisEnabled = previousRedis
+		system_setting.ServerAddress = previousServerAddress
+		common.VerificationValidMinutes = previousValidMinutes
+		common.DeleteKey("victim+tag@example.com", common.PasswordResetPurpose)
+		common.DeleteKey("victim+tag@exámple.com", common.PasswordResetPurpose)
+	})
+
+	originalHash, err := common.HashAccountPassword("OriginalPass123!")
+	require.NoError(t, err)
+	victim := model.User{
+		Username:    "victim",
+		Password:    originalHash,
+		Email:       "Victim+Tag@Example.com",
+		AffCode:     "vic1",
+		Status:      common.UserStatusEnabled,
+		AuthVersion: 1,
+	}
+	require.NoError(t, db.Create(&victim).Error)
+	// Also ensure a look-alike email stored alongside does not confuse lookup.
+	require.NoError(t, db.Create(&model.User{
+		Username: "other",
+		Password: originalHash,
+		Email:    "victim+tag@exàmple.com",
+		AffCode:  "oth1",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+
+	type deliveredEmail struct {
+		To   []string
+		HTML string
+	}
+	var delivered []deliveredEmail
+	failDelivery := false
+	var replacementCode string
+	configureEmailDelivery(t, map[string]string{
+		"EmailProvider": "resend",
+		"ResendApiKey":  "test-key",
+		"ResendFrom":    "sender@example.com",
+	})
+	http.DefaultTransport = emailHTTPTransport(func(request *http.Request) (*http.Response, error) {
+		var body struct {
+			To   []string `json:"to"`
+			HTML string   `json:"html"`
+		}
+		require.NoError(t, common.DecodeJson(request.Body, &body))
+		delivered = append(delivered, deliveredEmail{To: body.To, HTML: body.HTML})
+		if failDelivery {
+			if replacementCode != "" {
+				common.RegisterVerificationCodeWithKey(model.NormalizeEmail(victim.Email), replacementCode, common.PasswordResetPurpose)
+			}
+			return &http.Response{StatusCode: http.StatusInternalServerError, Body: io.NopCloser(strings.NewReader(`{"message":"smtp down"}`)), Header: make(http.Header)}, nil
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"id":"email-1"}`)), Header: make(http.Header)}, nil
+	})
+
+	tokenRe := regexp.MustCompile(`https://gateway\.example/user/reset\?email=([^&'"<\s]+)&token=([0-9a-f]+)`)
+
+	// 1. Accent look-alike address does not match victim and sends no mail.
+	resp := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(resp)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/reset_password?email="+url.QueryEscape("victim+tag@exámple.com"), nil)
+	SendPasswordResetEmail(ctx)
+	require.Equal(t, http.StatusOK, resp.Code)
+	assert.Contains(t, resp.Body.String(), `"success":true`)
+	assert.Empty(t, delivered)
+
+	// 2. Preserve the mailbox on file for delivery, but use the normalized key in the URL.
+	resp = httptest.NewRecorder()
+	ctx, _ = gin.CreateTestContext(resp)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/reset_password?email="+url.QueryEscape("VICTIM+TAG@EXAMPLE.COM"), nil)
+	SendPasswordResetEmail(ctx)
+	require.Equal(t, http.StatusOK, resp.Code)
+	require.Len(t, delivered, 1)
+	assert.Equal(t, []string{victim.Email}, delivered[0].To)
+	matches := tokenRe.FindStringSubmatch(delivered[0].HTML)
+	require.Len(t, matches, 3)
+	assert.Equal(t, url.QueryEscape("victim+tag@example.com"), matches[1])
+	token := matches[2]
+
+	// 3. Redeeming with look-alike email fails even with the real token.
+	resp = httptest.NewRecorder()
+	ctx, _ = gin.CreateTestContext(resp)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/reset", strings.NewReader(`{"email":"victim+tag@exámple.com","token":"`+token+`"}`))
+	ResetPassword(ctx)
+	assert.Contains(t, resp.Body.String(), `"success":false`)
+
+	// 4. Redeeming once with the real email resets the password and rotates auth version.
+	resp = httptest.NewRecorder()
+	ctx, _ = gin.CreateTestContext(resp)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/reset", strings.NewReader(`{"email":"Victim+Tag@Example.com","token":"`+token+`"}`))
+	ResetPassword(ctx)
+	require.Equal(t, http.StatusOK, resp.Code)
+	var resetResp struct {
+		Success bool   `json:"success"`
+		Data    string `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(resp.Body.Bytes(), &resetResp))
+	require.True(t, resetResp.Success)
+	require.NotEmpty(t, resetResp.Data)
+
+	var updated model.User
+	require.NoError(t, db.First(&updated, victim.Id).Error)
+	assert.True(t, common.ValidatePasswordAndHash(resetResp.Data, updated.Password))
+	assert.False(t, common.ValidatePasswordAndHash("OriginalPass123!", updated.Password))
+	assert.Equal(t, int64(2), updated.AuthVersion)
+
+	// 5. Replaying the same token is rejected.
+	resp = httptest.NewRecorder()
+	ctx, _ = gin.CreateTestContext(resp)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/reset", strings.NewReader(`{"email":"victim+tag@example.com","token":"`+token+`"}`))
+	ResetPassword(ctx)
+	assert.Contains(t, resp.Body.String(), `"success":false`)
+
+	// 6. Failed delivery revokes the generated token so no undelivered code remains active.
+	failDelivery = true
+	resp = httptest.NewRecorder()
+	ctx, _ = gin.CreateTestContext(resp)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/reset_password?email="+url.QueryEscape("victim+tag@example.com"), nil)
+	SendPasswordResetEmail(ctx)
+	require.Len(t, delivered, 2)
+	failedMatches := tokenRe.FindStringSubmatch(delivered[1].HTML)
+	require.Len(t, failedMatches, 3)
+	assert.False(t, common.VerifyCodeWithKey("victim+tag@example.com", failedMatches[2], common.PasswordResetPurpose))
+
+	// A late delivery failure must not revoke the code issued by a newer request.
+	replacementCode = common.GenerateVerificationCode(0)
+	ctx, _ = gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/reset_password?email="+url.QueryEscape(victim.Email), nil)
+	SendPasswordResetEmail(ctx)
+	require.Len(t, delivered, 3)
+	assert.True(t, common.ConsumeCodeWithKey(model.NormalizeEmail(victim.Email), replacementCode, common.PasswordResetPurpose))
+
+	// 7. Expired token is rejected and cleared.
+	failDelivery = false
+	common.VerificationValidMinutes = 0
+	common.RegisterVerificationCodeWithKey("victim+tag@example.com", "expired-token-value", common.PasswordResetPurpose)
+	resp = httptest.NewRecorder()
+	ctx, _ = gin.CreateTestContext(resp)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/reset", strings.NewReader(`{"email":"victim+tag@example.com","token":"expired-token-value"}`))
+	ResetPassword(ctx)
+	assert.Contains(t, resp.Body.String(), `"success":false`)
 }

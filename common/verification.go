@@ -1,6 +1,7 @@
 package common
 
 import (
+	"crypto/subtle"
 	"strings"
 	"sync"
 	"time"
@@ -52,7 +53,28 @@ func VerifyCodeWithKey(key string, code string, purpose string) bool {
 	if !okay || int(now.Sub(value.time).Seconds()) >= VerificationValidMinutes*60 {
 		return false
 	}
-	return code == value.code
+	return subtle.ConstantTimeCompare([]byte(code), []byte(value.code)) == 1
+}
+
+// ConsumeCodeWithKey atomically verifies and removes a single-use code so
+// concurrent requests cannot replay the same token.
+func ConsumeCodeWithKey(key string, code string, purpose string) bool {
+	verificationMutex.Lock()
+	defer verificationMutex.Unlock()
+	mapKey := purpose + key
+	value, okay := verificationMap[mapKey]
+	now := time.Now()
+	if !okay || int(now.Sub(value.time).Seconds()) >= VerificationValidMinutes*60 {
+		if okay {
+			delete(verificationMap, mapKey)
+		}
+		return false
+	}
+	if subtle.ConstantTimeCompare([]byte(code), []byte(value.code)) != 1 {
+		return false
+	}
+	delete(verificationMap, mapKey)
+	return true
 }
 
 func DeleteKey(key string, purpose string) {

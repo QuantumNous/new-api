@@ -1064,10 +1064,14 @@ func (user *User) ValidateAndFill() (err error) {
 	if username == "" || password == "" {
 		return ErrUserEmptyCredentials
 	}
-	// find by username or email
-	err = DB.Where("username = ? OR email = ?", username, username).First(user).Error
+	// Preserve username lookup semantics; email must identify one exact account.
+	err = DB.Where("username = ?", username).First(user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) && strings.Contains(username, "@") {
+		user.Email = username
+		err = user.FillUserByEmail()
+	}
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, gorm.ErrRecordNotFound) || errors.Is(err, ErrEmailNotFound) || errors.Is(err, ErrEmailAmbiguous) {
 			return ErrInvalidCredentials
 		}
 		return fmt.Errorf("%w: %v", ErrDatabase, err)
@@ -1094,7 +1098,11 @@ func (user *User) FillUserByEmail() error {
 	if user.Email == "" {
 		return common.NewMessage("Email is empty!")
 	}
-	DB.Where(User{Email: user.Email}).First(user)
+	matched, err := GetUniqueUserByEmail(user.Email)
+	if err != nil {
+		return err
+	}
+	*user = *matched
 	return nil
 }
 
@@ -1151,18 +1159,26 @@ func GetUniqueUserByEmail(email string) (*User, error) {
 	if email == "" {
 		return nil, ErrEmailNotFound
 	}
-	var users []User
-	if err := DB.Where("LOWER(email) = ?", email).Limit(2).Find(&users).Error; err != nil {
+	var candidates []User
+	if err := DB.Where("LOWER(email) = ?", email).Find(&candidates).Error; err != nil {
 		return nil, err
 	}
-	switch len(users) {
-	case 0:
-		return nil, ErrEmailNotFound
-	case 1:
-		return &users[0], nil
-	default:
-		return nil, ErrEmailAmbiguous
+	// Compare normalized emails in Go so accent-insensitive database collations
+	// (such as MySQL's utf8mb4_0900_ai_ci) cannot match look-alike addresses.
+	var matched *User
+	for i := range candidates {
+		if NormalizeEmail(candidates[i].Email) != email {
+			continue
+		}
+		if matched != nil {
+			return nil, ErrEmailAmbiguous
+		}
+		matched = &candidates[i]
 	}
+	if matched == nil {
+		return nil, ErrEmailNotFound
+	}
+	return matched, nil
 }
 
 func IsWeChatIdAlreadyTaken(wechatId string) bool {
