@@ -282,7 +282,7 @@ Open [http://localhost:5173](http://localhost:5173); the development server prox
 | `relay/` | Upstream adapters and request routing |
 | `service/`, `model/` | Business logic and persistence |
 | [relaykit/](./relaykit/README.md) | Independently buildable Go module for protocol DTOs and conversions |
-| [plugins/tasks/](./plugins/tasks/) | JavaScript task plugins; see [Task Plugin API v1](./docs/plugin-api/v1.md) for authoring and host boundaries |
+| [plugins/tasks/](./plugins/tasks/) | JavaScript task plugins; see [Task Plugin API v1](./pluginkit/v1.md) for authoring and host boundaries |
 | `web/` | Web console; see [frontend conventions](./web/AGENTS.md) |
 | [electron/](./electron/README.md) | Desktop wrapper and packaging |
 

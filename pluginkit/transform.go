@@ -1,4 +1,4 @@
-package jsplugin
+package pluginkit
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"sync/atomic"
 	"unicode/utf8"
 
 	"github.com/MoeForge/moego/regexp"
@@ -29,7 +28,7 @@ const ReportHook = "report"
 const ReplyHook = "reply"
 
 // Limits on a stage hook result, part of the published plugin contract
-// (docs/plugin-api/v1.md).
+// (v1.md).
 const (
 	maxTransformFindings      = 64
 	maxTransformTextRunes     = 256
@@ -142,6 +141,13 @@ type TransformUser struct {
 	Username string `json:"username"`
 }
 
+// TransformSession is the client session a request belongs to, on a host
+// that recognizes sessions.
+type TransformSession struct {
+	ID   string `json:"id"`
+	Turn int    `json:"turn"`
+}
+
 // TransformToken is the API token a request comes with.
 type TransformToken struct {
 	ID   int    `json:"id"`
@@ -151,17 +157,24 @@ type TransformToken struct {
 // TransformContext is the ctx a stage hook receives. Config is the instance
 // config with the schema defaults applied (ValidateConfig).
 type TransformContext struct {
-	Stage         string            `json:"stage"`
-	Format        string            `json:"format"`
-	Path          string            `json:"path"`
-	Model         string            `json:"model"`
-	UpstreamModel string            `json:"upstreamModel,omitempty"`
-	Group         string            `json:"group"`
-	Channel       *TransformChannel `json:"channel,omitempty"`
-	Attempt       int               `json:"attempt"`
-	User          TransformUser     `json:"user"`
+	Stage         string `json:"stage"`
+	Format        string `json:"format"`
+	Path          string `json:"path"`
+	Model         string `json:"model"`
+	UpstreamModel string `json:"upstreamModel,omitempty"`
+	// Group and User are left zero by a host without user groups or users,
+	// and hooks then receive no ctx.group or ctx.user.
+	Group   string            `json:"group,omitempty"`
+	Channel *TransformChannel `json:"channel,omitempty"`
+	Attempt int               `json:"attempt"`
+	User    TransformUser     `json:"user,omitzero"`
 	// Token is nil when the request has none.
-	Token    *TransformToken   `json:"token,omitempty"`
+	Token *TransformToken `json:"token,omitempty"`
+	// Client and Session are host-specific: the client the host recognized
+	// (empty, or "unknown", when none) and the client session (nil when
+	// none). new-api leaves them unset.
+	Client   string            `json:"client,omitempty"`
+	Session  *TransformSession `json:"session,omitempty"`
 	Instance TransformInstance `json:"instance"`
 	Config   json.RawMessage   `json:"config"`
 	// Media gives the hook's utils the request's attachments; nil when the
@@ -359,11 +372,21 @@ func (p *LoadedPlugin) transformHookContext(tctx *TransformContext) map[string]a
 		"format":   tctx.Format,
 		"path":     tctx.Path,
 		"model":    tctx.Model,
-		"group":    tctx.Group,
 		"attempt":  tctx.Attempt,
-		"user":     map[string]any{"id": tctx.User.ID, "username": tctx.User.Username},
 		"instance": map[string]any{"id": tctx.Instance.ID, "name": tctx.Instance.Name},
 		"config":   RawJSON(config),
+	}
+	if tctx.Group != "" {
+		hookCtx["group"] = tctx.Group
+	}
+	if tctx.User != (TransformUser{}) {
+		hookCtx["user"] = map[string]any{"id": tctx.User.ID, "username": tctx.User.Username}
+	}
+	if tctx.Client != "" && tctx.Client != "unknown" {
+		hookCtx["client"] = tctx.Client
+	}
+	if tctx.Session != nil && tctx.Session.ID != "" {
+		hookCtx["session"] = map[string]any{"id": tctx.Session.ID, "turn": tctx.Session.Turn}
 	}
 	if tctx.Token != nil {
 		hookCtx["token"] = map[string]any{"id": tctx.Token.ID, "name": tctx.Token.Name}
@@ -386,7 +409,7 @@ func (e *TransformError) classify(err error) {
 		e.Class, e.Thrown = TransformErrorThrow, hookErr.Message
 	case errors.Is(err, moejs.ErrMemoryLimit):
 		e.Class = TransformErrorMemory
-	case errors.Is(err, errCallTimeout), errors.Is(err, ErrCallAdmissionTimeout), errors.Is(err, context.DeadlineExceeded):
+	case errors.Is(err, ErrCallTimeout), errors.Is(err, ErrCallAdmissionTimeout), errors.Is(err, context.DeadlineExceeded):
 		e.Class = TransformErrorTimeout
 	case errors.Is(err, context.Canceled):
 		e.Class = TransformErrorCanceled
@@ -659,25 +682,13 @@ func UTF16Len(text string) int {
 // returns to JS: {body, headers?} or {reject}.
 type ParamOverrideFunc func(ctx TransformContext, body json.RawMessage, override json.RawMessage) (result json.RawMessage, err error)
 
-var paramOverrideFunc atomic.Pointer[ParamOverrideFunc]
-
-// SetParamOverrideFunc sets the function utils.paramOverride calls; nil
-// removes it.
-func SetParamOverrideFunc(fn ParamOverrideFunc) {
-	if fn == nil {
-		paramOverrideFunc.Store(nil)
-		return
-	}
-	paramOverrideFunc.Store(&fn)
-}
-
 // paramOverride is utils.paramOverride(body, override): the host parameter
 // override, in an outbound hook only. The Go function bounds its own work.
 func (c *runtimeCall) paramOverride(r *moejs.Realm, body, override moejs.Value) (moejs.Value, error) {
 	if c.transform == nil || c.transform.Stage != "outbound" || c.hook != "outbound" {
 		return moejs.Undefined(), fmt.Errorf("utils.paramOverride is not available in %s", c.hook)
 	}
-	fn := paramOverrideFunc.Load()
+	fn := hostConfig().ParamOverride
 	if fn == nil {
 		return moejs.Undefined(), fmt.Errorf("utils.paramOverride is not available on this host")
 	}
@@ -699,7 +710,7 @@ func (c *runtimeCall) paramOverride(r *moejs.Realm, body, override moejs.Value) 
 		}
 		texts = append(texts, text)
 	}
-	result, err := (*fn)(*c.transform, texts[0], texts[1])
+	result, err := fn(*c.transform, texts[0], texts[1])
 	if err != nil {
 		return moejs.Undefined(), err
 	}

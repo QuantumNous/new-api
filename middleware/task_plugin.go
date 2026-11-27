@@ -232,16 +232,13 @@ func PrepareTaskPluginRoute() gin.HandlerFunc {
 			if !allowed {
 				reason, detail = "model_not_allowed", fmt.Sprintf("model %q is not allowed on this route", claimedModel)
 			} else {
-				value, text, callErr := candidate.Plugin.Engine.CallPathWithMemberJSON(
-					c.Request.Context(), 0, candidate.Plugin.Meta.JSONTextMember("requestBody"),
-					"native", []string{candidate.Route.Decode}, candidateContext.JSValueFor(candidate.Plugin.Meta),
-				)
+				decoded, callErr := candidate.Plugin.CallRouteDecode(c.Request.Context(), 0, candidate.Route.Decode, candidateContext)
 				if callErr != nil {
 					reason, detail = "hook_failed", taskPluginHookDetail(callErr)
 				} else {
-					result, _ = value.(map[string]any)
-					bodyText = text
-					intent, reason, detail = checkTaskPluginRouteIntent(pinned.Generation, candidate, value)
+					result = decoded.Result
+					bodyText = decoded.RequestBodyText
+					intent, reason, detail = checkTaskPluginRouteIntent(pinned.Generation, candidate, decoded.Value)
 				}
 			}
 			if reason == "" && intent.kind == string(pluginruntime.RouteTypeQuery) {
@@ -865,12 +862,8 @@ func PrepareTaskPluginEndpoint() gin.HandlerFunc {
 			candidateContext.Operation = candidate.Operation.Name
 			// Parsing belongs to durable submission; disconnecting only stops
 			// the later Responses observation.
-			resolvedValue, requestBodyText, callErr := candidate.Plugin.Engine.CallPathWithMemberJSON(
-				context.WithoutCancel(c.Request.Context()), pluginruntime.DefaultCallTimeout,
-				candidate.Plugin.Meta.JSONTextMember("requestBody"),
-				"protocols", []string{candidate.Protocol, "decodeRequest"}, candidateContext.JSValueFor(candidate.Plugin.Meta),
-			)
-			result, resultOK := resolvedValue.(map[string]any)
+			decoded, callErr := candidate.Plugin.CallProtocolDecode(context.WithoutCancel(c.Request.Context()), pluginruntime.DefaultCallTimeout, candidate.Protocol, candidateContext)
+			result, resultOK, requestBodyText := decoded.Result, decoded.Result != nil, decoded.RequestBodyText
 			detail := ""
 			reason := ""
 			if callErr != nil {

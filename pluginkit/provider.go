@@ -1,4 +1,4 @@
-package jsplugin
+package pluginkit
 
 import (
 	"context"
@@ -14,8 +14,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/MoeForge/moego/regexp"
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
 )
 
 // CredentialType marks a channel key line that holds a plugin credential.
@@ -77,7 +75,7 @@ func ParseCredential(line string) (*Credential, bool) {
 		return nil, false
 	}
 	var credential Credential
-	if err := common.Unmarshal([]byte(trimmed), &credential); err != nil {
+	if err := unmarshalJSON([]byte(trimmed), &credential); err != nil {
 		return nil, false
 	}
 	if credential.Type != CredentialType || credential.Plugin == "" {
@@ -98,7 +96,7 @@ func (c Credential) Line() (string, error) {
 	if len(c.Data) == 0 {
 		c.Data = json.RawMessage("null")
 	}
-	encoded, err := common.Marshal(c)
+	encoded, err := marshalJSON(c)
 	if err != nil {
 		return "", err
 	}
@@ -148,7 +146,7 @@ func RedactCredentialLines(key string) string {
 		if !ok {
 			continue
 		}
-		encoded, err := common.Marshal(credential.Summary())
+		encoded, err := marshalJSON(credential.Summary())
 		if err != nil {
 			lines[index] = ""
 			continue
@@ -398,7 +396,7 @@ func (p *LoadedPlugin) CallScheduled(ctx context.Context, hookCtx ScheduledConte
 		if len(hookCtx.Credential) == 0 {
 			return ScheduledResult{}, fmt.Errorf("%s credential requires a plugin credential", subject)
 		}
-		scheduled.Credential, err = common.Marshal(raw)
+		scheduled.Credential, err = marshalJSON(raw)
 		if err != nil || len(scheduled.Credential) > MaxCredentialBytes {
 			return ScheduledResult{}, fmt.Errorf("%s credential must be JSON of at most %d bytes", subject, MaxCredentialBytes)
 		}
@@ -426,7 +424,7 @@ func (p *LoadedPlugin) CallScheduled(ctx context.Context, hookCtx ScheduledConte
 		if err != nil {
 			return ScheduledResult{}, err
 		}
-		encoded, err := common.Marshal(scheduled.Notify)
+		encoded, err := marshalJSON(scheduled.Notify)
 		if err != nil || len(encoded) > maxScheduledNotifyBytes {
 			return ScheduledResult{}, fmt.Errorf("%s notify must be at most %d bytes", subject, maxScheduledNotifyBytes)
 		}
@@ -844,7 +842,7 @@ func stateMember(object map[string]any, subject string) (json.RawMessage, error)
 	if !exists {
 		return nil, nil
 	}
-	state, err := common.Marshal(value)
+	state, err := marshalJSON(value)
 	if err != nil {
 		return nil, fmt.Errorf("%s state must be JSON: %v", subject, err)
 	}
@@ -1306,7 +1304,7 @@ func (p *LoadedPlugin) CallConvertStreamEvent(ctx context.Context, hookCtx HookC
 	}
 	if err == nil {
 		if value, exists := object["state"]; exists {
-			if state, err = common.Marshal(value); err == nil && len(state) > maxConvertedEventBytes() {
+			if state, err = marshalJSON(value); err == nil && len(state) > maxConvertedEventBytes() {
 				err = fmt.Errorf("convertStreamEvent result state exceeds %d bytes", maxConvertedEventBytes())
 			}
 		}
@@ -1397,20 +1395,6 @@ func decodeChunks(value any) ([][]byte, error) {
 	return chunks, nil
 }
 
-func maxConvertedBodyBytes() int {
-	if constant.MaxRequestBodyMB > 0 {
-		return constant.MaxRequestBodyMB << 20
-	}
-	return 128 << 20
-}
-
-func maxConvertedEventBytes() int {
-	if constant.StreamScannerMaxBufferMB > 0 {
-		return constant.StreamScannerMaxBufferMB << 20
-	}
-	return 128 << 20
-}
-
 // convertedBody reads the body member of a convert result: a string is the
 // body text, any other value is sent as the JSON text JSON.stringify writes.
 func convertedBody(object map[string]any, text json.RawMessage, subject string, limit int) ([]byte, error) {
@@ -1484,7 +1468,7 @@ func truncateRunes(text string, limit int) string {
 
 func decodeStreamEvents(text json.RawMessage) ([]StreamEvent, error) {
 	var items []map[string]json.RawMessage
-	if err := common.Unmarshal(text, &items); err != nil {
+	if err := unmarshalJSON(text, &items); err != nil {
 		return nil, fmt.Errorf("convertStreamEvent result events must be an array of objects")
 	}
 	if len(items) > maxStreamEvents {
@@ -1497,12 +1481,12 @@ func decodeStreamEvents(text json.RawMessage) ([]StreamEvent, error) {
 		for name, raw := range item {
 			switch name {
 			case "event":
-				if err := common.Unmarshal(raw, &event.Event); err != nil || strings.ContainsAny(event.Event, "\r\n") {
+				if err := unmarshalJSON(raw, &event.Event); err != nil || strings.ContainsAny(event.Event, "\r\n") {
 					return nil, fmt.Errorf("convertStreamEvent result events[%d].event must be a single-line string", index)
 				}
 			case "data":
 				if len(raw) > 0 && raw[0] == '"' {
-					if err := common.Unmarshal(raw, &event.Data); err != nil {
+					if err := unmarshalJSON(raw, &event.Data); err != nil {
 						return nil, fmt.Errorf("convertStreamEvent result events[%d].data is invalid", index)
 					}
 				} else if string(raw) != "null" {
@@ -1535,7 +1519,7 @@ func decodeLoginStep(result any) (LoginStep, error) {
 	}
 	step := LoginStep{Type: stepType}
 	if value, exists := object["session"]; exists && stepType != LoginStepDone {
-		encoded, encodeErr := common.Marshal(value)
+		encoded, encodeErr := marshalJSON(value)
 		if encodeErr != nil {
 			return LoginStep{}, fmt.Errorf("session must be JSON: %v", encodeErr)
 		}
@@ -1682,7 +1666,7 @@ func decodeCredentialResult(object map[string]any, subject string) (CredentialRe
 	}
 	var result CredentialResult
 	var err error
-	if result.Credential, err = common.Marshal(value); err != nil {
+	if result.Credential, err = marshalJSON(value); err != nil {
 		return CredentialResult{}, fmt.Errorf("%s credential must be JSON: %v", strings.TrimSpace(subject), err)
 	}
 	if result.Headers, err = requestHeadersMember(object, "headers", subject); err != nil {
@@ -1899,7 +1883,7 @@ func (p *LoadedPlugin) CallExchangeKey(ctx context.Context, hookCtx CredentialCo
 	if err == nil {
 		if object["token"] == nil {
 			err = fmt.Errorf("%s token is required", subject)
-		} else if exchanged.Token, err = common.Marshal(object["token"]); err == nil && len(exchanged.Token) > MaxCredentialBytes {
+		} else if exchanged.Token, err = marshalJSON(object["token"]); err == nil && len(exchanged.Token) > MaxCredentialBytes {
 			err = fmt.Errorf("%s token exceeds %d bytes", subject, MaxCredentialBytes)
 		}
 	}

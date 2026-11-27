@@ -1,4 +1,4 @@
-package jsplugin
+package pluginkit
 
 // asciiFold maps only 'A'–'Z' onto 'a'–'z'. Every other byte is unchanged.
 // Unicode case folding is intentionally not applied: U+212A (KELVIN SIGN)

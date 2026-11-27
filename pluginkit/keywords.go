@@ -1,4 +1,4 @@
-package jsplugin
+package pluginkit
 
 import (
 	"crypto/sha256"

@@ -1,4 +1,4 @@
-package jsplugin
+package pluginkit
 
 import (
 	"bytes"
@@ -17,8 +17,6 @@ import (
 	"math"
 	"net/http"
 	"net/url"
-	"os"
-	"os/exec"
 	"runtime"
 	"strings"
 	"sync/atomic"
@@ -29,12 +27,7 @@ import (
 	"weak"
 
 	"github.com/MoeForge/moejs"
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
-	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -329,7 +322,7 @@ export function describe(...values) {
   return seen.join(" ");
 }`, Options{})
 	require.NoError(t, err)
-	// Hosts pass text written by common.Marshal, where both paths agree on
+	// Hosts pass text written by the host JSON codec, where both paths agree on
 	// key order, numbers and strings.
 	values := map[string]any{
 		"object": map[string]any{
@@ -347,10 +340,10 @@ export function describe(...values) {
 	}
 	for name, value := range values {
 		t.Run(name, func(t *testing.T) {
-			text, err := common.Marshal(value)
+			text, err := marshalJSON(value)
 			require.NoError(t, err)
 			var decoded any
-			require.NoError(t, common.Unmarshal(text, &decoded))
+			require.NoError(t, unmarshalJSON(text, &decoded))
 			want, err := engine.Call(t.Context(), "describe", decoded)
 			require.NoError(t, err)
 			got, err := engine.Call(t.Context(), "describe", RawJSON(text))
@@ -379,11 +372,11 @@ func TestJSONStateChangesAndEncodedLimits(t *testing.T) {
    {"op":"set","path":["nested","a<b"],"value":{}}]
 ]`
 	var frames []any
-	require.NoError(t, common.UnmarshalJsonStr(changes, &frames))
+	require.NoError(t, unmarshalJSONString(changes, &frames))
 	const expected = `{"text":"<&\n\"图像😀\u2028","parts":[{"text":"ab","enabled":false}],"nested":{"value":[0,2],"a<b":{}}}`
 	var want any
-	require.NoError(t, common.UnmarshalJsonStr(expected, &want))
-	encoded, err := common.Marshal(want)
+	require.NoError(t, unmarshalJSONString(expected, &want))
+	encoded, err := marshalJSON(want)
 	require.NoError(t, err)
 	state := NewJSONState(len(encoded))
 	for _, frame := range frames {
@@ -447,7 +440,7 @@ func TestJSONStateChangesAndEncodedLimits(t *testing.T) {
 			state := NewJSONState(1024)
 			require.NoError(t, state.Apply(t.Context(), frames[0]))
 			var changes any
-			require.NoError(t, common.UnmarshalJsonStr(invalid, &changes))
+			require.NoError(t, unmarshalJSONString(invalid, &changes))
 			require.Error(t, state.Apply(t.Context(), changes))
 			_, err := state.Value()
 			require.Error(t, err)
@@ -455,38 +448,7 @@ func TestJSONStateChangesAndEncodedLimits(t *testing.T) {
 	}
 }
 
-type bytePreservingJSONCodec struct {
-	jsoniter.API
-}
-
-func (c bytePreservingJSONCodec) Decode(reader io.Reader, value any) error {
-	return c.NewDecoder(reader).Decode(value)
-}
-
 func TestJSONStateUTF8Normalization(t *testing.T) {
-	const codecEnv = "JSPLUGIN_TEST_BYTE_PRESERVING_JSON"
-	if os.Getenv(codecEnv) == "1" {
-		// Only this test runs in the child process; the parent's codec and
-		// parallel tests are unaffected. Disabling HTML escaping in jsoniter
-		// also preserves invalid UTF-8, independently of Sonic's platform support.
-		kitutil.SetCodec(bytePreservingJSONCodec{jsoniter.Config{SortMapKeys: true}.Froze()})
-		encoded, err := common.Marshal("\xff\xfe")
-		require.NoError(t, err)
-		require.Equal(t, []byte("\"\xff\xfe\""), encoded)
-		var decoded any
-		require.NoError(t, common.Unmarshal(encoded, &decoded))
-		require.Equal(t, "\xff\xfe", decoded)
-	} else {
-		t.Run("byte preserving codec", func(t *testing.T) {
-			executable, err := os.Executable()
-			require.NoError(t, err)
-			command := exec.CommandContext(t.Context(), executable, "-test.run=^TestJSONStateUTF8Normalization$", "-test.v")
-			command.Env = append(os.Environ(), codecEnv+"=1")
-			output, err := command.CombinedOutput()
-			require.NoError(t, err, "%s", output)
-		})
-	}
-
 	const raw = "图像\xff\xfe😀<&\n\"\\\u2028"
 	const normalized = "图像\ufffd\ufffd😀<&\n\"\\\u2028"
 	for _, tc := range []struct {
@@ -503,7 +465,7 @@ func TestJSONStateUTF8Normalization(t *testing.T) {
 		{"separate invalid bytes", "appendText", []any{}, "\xff", "\xfe", "\ufffd\ufffd"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			encoded, err := common.Marshal(tc.want)
+			encoded, err := marshalJSON(tc.want)
 			require.NoError(t, err)
 			for _, shortBy := range []int{0, 1} {
 				state := NewJSONState(len(encoded) - shortBy)
@@ -538,7 +500,7 @@ func TestJSONStateUTF8Normalization(t *testing.T) {
 		assert.Equal(t, map[string]any{"text": normalized, "items": []any{int64(0), false, normalized}}, value)
 		assert.Equal(t, raw, input["text"])
 
-		encoded, err := common.Marshal(normalized)
+		encoded, err := marshalJSON(normalized)
 		require.NoError(t, err)
 		padding := strings.Repeat("x", (4<<20)-len(encoded))
 		value, err = engine.Call(t.Context(), "clone", raw+padding)
@@ -564,82 +526,6 @@ func TestJSONStateUTF8Normalization(t *testing.T) {
 			assert.Nil(t, value)
 		}
 	})
-}
-
-func TestEngineConsoleLogUsesDebugLoggerAndRequestContext(t *testing.T) {
-	previousDebug := common.DebugEnabled
-	common.DebugEnabled = false
-	t.Cleanup(func() { common.DebugEnabled = previousDebug })
-
-	var output bytes.Buffer
-	common.LogWriterMu.Lock()
-	previousWriter := gin.DefaultErrorWriter
-	gin.DefaultErrorWriter = &output
-	common.LogWriterMu.Unlock()
-	t.Cleanup(func() {
-		common.LogWriterMu.Lock()
-		gin.DefaultErrorWriter = previousWriter
-		common.LogWriterMu.Unlock()
-	})
-
-	plugin, err := CompilePlugin(`
-export const meta = {
-  apiVersion: 1,
-  key: "console-debug",
-  name: "Console debug",
-  version: "1.2.3",
-  author: {name: "Test"},
-  models: ["debug-model"],
-  fetchMode: "per_task",
-};
-export function run(label) {
-  console.log("checkpoint", label);
-  return true;
-}
-export function buildSubmitRequest() { return {url: "https://example.com"}; }
-export function parseSubmitResponse() { return {taskId: "one"}; }
-export function buildQueryRequest() { return {url: "https://example.com"}; }
-export function parseTaskResult() { return {status: "SUCCESS"}; }
-`, Options{})
-	require.NoError(t, err)
-	engine := plugin.Engine
-
-	disabledContext := context.WithValue(context.Background(), common.RequestIdKey, "plugin-console-disabled")
-	_, err = engine.Call(disabledContext, "run", "disabled")
-	require.NoError(t, err)
-	assert.Empty(t, output.String())
-
-	common.DebugEnabled = true
-	contextA := context.WithValue(context.Background(), common.RequestIdKey, "plugin-console-request-a")
-	_, err = engine.Call(contextA, "run", "context-a")
-	require.NoError(t, err)
-	logA := output.String()
-	output.Reset()
-
-	contextB := context.WithValue(context.Background(), common.RequestIdKey, "plugin-console-request-b")
-	_, err = engine.Call(contextB, "run", "context-b")
-	require.NoError(t, err)
-	logB := output.String()
-	output.Reset()
-
-	_, err = engine.Call(context.Background(), "run", "background")
-	require.NoError(t, err)
-	logBackground := output.String()
-
-	assert.Contains(t, logA, "plugin-console-request-a")
-	assert.NotContains(t, logA, "plugin-console-request-b")
-	assert.Contains(t, logA, "task_plugin subsystem=runtime event=console")
-	assert.Contains(t, logA, "[plugin:console-debug@1.2.3] checkpoint context-a")
-	assert.NotContains(t, logA, "disabled")
-
-	assert.Contains(t, logB, "plugin-console-request-b")
-	assert.NotContains(t, logB, "plugin-console-request-a")
-	assert.Contains(t, logB, "[plugin:console-debug@1.2.3] checkpoint context-b")
-
-	assert.Contains(t, logBackground, "| SYSTEM |")
-	assert.NotContains(t, logBackground, "plugin-console-request-a")
-	assert.NotContains(t, logBackground, "plugin-console-request-b")
-	assert.Contains(t, logBackground, "[plugin:console-debug@1.2.3] checkpoint background")
 }
 
 func TestCompileRejectsAsynchronousAndImportedPlugins(t *testing.T) {
@@ -733,27 +619,6 @@ export function run(mib) {
 	value, err := engine.Call(t.Context(), "run", 0)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), value, "a runtime stopped by the memory limit is discarded")
-}
-
-func TestEngineMemoryLimitFollowsSetting(t *testing.T) {
-	previous := constant.PluginMemoryLimitMB
-	t.Cleanup(func() { constant.PluginMemoryLimitMB = previous })
-	// Many small objects: past the limit the runtime stops the call, where a
-	// single large ArrayBuffer would throw a RangeError instead.
-	const source = `export function run(n) { const keep = []; for (let i = 0; i < n; i++) keep.push({i}); return keep.length; }`
-
-	constant.PluginMemoryLimitMB = 8
-	limited, err := Compile(source, Options{Key: "memory", Version: "1", Concurrency: 1})
-	require.NoError(t, err)
-	_, err = limited.Call(t.Context(), "run", 400_000)
-	require.ErrorIs(t, err, moejs.ErrMemoryLimit)
-
-	constant.PluginMemoryLimitMB = 0
-	unlimited, err := Compile(source, Options{Key: "memory", Version: "1", Concurrency: 1})
-	require.NoError(t, err)
-	value, err := unlimited.Call(t.Context(), "run", 400_000)
-	require.NoError(t, err, "0 means no limit")
-	assert.Equal(t, int64(400_000), value)
 }
 
 func TestEngineDoesNotReinitializeIdleRuntimeAfterGC(t *testing.T) {
@@ -1333,4 +1198,12 @@ func TestValidateRequestURL(t *testing.T) {
 			assert.True(t, strings.Contains(err.Error(), test.wantError), err.Error())
 		})
 	}
+}
+
+func TestEngineCallPathJSONIntoKeepsMemberOrder(t *testing.T) {
+	engine, err := Compile(`export const native = {render(view) { return {zeta: view.id, alpha: undefined, mid: {b: 2, a: 1}}; }};`, Options{Key: "order", Version: "1"})
+	require.NoError(t, err)
+	var text json.RawMessage
+	require.NoError(t, engine.CallPathJSONInto(t.Context(), &text, "native", []string{"render"}, map[string]any{"id": "x"}))
+	assert.Equal(t, `{"zeta":"x","mid":{"b":2,"a":1}}`, string(text))
 }

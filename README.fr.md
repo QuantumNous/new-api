@@ -263,7 +263,7 @@ Ouvrez [http://localhost:5173](http://localhost:5173) ; les requêtes API sont r
 | `relay/` | Adaptateurs amont et routage des requêtes |
 | `service/`, `model/` | Logique métier et persistance |
 | [relaykit/](./relaykit/README.md) | Module Go autonome pour les DTO et conversions de protocoles |
-| [plugins/tasks/](./plugins/tasks/) | Extensions de tâches JavaScript ; contrat et limites de l'hôte dans [Task Plugin API v1](./docs/plugin-api/v1.md) |
+| [plugins/tasks/](./plugins/tasks/) | Extensions de tâches JavaScript ; contrat et limites de l'hôte dans [Task Plugin API v1](./pluginkit/v1.md) |
 | `web/` | Console web ; voir les [conventions frontend](./web/AGENTS.md) |
 | [electron/](./electron/README.md) | Application de bureau et packaging |
 
