@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"slices"
 	"strconv"
@@ -559,7 +560,8 @@ const maxTaskExtendPluginKeys = 32
 
 // normalizePluginConfig validates the plugin config in the channel's settings
 // and stores it as the schema reads it: declared properties only, defaults
-// left to the read.
+// left to the read. It keeps the plugin_routes entries that switch a relay
+// route of the plugin away from its default.
 func normalizePluginConfig(channel *model.Channel, plugin *jsplugin.LoadedPlugin) error {
 	otherSettings := channel.GetOtherSettings()
 	config, err := plugin.ValidateChannelConfig(otherSettings.PluginConfig)
@@ -569,8 +571,10 @@ func normalizePluginConfig(channel *model.Channel, plugin *jsplugin.LoadedPlugin
 	if plugin.Meta.ChannelConfig == nil || string(config) == "{}" {
 		config = nil
 	}
-	if !bytes.Equal(config, otherSettings.PluginConfig) {
+	routes := plugin.Meta.NormalizeRouteToggles(otherSettings.PluginRoutes)
+	if !bytes.Equal(config, otherSettings.PluginConfig) || !maps.Equal(routes, otherSettings.PluginRoutes) {
 		otherSettings.PluginConfig = config
+		otherSettings.PluginRoutes = routes
 		channel.SetOtherSettings(otherSettings)
 	}
 	return nil

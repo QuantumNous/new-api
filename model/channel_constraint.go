@@ -139,7 +139,7 @@ func channelMatchesFilter(ch *Channel, modelName string, filter dto.ChannelFilte
 		case constant.ChannelTypeTaskPlugin:
 			// The same rule on the relay routes of the channel's plugin.
 			plugin, ok := jsplugin.DefaultRegistry.Get(ch.GetSetting().TaskPluginKey)
-			return ok && plugin.Meta.ServesResponsesWebSocket(modelName)
+			return ok && plugin.Meta.ChannelServesResponsesWebSocket(ch.GetOtherSettings().PluginRoutes, modelName)
 		default:
 			return false
 		}
@@ -159,6 +159,6 @@ func providerChannelServes(ch *Channel, requestPath, modelName string) bool {
 	if !ok || !plugin.Meta.HasProviderPart() {
 		return false
 	}
-	_, ok = plugin.Meta.RelayRoute(requestPath, modelName)
+	_, ok = plugin.Meta.ChannelRelayRoute(ch.GetOtherSettings().PluginRoutes, requestPath, modelName)
 	return ok
 }

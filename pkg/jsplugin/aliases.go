@@ -159,6 +159,7 @@ var (
 	ParseFileReference          = pluginkit.ParseFileReference
 	PluginRouteBindings         = pluginkit.PluginRouteBindings
 	RedactCredentialLines       = pluginkit.RedactCredentialLines
+	RelayRouteKey               = pluginkit.RelayRouteKey
 	ResolveRouteAction          = pluginkit.ResolveRouteAction
 	SetParamOverrideFunc        = pluginkit.SetParamOverrideFunc
 	SplitProviderConverter      = pluginkit.SplitProviderConverter

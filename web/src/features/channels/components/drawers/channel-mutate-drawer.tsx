@@ -237,6 +237,7 @@ import {
   type ModelMappingDraftRequest,
 } from '../model-mapping-editor'
 import { ModelRedirectPanel } from '../model-redirect-panel'
+import { PluginChannelRoutes } from '../plugin-channel-routes'
 import { ResponsesWebSocketSetting } from '../responses-websocket-setting'
 import { UpstreamModelSelection } from '../upstream-model-selection'
 import {
@@ -357,6 +358,7 @@ const SENSITIVE_FORM_FIELDS = [
   'upstream_model_update_auto_sync_enabled',
   'upstream_model_update_ignored_models',
   'plugin_config',
+  'plugin_routes',
   'plugin_config_draft',
 ] satisfies (keyof ChannelFormValues)[]
 
@@ -909,6 +911,7 @@ export function ChannelMutateDrawer({
         // Settings belong to the plugin that declared them.
         if (previousKey !== plugin.key) {
           form.setValue('plugin_config', {}, { shouldDirty: true })
+          form.setValue('plugin_routes', {}, { shouldDirty: true })
           form.setValue('plugin_config_draft', null, { shouldDirty: true })
         }
         if (!plugin.responsesWebsocket) {
@@ -5006,6 +5009,12 @@ export function ChannelMutateDrawer({
         }
         routing={
           <>
+            {boundTaskPlugin?.relayRoutes?.length ? (
+              <PluginChannelRoutes
+                routes={boundTaskPlugin.relayRoutes}
+                disabled={sensitiveLocked || isSubmitting}
+              />
+            ) : null}
             {redirectPanelActive ? redirectPanelNotice : modelMappingFields}
             {routingFields}
           </>

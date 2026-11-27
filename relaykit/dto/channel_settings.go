@@ -147,6 +147,10 @@ type ChannelOtherSettings struct {
 	// PluginConfig is the config a type-61 channel gives its plugin, checked
 	// against the plugin's meta.channelConfig when the channel is saved.
 	PluginConfig json.RawMessage `json:"plugin_config,omitempty"`
+	// PluginRoutes switches relay routes of a type-61 channel's plugin on or
+	// off, keyed by route (see pluginkit.RelayRouteKey). Only entries that
+	// differ from the route's default are kept.
+	PluginRoutes map[string]bool `json:"plugin_routes,omitempty"`
 }
 
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {

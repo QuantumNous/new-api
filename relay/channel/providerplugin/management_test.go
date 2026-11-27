@@ -76,7 +76,7 @@ func TestFetchModelListPagesAndExchangesAgainOn401(t *testing.T) {
 			ChannelId:            910_001,
 			ChannelBaseUrl:       upstream.URL,
 			ApiKey:               "sk-paged",
-			ChannelOtherSettings: dto.ChannelOtherSettings{AdvancedCustom: plugin.Meta.ChannelRelayConfig(nil)},
+			ChannelOtherSettings: dto.ChannelOtherSettings{AdvancedCustom: plugin.Meta.ChannelRelayConfig(nil, nil)},
 		},
 	}
 
@@ -118,7 +118,7 @@ export function convertResponse() { return {next: {path: "/models"}}; }
 			ChannelId:            910_002,
 			ChannelBaseUrl:       upstream.URL,
 			ApiKey:               "sk-endless",
-			ChannelOtherSettings: dto.ChannelOtherSettings{AdvancedCustom: plugin.Meta.ChannelRelayConfig(nil)},
+			ChannelOtherSettings: dto.ChannelOtherSettings{AdvancedCustom: plugin.Meta.ChannelRelayConfig(nil, nil)},
 		},
 	}
 
@@ -161,7 +161,7 @@ export function parseBalance(ctx, res) { return {amount: JSON.parse(res.body).us
 				ChannelId:            910_003,
 				ChannelBaseUrl:       base.URL,
 				ApiKey:               "sk-balance",
-				ChannelOtherSettings: dto.ChannelOtherSettings{AdvancedCustom: plugin.Meta.ChannelRelayConfig(nil)},
+				ChannelOtherSettings: dto.ChannelOtherSettings{AdvancedCustom: plugin.Meta.ChannelRelayConfig(nil, nil)},
 			},
 		}
 		return QueryBalance(context.Background(), plugin, info, ManagementClient{

@@ -7816,6 +7816,8 @@
     "Zhipu": "智谱",
     "Zhipu GLM": "智谱GLM",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Plugin routes": "插件路由",
+    "{{on}} of {{total}} on": "已开启 {{on}}/{{total}}"
   }
 }
