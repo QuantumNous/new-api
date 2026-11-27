@@ -206,7 +206,7 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 	case types.RelayFormatClaude:
 		var streamResponse dto.ChatCompletionsStreamResponse
 		if err := common.Unmarshal(common.StringToByteSlice(lastStreamData), &streamResponse); err != nil {
-			common.SysLog(common.LogText("error unmarshalling stream response: %s", err.Error()))
+			logger.LogSystem(c, common.LogText("error unmarshalling stream response: %s", err.Error()))
 			return
 		}
 
@@ -230,7 +230,7 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 	case types.RelayFormatGemini:
 		var streamResponse dto.ChatCompletionsStreamResponse
 		if err := common.Unmarshal(common.StringToByteSlice(lastStreamData), &streamResponse); err != nil {
-			common.SysLog(common.LogText("error unmarshalling stream response: %s", err.Error()))
+			logger.LogSystem(c, common.LogText("error unmarshalling stream response: %s", err.Error()))
 			return
 		}
 

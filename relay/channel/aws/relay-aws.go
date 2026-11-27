@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -143,7 +144,7 @@ func doAwsClientRequest(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor,
 		a.AwsReq = awsReq
 		return nil, nil
 	} else {
-		awsClaudeReq, err := formatRequest(requestBody, requestHeader)
+		awsClaudeReq, err := formatRequest(c.Request.Context(), requestBody, requestHeader)
 		if err != nil {
 			return nil, types.NewError(errors.Wrap(err, "format aws request fail"), types.ErrorCodeBadRequestBody)
 		}
@@ -305,7 +306,9 @@ streamLoop:
 					return respErr, nil
 				}
 			case *bedrockruntimeTypes.UnknownUnionMember:
-				fmt.Println(common.LogText("unknown tag: %v", v.Tag))
+				if !logger.RequestLogsSuppressed(c) {
+					fmt.Println(common.LogText("unknown tag: %v", v.Tag))
+				}
 				return types.NewError(errors.New("unknown response type"), types.ErrorCodeInvalidRequest), nil
 			default:
 				fmt.Println(common.LogText("union is nil or unknown type"))

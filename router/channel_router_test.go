@@ -4,9 +4,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/controller"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -22,6 +26,52 @@ func TestChannelDefaultBaseURLsRequireReadPermission(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/channel/default_base_urls", nil))
 	assert.Equal(t, http.StatusUnauthorized, recorder.Code)
+}
+
+func TestChannelTestRoutesRequireOperatePermission(t *testing.T) {
+	assertChannelRoutePermission(t, http.MethodGet, "/test/:id", authz.ChannelOperate, controller.TestChannel)
+	assertChannelRoutePermission(t, http.MethodPost, "/test/:id", authz.ChannelOperate, controller.TestChannel)
+
+	setupRelayRouterTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.UserAccessToken{}, &model.AuditLog{}))
+	user := model.User{
+		Username: "test-operator", AffCode: "test-operator", Role: common.RoleRootUser,
+		Group: "default", Status: common.UserStatusEnabled,
+	}
+	require.NoError(t, model.DB.Create(&user).Error)
+	engine := gin.New()
+	SetApiRouter(engine)
+
+	for _, tc := range []struct {
+		name       string
+		permission authz.Permission
+		status     int
+	}{
+		{name: "read only", permission: authz.ChannelRead, status: http.StatusForbidden},
+		{name: "operate", permission: authz.ChannelOperate, status: http.StatusOK},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			suffix, err := common.GenerateRandomCharsKey(43)
+			require.NoError(t, err)
+			raw := model.AccessTokenPrefix + suffix
+			token := model.UserAccessToken{Name: tc.name, TokenHash: model.AccessTokenFingerprint(raw), TokenHint: model.AccessTokenHint(raw)}
+			require.NoError(t, token.SetScopes([]string{service.AccessTokenScopeOf(tc.permission)}))
+			require.NoError(t, model.CreateUserAccessToken(user.Id, &token, service.AccessTokenMaxPerUser))
+
+			req := httptest.NewRequest(http.MethodPost, "/api/channel/test/invalidID", strings.NewReader(`{"message":"private message"}`))
+			req.Header.Set("Authorization", "Bearer "+raw)
+			req.Header.Set("Content-Type", "application/json")
+			recorder := httptest.NewRecorder()
+			engine.ServeHTTP(recorder, req)
+
+			require.Equal(t, tc.status, recorder.Code, recorder.Body.String())
+			if tc.status == http.StatusForbidden {
+				assert.Contains(t, recorder.Body.String(), "ACCESS_TOKEN_SCOPE_DENIED")
+			} else {
+				assert.Contains(t, recorder.Body.String(), "invalid syntax")
+			}
+		})
+	}
 }
 
 func TestChannelStatusRoutesUseExpectedPermissions(t *testing.T) {

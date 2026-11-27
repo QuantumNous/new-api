@@ -73,6 +73,32 @@ func SetupLogger() {
 	}
 }
 
+type suppressRequestLogsKey struct{}
+
+// WithoutRequestLogs keeps request-scoped relay logs from exposing a private
+// channel test's prompt, upstream response, or errors derived from either.
+func WithoutRequestLogs(ctx context.Context) context.Context {
+	return context.WithValue(ctx, suppressRequestLogsKey{}, true)
+}
+
+// RequestLogsSuppressed reports whether relay logs are suppressed for the request.
+func RequestLogsSuppressed(ctx context.Context) bool {
+	if c, ok := ctx.(*gin.Context); ok {
+		if c == nil || c.Request == nil {
+			return false
+		}
+		ctx = c.Request.Context()
+	}
+	return ctx != nil && ctx.Value(suppressRequestLogsKey{}) == true
+}
+
+// LogSystem preserves the system log format for request-scoped relay messages.
+func LogSystem(ctx context.Context, msg string) {
+	if !RequestLogsSuppressed(ctx) {
+		common.SysLog(msg)
+	}
+}
+
 func LogInfo(ctx context.Context, msg string) {
 	logHelper(ctx, loggerINFO, msg)
 }
@@ -91,12 +117,15 @@ func LogError(ctx context.Context, msg string) {
 // LogDebug formats msg with common.LogText only when debug logging is on, so
 // callers pass the format and its arguments instead of a formatted string.
 func LogDebug(ctx context.Context, msg string, args ...any) {
-	if common.DebugEnabled {
+	if common.DebugEnabled && !RequestLogsSuppressed(ctx) {
 		logHelper(ctx, loggerDebug, common.LogText(msg, args...))
 	}
 }
 
 func logHelper(ctx context.Context, level string, msg string) {
+	if RequestLogsSuppressed(ctx) {
+		return
+	}
 	var id any = "SYSTEM"
 	if ctx != nil {
 		if requestID := ctx.Value(common.RequestIdKey); requestID != nil {
@@ -177,7 +206,7 @@ func FormatQuota(quota int) string {
 
 // LogJson 仅供测试使用 only for test
 func LogJson(ctx context.Context, msg string, obj any) {
-	if !common.DebugEnabled {
+	if !common.DebugEnabled || RequestLogsSuppressed(ctx) {
 		return
 	}
 	jsonStr, err := common.Marshal(obj)

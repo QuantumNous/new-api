@@ -36,6 +36,7 @@ import {
   type ChangeEvent,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -61,6 +62,13 @@ import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Combobox } from '@/components/ui/combobox'
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -72,6 +80,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Tooltip,
   TooltipContent,
@@ -225,13 +234,18 @@ const endpointTypeOptions: Array<{
   },
 ]
 
-const STREAM_INCOMPATIBLE_ENDPOINTS = new Set([
+const MESSAGE_INCOMPATIBLE_ENDPOINTS = new Set([
   'embeddings',
   'image-generation',
   'jina-rerank',
+])
+
+const STREAM_INCOMPATIBLE_ENDPOINTS = new Set([
+  ...MESSAGE_INCOMPATIBLE_ENDPOINTS,
   'openai-response-compact',
 ])
 
+const TEST_MESSAGE_MAX_LENGTH = 4096
 const MODEL_PRICE_ERROR_CODE = 'model_price_error'
 const FAILURE_SUMMARY_MAX_LENGTH = 96
 const BATCH_TEST_CONCURRENCY = 5
@@ -350,12 +364,14 @@ function ChannelTestDialogContent({
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const currentChannelId = currentRow.id
+  const testMessageId = useId()
   const batchStopRequestedRef = useRef(false)
   const batchProgressToastIdRef = useRef<ReturnType<
     typeof toast.loading
   > | null>(null)
   const [endpointType, setEndpointType] = useState('auto')
   const [isStreamTest, setIsStreamTest] = useState(false)
+  const [testMessage, setTestMessage] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({})
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -428,7 +444,16 @@ function ChannelTestDialogContent({
     })
   }, [batchProgress, dismissBatchProgressToast, isBatchStopRequested, t])
 
-  useEffect(() => dismissBatchProgressToast, [dismissBatchProgressToast])
+  useEffect(() => {
+    return () => {
+      batchStopRequestedRef.current = true
+      dismissBatchProgressToast()
+    }
+  }, [dismissBatchProgressToast])
+
+  useEffect(() => {
+    if (!open) setTestMessage('')
+  }, [open])
 
   const resetState = useCallback(() => {
     batchStopRequestedRef.current = true
@@ -450,6 +475,12 @@ function ChannelTestDialogContent({
 
   const streamDisabled = STREAM_INCOMPATIBLE_ENDPOINTS.has(endpointType)
   const effectiveStreamTest = !streamDisabled && isStreamTest
+  const messageDisabled = MESSAGE_INCOMPATIBLE_ENDPOINTS.has(endpointType)
+  const effectiveTestMessage = messageDisabled ? undefined : testMessage
+  const testMessageTooLong =
+    !messageDisabled &&
+    testMessage.length > TEST_MESSAGE_MAX_LENGTH &&
+    [...testMessage].length > TEST_MESSAGE_MAX_LENGTH
 
   const handleEndpointTypeChange = useCallback((value: string | null) => {
     if (value === null) return
@@ -595,6 +626,7 @@ function ChannelTestDialogContent({
             testModel: model,
             endpointType: endpointType === 'auto' ? undefined : endpointType,
             stream: effectiveStreamTest || undefined,
+            message: effectiveTestMessage,
             silent,
           },
           (success, responseTime, error, errorCode) => {
@@ -633,6 +665,7 @@ function ChannelTestDialogContent({
       currentRow,
       endpointType,
       effectiveStreamTest,
+      effectiveTestMessage,
       markModelTesting,
       refreshChannelLists,
       t,
@@ -959,7 +992,9 @@ function ChannelTestDialogContent({
                     variant='ghost'
                     size='icon-sm'
                     onClick={() => testSingleModel(model)}
-                    disabled={isTestingModel || isBatchTesting}
+                    disabled={
+                      isTestingModel || isBatchTesting || testMessageTooLong
+                    }
                     aria-label={t('Test Connection')}
                   />
                 }
@@ -981,6 +1016,7 @@ function ChannelTestDialogContent({
       defaultTestModel,
       isBatchTesting,
       t,
+      testMessageTooLong,
       testResults,
       testingModels,
       testSingleModel,
@@ -1022,7 +1058,7 @@ function ChannelTestDialogContent({
         }
       >
         <div className='max-h-[78vh] space-y-4 overflow-y-auto py-4 pr-1'>
-          <div className='grid gap-4 md:grid-cols-2'>
+          <FieldGroup className='grid gap-4 md:grid-cols-2'>
             <div className='grid gap-2'>
               <Label htmlFor='endpoint-type'>{t('Endpoint Type')}</Label>
               <Combobox
@@ -1056,7 +1092,44 @@ function ChannelTestDialogContent({
                 {t('Enable streaming mode for the test request.')}
               </p>
             </div>
-          </div>
+            <Field
+              className='md:col-span-2'
+              data-disabled={messageDisabled}
+              data-invalid={testMessageTooLong}
+            >
+              <FieldLabel htmlFor={testMessageId}>
+                {t('Test message (optional)')}
+              </FieldLabel>
+              <Textarea
+                id={testMessageId}
+                className='max-h-32'
+                value={testMessage}
+                onChange={(event) => setTestMessage(event.target.value)}
+                disabled={messageDisabled}
+                aria-invalid={testMessageTooLong}
+                aria-describedby={
+                  testMessageTooLong
+                    ? `${testMessageId}-hint ${testMessageId}-error`
+                    : `${testMessageId}-hint`
+                }
+              />
+              <FieldDescription
+                id={`${testMessageId}-hint`}
+                className='text-xs'
+              >
+                {messageDisabled
+                  ? t('Custom test messages are unavailable for this endpoint.')
+                  : t('Leave blank to use the default test message.')}
+                {endpointType === 'auto' &&
+                  ` ${t('Auto detect uses this message only when the model resolves to a text endpoint.')}`}
+              </FieldDescription>
+              {testMessageTooLong && (
+                <FieldError id={`${testMessageId}-error`}>
+                  {t('Test message must be at most 4096 characters')}
+                </FieldError>
+              )}
+            </Field>
+          </FieldGroup>
 
           <div className='space-y-3 max-sm:has-[div[role="toolbar"]]:pb-16'>
             <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
@@ -1082,7 +1155,11 @@ function ChannelTestDialogContent({
                       <Button
                         size='sm'
                         onClick={() => handleBatchTest(filteredModels)}
-                        disabled={isAnyTesting || filteredModels.length === 0}
+                        disabled={
+                          isAnyTesting ||
+                          testMessageTooLong ||
+                          filteredModels.length === 0
+                        }
                       >
                         {testAllButtonLabel}
                       </Button>
@@ -1164,7 +1241,11 @@ function ChannelTestDialogContent({
               <DataTablePagination table={table} />
             </div>
 
-            <TestModelsBulkActions table={table} />
+            <TestModelsBulkActions
+              table={table}
+              onTestSelected={handleBatchTest}
+              testDisabled={isAnyTesting || testMessageTooLong}
+            />
           </div>
         </div>
       </Dialog>
@@ -1397,10 +1478,14 @@ function FailureDetailsSheet({
   )
 }
 
-function TestModelsBulkActions({ table }: { table: TanStackTable<ModelRow> }) {
+function TestModelsBulkActions(props: {
+  table: TanStackTable<ModelRow>
+  onTestSelected: (models: string[]) => void
+  testDisabled: boolean
+}) {
   const { t } = useTranslation()
   const { copyToClipboard } = useCopyToClipboard()
-  const selectedRows = table.getFilteredSelectedRowModel().rows
+  const selectedRows = props.table.getFilteredSelectedRowModel().rows
   const selectedModels = selectedRows.map((row) => row.original.model)
 
   const handleCopySelected = useCallback(() => {
@@ -1409,7 +1494,15 @@ function TestModelsBulkActions({ table }: { table: TanStackTable<ModelRow> }) {
   }, [copyToClipboard, selectedModels])
 
   return (
-    <BulkActionsToolbar table={table} entityName='model'>
+    <BulkActionsToolbar table={props.table} entityName='model'>
+      <Button
+        size='sm'
+        onClick={() => props.onTestSelected(selectedModels)}
+        disabled={props.testDisabled}
+      >
+        <Gauge data-icon='inline-start' />
+        {t('Test selected models')}
+      </Button>
       <Tooltip>
         <TooltipTrigger
           render={
