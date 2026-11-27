@@ -555,7 +555,10 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 			// message_delta usage is cumulative: a reported breakdown (even 0)
 			// replaces the earlier count; an absent one keeps it.
 			if claudeResponse.Usage.OutputTokensDetails != nil {
-				claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens = claudeResponse.Usage.GetThinkingTokens()
+				claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens = min(
+					max(claudeResponse.Usage.OutputTokensDetails.ThinkingTokens, 0),
+					max(claudeInfo.Usage.CompletionTokens, 0),
+				)
 			}
 			claudeInfo.Usage.TotalTokens = claudeInfo.Usage.PromptTokens + claudeInfo.Usage.CompletionTokens
 			updateClaudeStreamBillingUsage(claudeResponse.Usage, claudeInfo, true)

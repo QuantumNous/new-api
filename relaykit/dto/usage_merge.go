@@ -203,6 +203,10 @@ func MergeClaudeUsageNonZero(current *ClaudeUsage, incoming *ClaudeUsage) *Claud
 			merged.ServerToolUse.ToolSearchRequests = incoming.ServerToolUse.ToolSearchRequests
 		}
 	}
+	if incoming.OutputTokensDetails != nil {
+		outputTokensDetails := *incoming.OutputTokensDetails
+		merged.OutputTokensDetails = &outputTokensDetails
+	}
 	// cloneClaudeUsage strips BillingUsage so a nested Claude snapshot cannot
 	// recurse. Restore the client-visible sidecar here: incoming wins when
 	// present (authoritative/upstream), otherwise keep current's.
