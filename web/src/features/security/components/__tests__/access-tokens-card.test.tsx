@@ -243,6 +243,20 @@ describe('access tokens card', () => {
     ).toBeEnabled()
   })
 
+  it('shows the Unattended badge only for tokens that allow unattended access', async () => {
+    list = {
+      items: [
+        tokenItem({ id: 1, name: 'automation', allow_unattended: true }),
+        tokenItem({ id: 2, name: 'manual', allow_unattended: false }),
+      ],
+      legacy: null,
+    }
+    renderCard()
+    expect(await screen.findByText('automation')).toBeVisible()
+    expect(screen.getByText('manual')).toBeVisible()
+    expect(screen.getAllByText('Unattended')).toHaveLength(1)
+  })
+
   it('disables Edit while the permission catalog is loading or failed to load', async () => {
     list = { items: [tokenItem({ id: 7 })], legacy: null }
     let failCatalog!: (error: Error) => void
