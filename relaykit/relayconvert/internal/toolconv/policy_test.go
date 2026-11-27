@@ -279,3 +279,34 @@ func TestResponsesCustomToolNameConflictIsDropped(t *testing.T) {
 		})
 	}
 }
+
+func TestResponsesFunctionWithTopLevelOneOfIsFlattenedForClaude(t *testing.T) {
+	t.Parallel()
+
+	_, set, err := ExtractRequest(types.RelayFormatOpenAIResponses, codexResponsesToolsRequest(t, nil, map[string]any{
+		"type": "function",
+		"name": "automation_update",
+		"parameters": map[string]any{
+			"oneOf": []any{
+				map[string]any{"type": "object", "properties": map[string]any{"id": map[string]any{"type": "string"}, "prompt": map[string]any{"type": "string"}}, "required": []any{"id", "prompt"}},
+				map[string]any{"type": "object", "properties": map[string]any{"id": map[string]any{"type": "string"}, "paused": map[string]any{"type": "boolean"}}, "required": []any{"id", "paused"}},
+			},
+		},
+	}))
+	require.NoError(t, err)
+
+	out, diagnostics, err := AttachRequest(types.RelayFormatClaude, &dto.ClaudeRequest{Model: "claude-test"}, set, nil)
+	require.NoError(t, err)
+	functions, _ := attachedFunctions(t, out)
+	require.Len(t, functions, 3)
+	assert.Equal(t, map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"id":     map[string]any{"type": "string"},
+			"prompt": map[string]any{"type": "string"},
+			"paused": map[string]any{"type": "boolean"},
+		},
+		"required": []any{"id"},
+	}, functions[2]["input_schema"])
+	assert.True(t, hasDiagnosticCode(diagnostics, "claude_top_level_schema_union_flattened"))
+}
