@@ -8,9 +8,11 @@ import (
 )
 
 type RequestInput struct {
-	Headers map[string]string
-	Body    []byte
-	Usage   map[string]any
+	// TokensUnavailable permits only fixed fees independent of missing usage.
+	TokensUnavailable bool `json:"-"`
+	Headers           map[string]string
+	Body              []byte
+	Usage             map[string]any
 	// ImageCount is a validated billing quantity, separate from the frozen
 	// request's n. Settlement can replace it with the actual returned count.
 	ImageCount *int

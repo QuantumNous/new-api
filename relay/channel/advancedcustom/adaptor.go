@@ -155,6 +155,8 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 	return a.convertOpenAICompatibleAudioRequest(c, info, request)
 }
 
+func (*Adaptor) SupportsSVGAuthorBilling() {}
+
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	converter, err := a.resolveForConversion(c, info)
 	if err != nil {

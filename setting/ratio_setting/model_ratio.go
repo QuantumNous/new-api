@@ -715,9 +715,12 @@ func RoutingMatchModelName(name string) string {
 // HasConfiguredModelRatio reports whether name has an explicit ratio entry
 // after wildcard normalization. Self-use fallback does not count.
 func HasConfiguredModelRatio(name string) bool {
-	name = FormatMatchingModelName(name)
-	_, ok := modelRatioMap.Get(name)
+	_, ok := ConfiguredModelRatio(name)
 	return ok
+}
+
+func ConfiguredModelRatio(name string) (float64, bool) {
+	return modelRatioMap.Get(FormatMatchingModelName(name))
 }
 
 // 转换模型名，减少渠道必须配置各种带参数模型

@@ -6424,6 +6424,7 @@
     "Supports PNG, JPG, SVG, or WebP. Recommended size: 128×128 or smaller.": "Поддерживаются PNG, JPG, SVG или WebP. Рекомендуемый размер: 128×128 или меньше.",
     "Surprise me": "Удиви меня",
     "Sustained tokens per second": "Устойчивая скорость токенов в секунду",
+    "SVG: {{model}}, {{input}} input tokens, {{output}} output tokens, cost {{quota}}": "SVG: {{model}}, токенов на входе: {{input}}, на выходе: {{output}}, стоимость: {{quota}}",
     "Swap Face": "Замена лица",
     "Switch account": "Сменить аккаунт",
     "Switch affinity on success": "Переключить привязку при успехе",

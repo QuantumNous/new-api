@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"math"
 	"sort"
 	"strings"
@@ -397,6 +398,51 @@ func usageSemanticFromUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) 
 	return "openai"
 }
 
+// svgAuthorQuota prices only the text model; missing token counts cannot
+// select a usage-dependent tier, but do not invalidate a per-request fee.
+func svgAuthorQuota(ctx *gin.Context, author *relaycommon.SVGAuthorBilling) int {
+	info := author.Pricing
+	price := info.PriceData
+	if price.UsePrice {
+		amount := decimal.NewFromFloat(price.ModelPrice).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).Mul(decimal.NewFromFloat(price.GroupRatioInfo.GroupRatio))
+		quota, clamp := common.QuotaFromDecimalChecked(amount)
+		noteQuotaClamp(info, clamp)
+		return quota
+	}
+	tokens := dto.Usage{}
+	if u := author.Usage; u != nil {
+		tokens.PromptTokens = int(*u.InputTokens)
+		tokens.CompletionTokens = int(*u.OutputTokens) // Includes reasoning tokens.
+	} else {
+		snap := info.TieredBillingSnapshot
+		if snap == nil || !billingexpr.UsesFixedPricingByHash(snap.ExprString, snap.ExprHash) {
+			return 0
+		}
+		request := billingexpr.RequestInput{}
+		if info.BillingRequestInput != nil {
+			request = *info.BillingRequestInput
+		}
+		request.TokensUnavailable = true
+		result, err := billingexpr.ComputeTieredQuotaWithRequest(snap, billingexpr.TokenParams{}, request)
+		if errors.Is(err, billingexpr.ErrTokensUnavailable) {
+			return 0
+		}
+		if err != nil {
+			logger.LogWarn(ctx, common.LogText("SVG author settlement failed; retaining reservation: %s", err.Error()))
+			return price.QuotaToPreConsume
+		}
+		if result.BillingUnit != billingexpr.BillingUnitRequest {
+			return 0
+		}
+		noteQuotaClamp(info, result.Clamp)
+		return result.ActualQuotaAfterGroup
+	}
+	if ok, quota, _ := TryTieredSettle(info, BuildTieredTokenParams(&tokens, false, nil)); ok {
+		return quota
+	}
+	return calculateTextQuotaSummary(ctx, info, &tokens).Quota
+}
+
 func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent []*common.Message) {
 	originUsage := usage
 	billingUsage := effectiveBillingUsage(usage)
@@ -438,6 +484,19 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		}
 	}
 
+	var authorQuota int
+	if author := relayInfo.SVGAuthor; author != nil {
+		authorQuota = svgAuthorQuota(ctx, author)
+		if authorQuota < 0 {
+			logger.LogWarn(ctx, common.LogText("negative SVG author charge; retaining the author reservation"))
+			authorQuota = author.Pricing.PriceData.QuotaToPreConsume
+		}
+		noteQuotaClamp(relayInfo, author.Pricing.QuotaClamp)
+		total, clamp := common.QuotaFromFloatChecked(float64(summary.Quota) + float64(authorQuota))
+		noteQuotaClamp(relayInfo, clamp)
+		authorQuota = total - summary.Quota
+		summary.Quota = total
+	}
 	for _, item := range summary.ToolSurchargeItems {
 		q := decimal.NewFromFloat(item.Price).
 			Mul(decimal.NewFromInt(int64(item.Count))).
@@ -455,16 +514,30 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		extraContent = append(extraContent, common.NewMessage("Audio input cost {{quota}}", map[string]any{"quota": logger.FormatQuota(common.QuotaFromDecimal(q))}))
 	}
 
+	var settlementFailure map[string]any
+	if err := SettleBilling(ctx, relayInfo, summary.Quota); err != nil {
+		logger.LogError(ctx, common.LogText("error settling billing: %s", err.Error()))
+		if relayInfo.SVGAuthor != nil {
+			settlementFailure = map[string]any{"attempted_quota": summary.Quota, "attempted_svg_quota": authorQuota, "error": err.Error()}
+			var rejected *fundingSettlementError
+			if errors.As(err, &rejected) {
+				summary.Quota = rejected.reserved
+				authorQuota = min(relayInfo.SVGAuthor.ReservedQuota, summary.Quota)
+			}
+		}
+	}
+	if author := relayInfo.SVGAuthor; author != nil && author.Usage != nil {
+		u := author.Usage
+		extraContent = append(extraContent, common.NewMessage("SVG: {{model}}, {{input}} input tokens, {{output}} output tokens, cost {{quota}}", map[string]any{
+			"model": author.Pricing.OriginModelName, "input": *u.InputTokens, "output": *u.OutputTokens, "quota": logger.FormatQuota(authorQuota),
+		}))
+	}
 	if !summary.hasBillableUsage() {
 		extraContent = append(extraContent, common.NewMessage("Upstream returned no usage, so nothing was charged (possibly an upstream timeout)"))
 		logger.LogError(ctx, common.LogText("total tokens is 0, cannot consume quota, userId %d, channelId %d, tokenId %d, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, summary.ModelName, relayInfo.FinalPreConsumedQuota))
 	} else {
 		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, summary.Quota)
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, summary.Quota)
-	}
-
-	if err := SettleBilling(ctx, relayInfo, summary.Quota); err != nil {
-		logger.LogError(ctx, common.LogText("error settling billing: %s", err.Error()))
 	}
 
 	logModel := summary.ModelName
@@ -491,6 +564,12 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		other = GenerateTextOtherInfo(ctx, relayInfo, summary.ModelRatio, summary.GroupRatio, summary.CompletionRatio, summary.CacheTokens, summary.CacheRatio, summary.ModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
 	}
 	appendUsageBillingPathForLog(other, common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens), originUsage)
+	if settlementFailure != nil {
+		other.SetAdmin("settlement_failure", settlementFailure)
+	}
+	if author := relayInfo.SVGAuthor; author != nil {
+		other.SetPublic("svg_author", map[string]any{"billing_model": author.Pricing.OriginModelName, "usage": author.Usage, "quota": authorQuota})
+	}
 	if adminRejectReason != "" {
 		other.SetAdmin("reject_reason", adminRejectReason)
 	}

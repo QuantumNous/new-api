@@ -1,11 +1,71 @@
 package billingexpr
 
 import (
+	"errors"
 	"fmt"
 	"math"
+	"slices"
 
 	"github.com/expr-lang/expr/ast"
 )
+
+var ErrTokensUnavailable = errors.New("token usage unavailable")
+
+// Inline lexical aliases of $env before guarding its reads. Expr rejects
+// shadowing, so each substitution is scoped to the declaration's own body.
+type envAliasPatcher struct{ name string }
+
+func (p envAliasPatcher) Visit(node *ast.Node) {
+	if id, ok := (*node).(*ast.IdentifierNode); ok && p.name != "" && id.Value == p.name {
+		ast.Patch(node, &ast.IdentifierNode{Value: "$env"})
+		return
+	}
+	if decl, ok := (*node).(*ast.VariableDeclaratorNode); ok {
+		if id, ok := decl.Value.(*ast.IdentifierNode); ok && id.Value == "$env" {
+			ast.Walk(&decl.Expr, envAliasPatcher{name: decl.Name})
+			ast.Patch(node, decl.Expr)
+		}
+	}
+}
+
+// Only a token read on the executed path makes a fixed fee unknowable.
+// A token-priced sibling of a selected fixed leaf is never evaluated.
+type missingTokenPatcher struct{}
+
+func (missingTokenPatcher) Visit(node *ast.Node) {
+	if id, ok := (*node).(*ast.IdentifierNode); ok {
+		switch {
+		case id.Value == "$env":
+			// A bare environment (including one passed through an alias)
+			// would expose zero-valued token fields.
+			ast.Patch(node, &ast.CallNode{Callee: &ast.IdentifierNode{Value: "$missingEnv"}})
+		case id.Value != "image_count" && slices.Contains(chatQuantityVars, id.Value):
+			ast.Patch(node, &ast.CallNode{Callee: &ast.IdentifierNode{Value: "$missingToken"}})
+		}
+		return
+	}
+	// Visitors walk children first. A keyed environment lookup can safely
+	// proceed if its actual key does not name a missing token count.
+	var source, key ast.Node
+	switch n := (*node).(type) {
+	case *ast.MemberNode:
+		source, key = n.Node, n.Property
+	case *ast.BuiltinNode:
+		if n.Name != "get" || len(n.Arguments) != 2 {
+			return
+		}
+		source, key = n.Arguments[0], n.Arguments[1]
+	default:
+		return
+	}
+	call, ok := source.(*ast.CallNode)
+	if !ok {
+		return
+	}
+	if id, ok := call.Callee.(*ast.IdentifierNode); ok && id.Value == "$missingEnv" {
+		ast.Patch(node, &ast.CallNode{Callee: &ast.IdentifierNode{Value: "$lookupEnv"}, Arguments: []ast.Node{&ast.IdentifierNode{Value: "$env"}, key}})
+	}
+}
 
 // UsesFixedPricing includes unselected branches, even when compilation later
 // optimizes them away. Hosts use it to reject unsupported billing entrances.

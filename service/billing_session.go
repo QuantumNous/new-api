@@ -41,6 +41,15 @@ type BillingSession struct {
 	mu               sync.Mutex
 }
 
+// fundingSettlementError distinguishes a rejected funding adjustment from a
+// token adjustment that failed after the funding charge was committed.
+type fundingSettlementError struct {
+	error
+	reserved int
+}
+
+func (e *fundingSettlementError) Unwrap() error { return e.error }
+
 // Settle 根据实际消耗额度进行结算。
 // 资金来源和令牌额度分两步提交：若资金来源已提交但令牌调整失败，
 // 会标记 fundingSettled 防止 Refund 对已提交的资金来源执行退款。
@@ -58,7 +67,7 @@ func (s *BillingSession) Settle(actualQuota int) error {
 	// 1) 调整资金来源（仅在尚未提交时执行，防止重复调用）
 	if !s.fundingSettled {
 		if err := s.funding.Settle(delta); err != nil {
-			return err
+			return &fundingSettlementError{error: err, reserved: s.preConsumedQuota}
 		}
 		s.fundingSettled = true
 	}

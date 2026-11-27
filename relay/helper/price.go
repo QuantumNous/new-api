@@ -68,6 +68,24 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 			info.BillingModelName = matched
 		}
 	}
+	return priceBillingModel(c, info, promptTokens, meta, false)
+}
+
+// PriceSVGAuthor freezes the price under the requested name. Neither
+// self-use mode nor accepting unpriced models is a price for an SVG author.
+func PriceSVGAuthor(c *gin.Context, parent *relaycommon.RelayInfo, name string) (*relaycommon.SVGAuthorBilling, error) {
+	info := &relaycommon.RelayInfo{OriginModelName: name, UserId: parent.UserId, UsingGroup: parent.UsingGroup, UserGroup: parent.UserGroup, RequestHeaders: parent.RequestHeaders}
+	price, err := priceBillingModel(c, info, parent.GetEstimatePromptTokens(), &types.TokenCountMeta{}, true)
+	if err != nil {
+		return nil, err
+	}
+	if price.QuotaToPreConsume < 0 {
+		return nil, fmt.Errorf("negative SVG author reservation for %s", name)
+	}
+	return &relaycommon.SVGAuthorBilling{Pricing: info}, nil
+}
+
+func priceBillingModel(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta, requirePrice bool) (hosttypes.PriceData, error) {
 	billingModelName := info.GetBillingModelName()
 	modelPrice, usePrice := ratio_setting.GetModelPrice(billingModelName, false)
 
@@ -98,7 +116,14 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		preConsumedTokens := float64(promptTokens) * preConsumeMultiplier
 		var success bool
 		var matchName string
-		modelRatio, success, matchName = ratio_setting.GetModelRatio(billingModelName)
+		if requirePrice {
+			modelRatio, success = ratio_setting.ConfiguredModelRatio(billingModelName)
+			if !success {
+				return hosttypes.PriceData{}, errors.New(i18n.T(c, i18n.MsgRelayModelPriceNotConfigured, map[string]any{"Model": billingModelName}))
+			}
+		} else {
+			modelRatio, success, matchName = ratio_setting.GetModelRatio(billingModelName)
+		}
 		if !success {
 			acceptUnsetRatio := false
 			if info.UserSetting.AcceptUnsetRatioModel {
@@ -391,6 +416,14 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, billing
 		if err != nil {
 			return hosttypes.PriceData{}, err
 		}
+	} else if image, ok := info.Request.(*dto.ImageRequest); ok && usedVars["$env"] {
+		// The key can be evaluated at runtime. Supply the same count without
+		// replacing the request body used by param() to select that key.
+		count, err := image.ImageCount(false)
+		if err != nil {
+			return hosttypes.PriceData{}, err
+		}
+		requestInput.ImageCount = &count
 	}
 
 	rawCost, trace, err := billingexpr.RunExprByHashWithRequest(exprStr, exprHash, billingexpr.TokenParams{

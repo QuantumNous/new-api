@@ -11,6 +11,41 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestFixedPriceWithoutUsage(t *testing.T) {
+	const rebound = `(let env = $env; let $env = {"image_count": 2}; env.image_count == 2) ? tier("paid", fixed(0.01)) : tier("waived", fixed(0))`
+	_, err := billingexpr.CompileFromCache(rebound)
+	require.ErrorContains(t, err, "cannot rebind $env")
+	for _, lookup := range []string{`$env.image_count`, `$env["image_count"]`, `(let env = $env; let other = env; other.image_count)`, `(let env = $env; get(env, "image_count"))`, `get($env, param("key"))`} {
+		t.Run(lookup, func(t *testing.T) {
+			for _, unavailable := range []bool{false, true} {
+				for _, count := range []int{1, 2, 0} {
+					req := billingexpr.RequestInput{ImageCount: &count, TokensUnavailable: unavailable, Body: []byte(`{"key":"image_count"}`)}
+					cost, trace, err := billingexpr.RunExprWithRequest(lookup+` == 2 ? tier("two",fixed(0.02)) : tier("one",fixed(0.01))`, billingexpr.TokenParams{}, req)
+					if count == 0 {
+						require.ErrorContains(t, err, "image_count")
+						continue
+					}
+					require.NoError(t, err)
+					assert.Equal(t, &count, trace.ImageCount)
+					assert.Equal(t, float64(count)*10000, cost)
+				}
+			}
+		})
+	}
+	for _, condition := range []string{`len == 0`, `$env["len"] == 0`, `$env[param("key")] == 0`, `(let env = $env; env.len == 0)`, `(let env = $env; get(env, param("key")) == 0)`} {
+		t.Run(condition, func(t *testing.T) {
+			expression := condition + ` ? tier("free",fixed(0.01)) : tier("other",p)`
+			req := billingexpr.RequestInput{Body: []byte(`{"key":"len"}`)}
+			cost, _, err := billingexpr.RunExprWithRequest(expression, billingexpr.TokenParams{}, req)
+			require.NoError(t, err)
+			assert.Equal(t, 10000.0, cost)
+			req.TokensUnavailable = true
+			_, _, err = billingexpr.RunExprWithRequest(expression, billingexpr.TokenParams{}, req)
+			require.ErrorIs(t, err, billingexpr.ErrTokensUnavailable)
+		})
+	}
+}
+
 func TestFixedPriceBranches(t *testing.T) {
 	const expression = `(len <= 32000 ? tier("short", fixed(0.01)) : tier("long", p * 2 + c * 8)) * (param("fast") == true ? 2 : 1)`
 	for _, tc := range []struct {
