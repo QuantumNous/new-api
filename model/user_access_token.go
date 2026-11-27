@@ -39,16 +39,17 @@ var legacyAccessTokenRetireAt atomic.Int64
 // SHA-256 fingerprint of the plaintext is stored; it doubles as the audit
 // token_ref.
 type UserAccessToken struct {
-	Id         int    `json:"id"`
-	UserId     int    `json:"-" gorm:"index"`
-	Name       string `json:"name" gorm:"type:varchar(64)"`
-	TokenHash  string `json:"token_ref" gorm:"type:varchar(64);uniqueIndex"`
-	TokenHint  string `json:"token_hint" gorm:"type:varchar(8)"`
-	Scopes     string `json:"-" gorm:"type:varchar(2048)"`
-	ExpiresAt  int64  `json:"expires_at" gorm:"type:bigint;index"`
-	LastUsedAt int64  `json:"last_used_at" gorm:"type:bigint"`
-	LastUsedIp string `json:"last_used_ip" gorm:"type:varchar(64)"`
-	CreatedAt  int64  `json:"created_at" gorm:"type:bigint"`
+	Id              int    `json:"id"`
+	UserId          int    `json:"-" gorm:"index"`
+	Name            string `json:"name" gorm:"type:varchar(64)"`
+	TokenHash       string `json:"token_ref" gorm:"type:varchar(64);uniqueIndex"`
+	TokenHint       string `json:"token_hint" gorm:"type:varchar(8)"`
+	Scopes          string `json:"-" gorm:"type:varchar(2048)"`
+	AllowUnattended bool   `json:"allow_unattended" gorm:"type:boolean;default:false"`
+	ExpiresAt       int64  `json:"expires_at" gorm:"type:bigint;index"`
+	LastUsedAt      int64  `json:"last_used_at" gorm:"type:bigint"`
+	LastUsedIp      string `json:"last_used_ip" gorm:"type:varchar(64)"`
+	CreatedAt       int64  `json:"created_at" gorm:"type:bigint"`
 }
 
 func (UserAccessToken) TableName() string {

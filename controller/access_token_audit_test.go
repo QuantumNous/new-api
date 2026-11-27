@@ -134,7 +134,7 @@ func createAccessTokenTestSession(t *testing.T, userID int, sid string) (service
 
 func issueAccessTokenGenerateProof(t *testing.T, identity service.AuthIdentity, expiresAt int64, scopes ...string) string {
 	t.Helper()
-	context, err := common.Marshal(service.AccessTokenGenerateContext{Scopes: scopes, ExpiresAt: expiresAt})
+	context, err := common.Marshal(service.AccessTokenGenerateContext{Scopes: scopes, ExpiresAt: expiresAt, AllowUnattended: false})
 	require.NoError(t, err)
 	return issueSecurityEnrollmentProof(t, identity, service.VerificationOperation{Scope: service.VerificationScopeAccessTokenGenerate, Context: context}, "password")
 }
@@ -351,6 +351,7 @@ func TestAccessTokenCreationChecksGrantBeforeConsumingProof(t *testing.T) {
 		{"blank name", `{"name":"  ","scopes":["profile:read"],"expires_at":0}`, "ACCESS_TOKEN_NAME_INVALID", common.RoleAdminUser, http.StatusBadRequest, []string{"profile:read"}, 0},
 		{"proof for other scopes", `{"name":"ci","scopes":["profile:read","usage:read"],"expires_at":0}`, "SECURITY_PROOF_CONTEXT_MISMATCH", common.RoleAdminUser, http.StatusForbidden, []string{"profile:read"}, 0},
 		{"proof for other expiry", fmt.Sprintf(`{"name":"ci","scopes":["profile:read"],"expires_at":%d}`, expiresAt), "SECURITY_PROOF_CONTEXT_MISMATCH", common.RoleAdminUser, http.StatusForbidden, []string{"profile:read"}, 0},
+		{"unattended flag is bound to the proof", `{"name":"ci","scopes":["user:write"],"expires_at":0,"allow_unattended":true}`, "SECURITY_PROOF_CONTEXT_MISMATCH", common.RoleAdminUser, http.StatusForbidden, []string{"user:write"}, 0},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			require.NoError(t, model.DB.Model(user).Update("role", test.role).Error)
@@ -1163,6 +1164,27 @@ func TestAuditDatabaseMatrix(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAccessTokenCreationStoresUnattendedFlag(t *testing.T) {
+	user, _ := setupAccessTokenAudit(t)
+	require.NoError(t, model.DB.Model(user).Update("role", common.RoleRootUser).Error)
+	router := newAccessTokenTestRouter()
+	identity, browser := createAccessTokenTestSession(t, user.Id, "unattended-create")
+	context, err := common.Marshal(service.AccessTokenGenerateContext{Scopes: []string{"user:write"}, ExpiresAt: 0, AllowUnattended: true})
+	require.NoError(t, err)
+	proof := issueSecurityEnrollmentProof(t, identity, service.VerificationOperation{Scope: service.VerificationScopeAccessTokenGenerate, Context: context}, service.VerificationMethodPassword)
+	response := accessTokenRequest(router, http.MethodPost, "/api/user/access_tokens", browser, proof, `{"name":"unattended","scopes":["user:write"],"expires_at":0,"allow_unattended":true}`)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	assert.Contains(t, response.Body.String(), `"allow_unattended":true`)
+	tokens, err := model.ListUserAccessTokens(user.Id)
+	require.NoError(t, err)
+	require.Len(t, tokens, 1)
+	assert.True(t, tokens[0].AllowUnattended)
+
+	response = accessTokenRequest(router, http.MethodPost, "/api/user/access_tokens", browser, "", `{"name":"unattended","scopes":["profile:read"],"expires_at":0,"allow_unattended":true}`)
+	assert.Equal(t, http.StatusBadRequest, response.Code)
+	assert.Contains(t, response.Body.String(), `"code":"ACCESS_TOKEN_UNATTENDED_SCOPE_REQUIRED"`)
 }
 
 func TestIndependentAuditLogStores(t *testing.T) {

@@ -43,6 +43,29 @@ func RequireSecurityProof(c *gin.Context, operation service.VerificationOperatio
 		securityProofError(c, "SECURITY_PROOF_INVALID", "Security verification is no longer valid. Please verify again.")
 		return nil
 	}
+	token, auditAction, exempt, err := service.UnattendedProofExemption(identity, operation)
+	if err != nil {
+		if errors.Is(err, model.ErrAccessTokenNotFound) {
+			securityProofError(c, "SECURITY_PROOF_INVALID", "Security verification is no longer valid. Please verify again.")
+			return nil
+		}
+		_ = c.Error(err)
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"success": false, "code": "AUTH_INTERNAL_ERROR", "message": "Please try again later."})
+		return nil
+	}
+	if exempt {
+		setAccessTokenAuditParam(c, "security_proof_exemption", gin.H{
+			"token_id":    token.Id,
+			"scope":       operation.Scope,
+			"token_scope": "user:write",
+			"action":      auditAction,
+		})
+		return &model.AuthFlowAuthorization{
+			AuthSessionIdentity: identity,
+			Scope:               operation.Scope,
+			Method:              "access_token_unattended",
+		}
+	}
 	raw := strings.TrimSpace(c.GetHeader("X-Security-Proof"))
 	if raw == "" {
 		securityProofError(c, "SECURITY_PROOF_REQUIRED", "Additional verification required")

@@ -102,6 +102,7 @@
     "{{name}} failed: {{error}}": "Échec de {{name}} : {{error}}",
     "{{name}} stops processing requests, including on channels that added it.": "{{name}} cesse de traiter les requêtes, y compris sur les canaux qui l'ont ajoutée.",
     "{{name}}: {{reason}}": "{{name}} : {{reason}}",
+    "{{on}} of {{total}} on": "{{on}} sur {{total}} activées",
     "{{operation}} (ID: {{id}})": "{{operation}} (ID : {{id}})",
     "{{percent}}% OFF": "-{{percent}} %",
     "{{percent}}% used": "{{percent}} % utilisé",
@@ -527,6 +528,7 @@
     "Allow self-signed or hostname-mismatched SMTP certificates": "Autoriser les certificats SMTP auto-signés ou dont le nom d'hôte ne correspond pas",
     "Allow service_tier passthrough": "Autoriser la transmission de service_tier",
     "Allow speed passthrough": "Autoriser la transmission de speed",
+    "Allow unattended management": "Autoriser la gestion sans surveillance",
     "Allow updates": "Autoriser les mises à jour",
     "Allow upstream callbacks": "Autoriser les callbacks en amont",
     "Allow users to check in daily for random quota rewards": "Permettre aux utilisateurs de se connecter quotidiennement pour des récompenses de quota aléatoires",
@@ -5026,6 +5028,7 @@
     "Plugin login failed: {{error}}": "La connexion via le plugin a échoué : {{error}}",
     "Plugin metadata": "Métadonnées du plugin",
     "Plugin metadata contains an unknown field \"{{field}}\". If this plugin was downloaded from the official marketplace, it may require a newer version of new-api. Try updating new-api and installing the plugin again.": "Les métadonnées du plugin contiennent un champ inconnu « {{field}} ». Si ce plugin provient de la marketplace officielle, il peut nécessiter une version plus récente de new-api. Mettez à jour new-api puis réinstallez le plugin.",
+    "Plugin routes": "Routes du plugin",
     "Plugin sandbox": "Bac à sable du plugin",
     "Plugin saved, activation required": "Plugin enregistré, activation requise",
     "Plugin setting updated": "Paramètre des plugins mis à jour",
@@ -5604,6 +5607,7 @@
     "Required. The upstream address this plugin sends requests to.": "Obligatoire. Adresse amont vers laquelle ce plugin envoie ses requêtes.",
     "Requires an available channel and access to its group.": "Nécessite un canal disponible et l’accès à son groupe.",
     "Requires global auto-disable and this channel option.": "Nécessite l’activation globale et celle de ce canal.",
+    "Requires the Users permission. This token can enable or disable users without security verification; deletion, role changes, password resets, and permission changes still require verification.": "Nécessite l’autorisation Utilisateurs. Ce jeton peut activer ou désactiver des utilisateurs sans vérification de sécurité ; la suppression, les changements de rôle, les réinitialisations de mot de passe et les changements d’autorisations nécessitent toujours une vérification.",
     "Requires upstream WebSocket support": "Nécessite WebSocket en amont",
     "Rerank": "Reclasser",
     "Reroll": "Relancer",
@@ -7131,6 +7135,8 @@
     "Unable to parse structured pricing": "Impossible d'analyser la tarification structurée",
     "Unable to prepare chat link. Please ensure you have an enabled API key.": "Impossible de préparer le lien de chat. Veuillez vous assurer d'avoir une clé API activée.",
     "Unable to read clipboard": "Impossible de lire le presse-papiers",
+    "Unattended": "Sans surveillance",
+    "Unattended access requires the Users permission": "L’accès sans surveillance nécessite l’autorisation Utilisateurs",
     "Unauthorized": "Non autorisé",
     "Unauthorized Access": "Accès non autorisé",
     "Unauthorized, insufficient privileges": "Non autorisé, privilèges insuffisants",
@@ -7816,8 +7822,6 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom",
-    "Plugin routes": "Routes du plugin",
-    "{{on}} of {{total}} on": "{{on}} sur {{total}} activées"
+    "Zoom": "Zoom"
   }
 }

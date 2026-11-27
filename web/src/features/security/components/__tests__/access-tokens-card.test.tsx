@@ -76,6 +76,7 @@ function tokenItem(overrides: Partial<AccessTokenItem>): AccessTokenItem {
     token_ref: 'a'.repeat(64),
     token_hint: 'Ab12',
     scopes: ['tokens:read'],
+    allow_unattended: false,
     expires_at: NOW + 30 * 24 * 60 * 60,
     last_used_at: 0,
     last_used_ip: '',
@@ -240,6 +241,26 @@ describe('access tokens card', () => {
     expect(
       screen.getByRole('button', { name: 'Create access token' })
     ).toBeEnabled()
+  })
+
+  it('shows the Unattended badge when the token allows unattended access', async () => {
+    list = {
+      items: [tokenItem({ id: 1, allow_unattended: true })],
+      legacy: null,
+    }
+    renderCard()
+    expect(await screen.findByText('deploy script')).toBeVisible()
+    expect(screen.getByText('Unattended')).toBeVisible()
+  })
+
+  it('omits the Unattended badge when the token does not allow unattended access', async () => {
+    list = {
+      items: [tokenItem({ id: 1, allow_unattended: false })],
+      legacy: null,
+    }
+    renderCard()
+    expect(await screen.findByText('deploy script')).toBeVisible()
+    expect(screen.queryByText('Unattended')).not.toBeInTheDocument()
   })
 
   it('disables Edit while the permission catalog is loading or failed to load', async () => {

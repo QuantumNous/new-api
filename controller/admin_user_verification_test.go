@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
@@ -385,5 +386,79 @@ func TestAdminUserVerificationPolicy(t *testing.T) {
 		var flows int64
 		require.NoError(t, model.DB.Model(&model.AuthFlow{}).Count(&flows).Error)
 		assert.Zero(t, flows)
+	})
+}
+
+func TestUnattendedAccessTokenProofExemption(t *testing.T) {
+	operator, _, target := setupAdminUserTest(t)
+	raw, token := createScopedAccessToken(t, operator.Id, 0, "user:write")
+	require.NoError(t, model.DB.Model(&model.UserAccessToken{}).Where("id = ?", token.Id).Update("allow_unattended", true).Error)
+
+	router := gin.New()
+	router.Use(middleware.RequestId(), middleware.AccessTokenAudit())
+	router.POST("/api/user/manage", middleware.AdminAuth(), ManageUser)
+	manage := func(credential, action string) *httptest.ResponseRecorder {
+		t.Helper()
+		request := httptest.NewRequest(http.MethodPost, "/api/user/manage", strings.NewReader(fmt.Sprintf(`{"id":%d,"action":%q}`, target.Id, action)))
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Authorization", "Bearer "+credential)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		return response
+	}
+
+	t.Run("enable and disable skip verification and record the exemption", func(t *testing.T) {
+		for _, action := range []string{"disable", "enable"} {
+			response := manage(raw, action)
+			result := decodeSecurityEnrollmentResponse(t, response)
+			require.True(t, result.Success, response.Body.String())
+			stored, err := model.GetUserById(target.Id, false)
+			require.NoError(t, err)
+			wantStatus := common.UserStatusDisabled
+			if action == "enable" {
+				wantStatus = common.UserStatusEnabled
+			}
+			assert.Equal(t, wantStatus, stored.Status)
+
+			var audit model.AuditLog
+			require.NoError(t, model.LOG_DB.Where("request_id = ? AND category = ?", response.Header().Get(common.RequestIdKey), model.AuditCategoryAccessToken).First(&audit).Error)
+			require.NotNil(t, audit.Other.Op)
+			exemption, err := common.Marshal(audit.Other.Op.Params["security_proof_exemption"])
+			require.NoError(t, err)
+			assert.JSONEq(t, fmt.Sprintf(`{"token_id":%d,"scope":"admin.user.manage","token_scope":"user:write","action":%q}`, token.Id, action), string(exemption))
+		}
+	})
+
+	t.Run("high-risk actions still require proof", func(t *testing.T) {
+		for _, test := range []struct {
+			action, code string
+		}{
+			{"delete", "SECURITY_PROOF_REQUIRED"},
+			{"promote", "SECURITY_PROOF_REQUIRED"},
+			{"demote", "SECURITY_PROOF_REQUIRED"},
+		} {
+			wantRole := common.RoleCommonUser
+			if test.action == "demote" {
+				wantRole = common.RoleAdminUser
+			}
+			require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", target.Id).Update("role", wantRole).Error)
+			response := manage(raw, test.action)
+			assert.Equal(t, http.StatusForbidden, response.Code)
+			assert.Equal(t, test.code, decodeSecurityEnrollmentResponse(t, response).Code)
+		}
+		stored, err := model.GetUserById(target.Id, false)
+		require.NoError(t, err)
+		assert.Equal(t, common.UserStatusEnabled, stored.Status)
+		assert.Equal(t, common.RoleAdminUser, stored.Role)
+	})
+
+	t.Run("a token without the unattended flag still requires proof", func(t *testing.T) {
+		otherRaw, _ := createScopedAccessToken(t, operator.Id, 0, "user:write")
+		response := manage(otherRaw, "disable")
+		assert.Equal(t, http.StatusForbidden, response.Code)
+		assert.Equal(t, "SECURITY_PROOF_REQUIRED", decodeSecurityEnrollmentResponse(t, response).Code)
+		stored, err := model.GetUserById(target.Id, false)
+		require.NoError(t, err)
+		assert.Equal(t, common.UserStatusEnabled, stored.Status)
 	})
 }

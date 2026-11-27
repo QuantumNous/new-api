@@ -52,6 +52,11 @@ const (
 // status or role. Quota adjustments are not gated and deletion has its own scope.
 var adminUserManageActions = []string{"disable", "enable", "promote", "demote"}
 
+// unattendedProofActions are the only operations an explicitly unattended
+// scoped token may perform without a fresh interactive proof. Deletion, role
+// changes, password resets and permission changes stay excluded.
+var unattendedProofActions = []string{"enable", "disable"}
+
 var (
 	ErrVerificationFailed         = errors.New("Verification failed. Please try again.")
 	ErrVerificationUnavailable    = errors.New("This verification method is currently unavailable.")
@@ -106,8 +111,9 @@ type AdminUserCreateContext struct {
 // AccessTokenGenerateContext binds a creation proof to the exact grant. Scopes
 // are compared as a sorted, de-duplicated set.
 type AccessTokenGenerateContext struct {
-	Scopes    []string `json:"scopes"`
-	ExpiresAt int64    `json:"expires_at"`
+	Scopes          []string `json:"scopes"`
+	ExpiresAt       int64    `json:"expires_at"`
+	AllowUnattended bool     `json:"allow_unattended,omitempty"`
 }
 
 // AccessTokenUpdateContext binds a grant change to one token and the exact new
@@ -122,6 +128,30 @@ type AccessTokenUpdateContext struct {
 type AccessTokenRevokeContext struct {
 	TokenID int  `json:"token_id,omitempty"`
 	Legacy  bool `json:"legacy,omitempty"`
+}
+
+// UnattendedProofExemption reports whether a scoped token was explicitly
+// authorized at issuance to skip an interactive proof for this operation. The
+// token must still hold the scope mapped to the verification scope. Browser
+// sessions and every operation outside unattendedProofActions fail closed.
+func UnattendedProofExemption(identity AuthIdentity, operation VerificationOperation) (*model.UserAccessToken, string, bool, error) {
+	tokenID, ok := model.ParseAccessTokenSessionID(identity.SessionID)
+	if !ok || operation.Scope != VerificationScopeAdminUserManage {
+		return nil, "", false, nil
+	}
+	var context AdminUserManageContext
+	if common.Unmarshal(operation.Context, &context) != nil || !slices.Contains(unattendedProofActions, context.Action) {
+		return nil, "", false, nil
+	}
+	token, err := model.GetUserAccessToken(identity.UserID, tokenID)
+	if err != nil {
+		return nil, "", false, err
+	}
+	required, _ := AccessTokenVerificationScope(operation.Scope)
+	if !token.AllowUnattended || !AccessTokenScopeGranted(token.GetScopes(), required) {
+		return nil, "", false, nil
+	}
+	return token, context.Action, true, nil
 }
 
 const (
@@ -228,8 +258,11 @@ func BindVerificationOperation(operation VerificationOperation) (VerificationBin
 		normalized = context
 	case VerificationScopeAccessTokenGenerate:
 		var context AccessTokenGenerateContext
-		if len(fields) != 2 || fields["scopes"] == nil || fields["expires_at"] == nil ||
+		if (len(fields) != 2 && len(fields) != 3) || fields["scopes"] == nil || fields["expires_at"] == nil ||
 			common.Unmarshal(operation.Context, &context) != nil || context.ExpiresAt < 0 {
+			return VerificationBinding{}, ErrVerificationContextInvalid
+		}
+		if raw, ok := fields["allow_unattended"]; ok && common.GetJsonType(raw) != "boolean" {
 			return VerificationBinding{}, ErrVerificationContextInvalid
 		}
 		scopes, ok := NormalizeAccessTokenScopeList(context.Scopes)

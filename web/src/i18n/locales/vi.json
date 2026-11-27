@@ -102,6 +102,7 @@
     "{{name}} failed: {{error}}": "{{name}} bị lỗi: {{error}}",
     "{{name}} stops processing requests, including on channels that added it.": "{{name}} sẽ ngừng xử lý yêu cầu, kể cả trên các kênh đã thêm nó.",
     "{{name}}: {{reason}}": "{{name}}: {{reason}}",
+    "{{on}} of {{total}} on": "Đã bật {{on}}/{{total}}",
     "{{operation}} (ID: {{id}})": "{{operation}} (ID: {{id}})",
     "{{percent}}% OFF": "Giảm {{percent}}%",
     "{{percent}}% used": "Đã dùng {{percent}}%",
@@ -527,6 +528,7 @@
     "Allow self-signed or hostname-mismatched SMTP certificates": "Cho phép chứng chỉ SMTP tự ký hoặc không khớp tên máy chủ",
     "Allow service_tier passthrough": "Cho phép chuyển tiếp service_tier",
     "Allow speed passthrough": "Cho phép truyền speed",
+    "Allow unattended management": "Cho phép quản lý không cần giám sát",
     "Allow updates": "Cho phép cập nhật",
     "Allow upstream callbacks": "Cho phép callback upstream",
     "Allow users to check in daily for random quota rewards": "Cho phép người dùng điểm danh hàng ngày để nhận phần thưởng hạn ngạch ngẫu nhiên",
@@ -5026,6 +5028,7 @@
     "Plugin login failed: {{error}}": "Đăng nhập qua plugin thất bại: {{error}}",
     "Plugin metadata": "Siêu dữ liệu plugin",
     "Plugin metadata contains an unknown field \"{{field}}\". If this plugin was downloaded from the official marketplace, it may require a newer version of new-api. Try updating new-api and installing the plugin again.": "Siêu dữ liệu plugin chứa trường không xác định \"{{field}}\". Nếu plugin được tải từ chợ chính thức, có thể cần phiên bản new-api mới hơn. Hãy cập nhật new-api rồi cài đặt lại plugin.",
+    "Plugin routes": "Tuyến của plugin",
     "Plugin sandbox": "Môi trường thử nghiệm plugin",
     "Plugin saved, activation required": "Đã lưu plugin, cần kích hoạt",
     "Plugin setting updated": "Đã cập nhật cài đặt plugin",
@@ -5604,6 +5607,7 @@
     "Required. The upstream address this plugin sends requests to.": "Bắt buộc. Địa chỉ upstream mà plugin gửi yêu cầu tới.",
     "Requires an available channel and access to its group.": "Cần có kênh khả dụng và quyền truy cập nhóm tương ứng.",
     "Requires global auto-disable and this channel option.": "Cần bật tự động vô hiệu hóa cả toàn cục lẫn kênh này.",
+    "Requires the Users permission. This token can enable or disable users without security verification; deletion, role changes, password resets, and permission changes still require verification.": "Cần quyền Người dùng. Token này có thể bật hoặc tắt người dùng mà không cần xác minh bảo mật; xóa, thay đổi vai trò, đặt lại mật khẩu và thay đổi quyền vẫn cần xác minh.",
     "Requires upstream WebSocket support": "Thượng nguồn phải hỗ trợ WebSocket",
     "Rerank": "Re-rank",
     "Reroll": "Quay lại",
@@ -7131,6 +7135,8 @@
     "Unable to parse structured pricing": "Không thể phân tích giá có cấu trúc",
     "Unable to prepare chat link. Please ensure you have an enabled API key.": "Không thể chuẩn bị liên kết chat. Vui lòng đảm bảo bạn có khóa API được kích hoạt.",
     "Unable to read clipboard": "Không thể đọc bảng tạm",
+    "Unattended": "Không cần giám sát",
+    "Unattended access requires the Users permission": "Truy cập không cần giám sát cần quyền Người dùng",
     "Unauthorized": "Chưa xác thực",
     "Unauthorized Access": "Truy cập trái phép",
     "Unauthorized, insufficient privileges": "Không được phép, không đủ quyền",
@@ -7816,8 +7822,6 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom",
-    "Plugin routes": "Tuyến của plugin",
-    "{{on}} of {{total}} on": "Đã bật {{on}}/{{total}}"
+    "Zoom": "Zoom"
   }
 }

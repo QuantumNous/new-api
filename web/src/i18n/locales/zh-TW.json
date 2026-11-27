@@ -102,6 +102,7 @@
     "{{name}} failed: {{error}}": "{{name}} 執行失敗：{{error}}",
     "{{name}} stops processing requests, including on channels that added it.": "{{name}} 將停止處理請求，包括新增了它的渠道。",
     "{{name}}: {{reason}}": "{{name}}：{{reason}}",
+    "{{on}} of {{total}} on": "已開啟 {{on}}/{{total}}",
     "{{operation}} (ID: {{id}})": "{{operation}}（ID: {{id}}）",
     "{{percent}}% OFF": "優惠 {{percent}}%",
     "{{percent}}% used": "已用 {{percent}}%",
@@ -527,6 +528,7 @@
     "Allow self-signed or hostname-mismatched SMTP certificates": "允許自簽章或主機名稱不匹配的 SMTP 證書",
     "Allow service_tier passthrough": "允許透傳 service_tier",
     "Allow speed passthrough": "允許 speed 透傳",
+    "Allow unattended management": "允許無人值守管理",
     "Allow updates": "允許更新",
     "Allow upstream callbacks": "允許上游Callback",
     "Allow users to check in daily for random quota rewards": "允許用戶每日簽到獲取隨機額度獎勵",
@@ -5026,6 +5028,7 @@
     "Plugin login failed: {{error}}": "外掛登入失敗：{{error}}",
     "Plugin metadata": "外掛元数据",
     "Plugin metadata contains an unknown field \"{{field}}\". If this plugin was downloaded from the official marketplace, it may require a newer version of new-api. Try updating new-api and installing the plugin again.": "外掛中繼資料包含未知欄位「{{field}}」。如果外掛來自官方市集，可能需要較新版本的 new-api。請嘗試更新 new-api 後重新安裝外掛。",
+    "Plugin routes": "外掛路由",
     "Plugin sandbox": "外掛沙盒",
     "Plugin saved, activation required": "外掛已儲存，待啟用",
     "Plugin setting updated": "外掛設定已更新",
@@ -5604,6 +5607,7 @@
     "Required. The upstream address this plugin sends requests to.": "必填。此外掛發送請求的上游位址。",
     "Requires an available channel and access to its group.": "仍需有可用渠道，並符合使用者群組存取條件。",
     "Requires global auto-disable and this channel option.": "需同時開啟全域自動停用和本通道開關。",
+    "Requires the Users permission. This token can enable or disable users without security verification; deletion, role changes, password resets, and permission changes still require verification.": "需要用戶權限。此權杖可在不需安全驗證的情況下啟用或停用使用者；刪除使用者、角色變更、重設密碼與權限變更仍需驗證。",
     "Requires upstream WebSocket support": "需上游支援 WebSocket",
     "Rerank": "重新排序",
     "Reroll": "重繪",
@@ -7131,6 +7135,8 @@
     "Unable to parse structured pricing": "無法解析為結構化價格",
     "Unable to prepare chat link. Please ensure you have an enabled API key.": "無法準備聊天連結。請確保您有一個已啟用的 API 金鑰。",
     "Unable to read clipboard": "無法讀取剪貼簿",
+    "Unattended": "無人值守",
+    "Unattended access requires the Users permission": "無人值守存取需要用戶權限",
     "Unauthorized": "未經授權",
     "Unauthorized Access": "未經授權的存取",
     "Unauthorized, insufficient privileges": "無權進行此操作，權限不足",
@@ -7816,8 +7822,6 @@
     "Zhipu": "智譜",
     "Zhipu GLM": "智譜GLM",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放",
-    "Plugin routes": "外掛路由",
-    "{{on}} of {{total}} on": "已開啟 {{on}}/{{total}}"
+    "Zoom": "縮放"
   }
 }

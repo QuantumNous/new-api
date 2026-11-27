@@ -124,7 +124,11 @@ export function useAccessTokens() {
       const created = await runVerified(
         {
           scope: 'access_token.generate',
-          context: { scopes: input.scopes, expires_at: input.expires_at },
+          context: {
+            scopes: input.scopes,
+            expires_at: input.expires_at,
+            allow_unattended: input.allow_unattended,
+          },
         },
         (proofToken, signal) => createAccessToken(input, proofToken, signal)
       )

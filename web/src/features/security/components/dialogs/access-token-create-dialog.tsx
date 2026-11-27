@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -24,6 +25,7 @@ import { DateTimePicker } from '@/components/datetime-picker'
 import { Dialog } from '@/components/dialog'
 import { PermissionMatrix } from '@/components/permission-matrix'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Form,
   FormControl,
@@ -64,7 +66,16 @@ export function AccessTokenCreateDialog(props: AccessTokenCreateDialogProps) {
     defaultValues: defaultAccessTokenFormValues,
   })
   const expiry = form.watch('expiry')
+  const canEnableUnattended = permissionMatrixToScopes(
+    form.watch('permissions')
+  ).includes('user:write')
   const groups = accessTokenPermissionGroups(props.catalog)
+
+  useEffect(() => {
+    if (!canEnableUnattended && form.getValues('allowUnattended')) {
+      form.setValue('allowUnattended', false)
+    }
+  }, [canEnableUnattended, form])
 
   const close = () => {
     if (props.pending) return
@@ -76,6 +87,7 @@ export function AccessTokenCreateDialog(props: AccessTokenCreateDialogProps) {
       name: values.name.trim(),
       scopes: permissionMatrixToScopes(values.permissions),
       expires_at: resolveAccessTokenExpiry(values, Date.now()),
+      allow_unattended: values.allowUnattended,
     })
     if (!created) return
     form.reset(defaultAccessTokenFormValues)
@@ -197,6 +209,42 @@ export function AccessTokenCreateDialog(props: AccessTokenCreateDialogProps) {
                   onChange={field.onChange}
                 />
                 <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='allowUnattended'
+            render={({ field }) => (
+              <FormItem className='flex items-start gap-2'>
+                <FormControl>
+                  <Checkbox
+                    id='access-token-unattended'
+                    checked={field.value}
+                    disabled={props.pending || !canEnableUnattended}
+                    onCheckedChange={(checked) =>
+                      field.onChange(checked === true)
+                    }
+                  />
+                </FormControl>
+                <div className='space-y-1'>
+                  <FormLabel
+                    htmlFor='access-token-unattended'
+                    className='font-normal'
+                  >
+                    {t('Allow unattended management')}
+                  </FormLabel>
+                  <p className='text-muted-foreground text-xs'>
+                    {t(
+                      'Requires the Users permission. This token can enable or disable users without security verification; deletion, role changes, password resets, and permission changes still require verification.'
+                    )}
+                  </p>
+                  {!canEnableUnattended && (
+                    <p className='text-warning text-xs'>
+                      {t('Unattended access requires the Users permission')}
+                    </p>
+                  )}
+                </div>
               </FormItem>
             )}
           />

@@ -62,6 +62,7 @@ export const accessTokenFormSchema = z
     expiry: z.enum(['30d', '90d', '180d', '1y', 'custom', 'never']),
     customExpiresAt: z.date().optional(),
     permissions: accessTokenPermissionsSchema,
+    allowUnattended: z.boolean(),
   })
   .superRefine((values, ctx) => {
     if (
@@ -103,6 +104,7 @@ export const defaultAccessTokenFormValues: AccessTokenFormValues = {
   expiry: '30d',
   customExpiresAt: undefined,
   permissions: {},
+  allowUnattended: false,
 }
 
 // resolveAccessTokenExpiry converts the chosen preset to the Unix-seconds

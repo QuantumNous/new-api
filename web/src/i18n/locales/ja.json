@@ -102,6 +102,7 @@
     "{{name}} failed: {{error}}": "{{name}} が失敗しました：{{error}}",
     "{{name}} stops processing requests, including on channels that added it.": "{{name}} はリクエストの処理を停止します。追加したチャネルでも同様です。",
     "{{name}}: {{reason}}": "{{name}}：{{reason}}",
+    "{{on}} of {{total}} on": "{{total}} 件中 {{on}} 件オン",
     "{{operation}} (ID: {{id}})": "{{operation}}（ID: {{id}}）",
     "{{percent}}% OFF": "{{percent}}% オフ",
     "{{percent}}% used": "{{percent}}% 使用済み",
@@ -527,6 +528,7 @@
     "Allow self-signed or hostname-mismatched SMTP certificates": "自己署名またはホスト名が一致しない SMTP 証明書を許可する",
     "Allow service_tier passthrough": "Service_tierパススルーを許可する",
     "Allow speed passthrough": "speed パススルーを許可",
+    "Allow unattended management": "無人運用を許可",
     "Allow updates": "更新を許可",
     "Allow upstream callbacks": "アップストリームコールバックを許可",
     "Allow users to check in daily for random quota rewards": "ユーザーが毎日チェックインしてランダムなクォータ報酬を受け取れるようにする",
@@ -5026,6 +5028,7 @@
     "Plugin login failed: {{error}}": "プラグインのログインに失敗しました：{{error}}",
     "Plugin metadata": "プラグインメタデータ",
     "Plugin metadata contains an unknown field \"{{field}}\". If this plugin was downloaded from the official marketplace, it may require a newer version of new-api. Try updating new-api and installing the plugin again.": "プラグインのメタデータに不明なフィールド「{{field}}」が含まれています。公式マーケットプレイスから入手したプラグインの場合、より新しいバージョンの new-api が必要な可能性があります。new-api を更新してから、プラグインを再インストールしてください。",
+    "Plugin routes": "プラグインルート",
     "Plugin sandbox": "プラグインサンドボックス",
     "Plugin saved, activation required": "プラグインを保存しました。有効化が必要です",
     "Plugin setting updated": "プラグイン設定を更新しました",
@@ -5604,6 +5607,7 @@
     "Required. The upstream address this plugin sends requests to.": "必須。このプラグインがリクエストを送信する上流アドレスです。",
     "Requires an available channel and access to its group.": "利用可能なチャネルと、そのグループへのアクセス権が必要です。",
     "Requires global auto-disable and this channel option.": "全体とこのチャネルの両方で自動無効化を有効にする必要があります。",
+    "Requires the Users permission. This token can enable or disable users without security verification; deletion, role changes, password resets, and permission changes still require verification.": "ユーザー権限が必要です。このトークンはセキュリティ確認なしでユーザーの有効化・無効化ができます。削除、ロール変更、パスワードリセット、権限変更には引き続き確認が必要です。",
     "Requires upstream WebSocket support": "上流の WebSocket 対応が必要",
     "Rerank": "再ランク付け",
     "Reroll": "やり直し",
@@ -7131,6 +7135,8 @@
     "Unable to parse structured pricing": "構造化された価格を解析できません",
     "Unable to prepare chat link. Please ensure you have an enabled API key.": "チャットリンクを準備できません。有効な API キーが設定されていることを確認してください。",
     "Unable to read clipboard": "クリップボードを読み取れません",
+    "Unattended": "無人運用",
+    "Unattended access requires the Users permission": "無人運用にはユーザー権限が必要です",
     "Unauthorized": "未認証",
     "Unauthorized Access": "不正アクセス",
     "Unauthorized, insufficient privileges": "権限が不足しているため、この操作は実行できません",
@@ -7816,8 +7822,6 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム",
-    "Plugin routes": "プラグインルート",
-    "{{on}} of {{total}} on": "{{total}} 件中 {{on}} 件オン"
+    "Zoom": "ズーム"
   }
 }

@@ -102,6 +102,7 @@
     "{{name}} failed: {{error}}": "Сбой {{name}}: {{error}}",
     "{{name}} stops processing requests, including on channels that added it.": "{{name}} перестанет обрабатывать запросы, в том числе на каналах, которые его добавили.",
     "{{name}}: {{reason}}": "{{name}}: {{reason}}",
+    "{{on}} of {{total}} on": "Включено {{on}} из {{total}}",
     "{{operation}} (ID: {{id}})": "{{operation}} (ID: {{id}})",
     "{{percent}}% OFF": "Скидка {{percent}}%",
     "{{percent}}% used": "Использовано {{percent}}%",
@@ -527,6 +528,7 @@
     "Allow self-signed or hostname-mismatched SMTP certificates": "Разрешить самоподписанные SMTP-сертификаты или сертификаты с несоответствующим именем узла",
     "Allow service_tier passthrough": "Разрешить сквозную передачу service_tier",
     "Allow speed passthrough": "Разрешить передачу speed",
+    "Allow unattended management": "Разрешить управление без участия пользователя",
     "Allow updates": "Разрешить обновления",
     "Allow upstream callbacks": "Разрешить обратные вызовы upstream",
     "Allow users to check in daily for random quota rewards": "Разрешить пользователям регистрироваться ежедневно для получения случайных квотных наград",
@@ -5026,6 +5028,7 @@
     "Plugin login failed: {{error}}": "Не удалось войти через плагин: {{error}}",
     "Plugin metadata": "Метаданные плагина",
     "Plugin metadata contains an unknown field \"{{field}}\". If this plugin was downloaded from the official marketplace, it may require a newer version of new-api. Try updating new-api and installing the plugin again.": "Метаданные плагина содержат неизвестное поле «{{field}}». Если плагин загружен из официального маркетплейса, ему может требоваться более новая версия new-api. Обновите new-api и установите плагин заново.",
+    "Plugin routes": "Маршруты плагина",
     "Plugin sandbox": "Песочница плагина",
     "Plugin saved, activation required": "Плагин сохранён, требуется активация",
     "Plugin setting updated": "Настройка плагинов обновлена",
@@ -5604,6 +5607,7 @@
     "Required. The upstream address this plugin sends requests to.": "Обязательно. Адрес вышестоящего сервиса, куда плагин отправляет запросы.",
     "Requires an available channel and access to its group.": "Нужен доступный канал и доступ к его группе.",
     "Requires global auto-disable and this channel option.": "Нужно включить автоотключение глобально и для этого канала.",
+    "Requires the Users permission. This token can enable or disable users without security verification; deletion, role changes, password resets, and permission changes still require verification.": "Требуется разрешение «Пользователи». Этот токен может включать и отключать пользователей без дополнительной проверки; удаление, изменение ролей, сброс пароля и изменение прав по-прежнему требуют проверки.",
     "Requires upstream WebSocket support": "Требуется поддержка WebSocket провайдером",
     "Rerank": "Переранжировать",
     "Reroll": "Повторить",
@@ -7131,6 +7135,8 @@
     "Unable to parse structured pricing": "Не удалось разобрать структурированные цены",
     "Unable to prepare chat link. Please ensure you have an enabled API key.": "Не удается подготовить ссылку для чата. Убедитесь, что у вас есть активированный API-ключ.",
     "Unable to read clipboard": "Не удалось прочитать буфер обмена",
+    "Unattended": "Без участия пользователя",
+    "Unattended access requires the Users permission": "Для доступа без участия пользователя требуется разрешение «Пользователи»",
     "Unauthorized": "Не авторизован",
     "Unauthorized Access": "Несанкционированный доступ",
     "Unauthorized, insufficient privileges": "Нет доступа, недостаточно прав",
@@ -7816,8 +7822,6 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom",
-    "Plugin routes": "Маршруты плагина",
-    "{{on}} of {{total}} on": "Включено {{on}} из {{total}}"
+    "Zoom": "Zoom"
   }
 }

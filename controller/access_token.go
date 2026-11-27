@@ -23,9 +23,10 @@ type accessTokenItem struct {
 }
 
 type accessTokenCreateRequest struct {
-	Name      string   `json:"name"`
-	Scopes    []string `json:"scopes"`
-	ExpiresAt int64    `json:"expires_at"`
+	Name            string   `json:"name"`
+	Scopes          []string `json:"scopes"`
+	ExpiresAt       int64    `json:"expires_at"`
+	AllowUnattended *bool    `json:"allow_unattended,omitempty"`
 }
 
 // accessTokenUpdateRequest renames a token; a present scopes field also
@@ -143,7 +144,12 @@ func CreateAccessToken(c *gin.Context) {
 		writeAccessTokenError(c, http.StatusBadRequest, "ACCESS_TOKEN_SCOPE_INVALID", "Select at least one valid permission.")
 		return
 	}
-	proofContext, err := common.Marshal(service.AccessTokenGenerateContext{Scopes: scopes, ExpiresAt: req.ExpiresAt})
+	allowUnattended := req.AllowUnattended != nil && *req.AllowUnattended
+	if allowUnattended && !service.AccessTokenScopeGranted(scopes, "user:write") {
+		writeAccessTokenError(c, http.StatusBadRequest, "ACCESS_TOKEN_UNATTENDED_SCOPE_REQUIRED", "Unattended access requires the Users permission")
+		return
+	}
+	proofContext, err := common.Marshal(service.AccessTokenGenerateContext{Scopes: scopes, ExpiresAt: req.ExpiresAt, AllowUnattended: allowUnattended})
 	if err != nil {
 		writeSecurityOperationError(c, err)
 		return
@@ -158,11 +164,12 @@ func CreateAccessToken(c *gin.Context) {
 	}
 	raw := model.AccessTokenPrefix + suffix
 	token := &model.UserAccessToken{
-		Name:      name,
-		TokenHash: model.AccessTokenFingerprint(raw),
-		TokenHint: model.AccessTokenHint(raw),
-		ExpiresAt: req.ExpiresAt,
-		CreatedAt: now,
+		Name:            name,
+		TokenHash:       model.AccessTokenFingerprint(raw),
+		TokenHint:       model.AccessTokenHint(raw),
+		AllowUnattended: allowUnattended,
+		ExpiresAt:       req.ExpiresAt,
+		CreatedAt:       now,
 	}
 	if err := token.SetScopes(scopes); err != nil {
 		writeSecurityOperationError(c, err)
@@ -177,11 +184,12 @@ func CreateAccessToken(c *gin.Context) {
 		return
 	}
 	recordUserSecurityAudit(c, identity.UserID, "access_token.generate", map[string]any{
-		"token_id":   token.Id,
-		"name":       token.Name,
-		"scopes":     scopes,
-		"expires_at": token.ExpiresAt,
-		"token_ref":  token.TokenHash,
+		"token_id":         token.Id,
+		"name":             token.Name,
+		"scopes":           scopes,
+		"allow_unattended": allowUnattended,
+		"expires_at":       token.ExpiresAt,
+		"token_ref":        token.TokenHash,
 	})
 	common.ApiSuccess(c, gin.H{"token": raw, "item": newAccessTokenItem(token)})
 }

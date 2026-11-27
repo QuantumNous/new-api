@@ -102,6 +102,7 @@
     "{{name}} failed: {{error}}": "{{name}} 运行失败：{{error}}",
     "{{name}} stops processing requests, including on channels that added it.": "{{name}} 将停止处理请求，包括添加了它的渠道。",
     "{{name}}: {{reason}}": "{{name}}：{{reason}}",
+    "{{on}} of {{total}} on": "已开启 {{on}}/{{total}}",
     "{{operation}} (ID: {{id}})": "{{operation}}（ID: {{id}}）",
     "{{percent}}% OFF": "优惠 {{percent}}%",
     "{{percent}}% used": "已用 {{percent}}%",
@@ -527,6 +528,7 @@
     "Allow self-signed or hostname-mismatched SMTP certificates": "允许自签名或主机名不匹配的 SMTP 证书",
     "Allow service_tier passthrough": "允许透传 service_tier",
     "Allow speed passthrough": "允许 speed 透传",
+    "Allow unattended management": "允许无人值守管理",
     "Allow updates": "允许更新",
     "Allow upstream callbacks": "允许上游回调",
     "Allow users to check in daily for random quota rewards": "允许用户每日签到获取随机额度奖励",
@@ -5026,6 +5028,7 @@
     "Plugin login failed: {{error}}": "插件登录失败：{{error}}",
     "Plugin metadata": "插件元数据",
     "Plugin metadata contains an unknown field \"{{field}}\". If this plugin was downloaded from the official marketplace, it may require a newer version of new-api. Try updating new-api and installing the plugin again.": "插件元数据包含未知字段“{{field}}”。如果插件来自官方市场，可能需要更高版本的 new-api。请尝试更新 new-api 后重新安装插件。",
+    "Plugin routes": "插件路由",
     "Plugin sandbox": "插件沙盒",
     "Plugin saved, activation required": "插件已保存，待激活",
     "Plugin setting updated": "插件设置已更新",
@@ -5604,6 +5607,7 @@
     "Required. The upstream address this plugin sends requests to.": "必填。此插件发送请求的上游地址。",
     "Requires an available channel and access to its group.": "仍需有可用渠道，并满足用户分组访问条件。",
     "Requires global auto-disable and this channel option.": "需同时开启全局自动停用和本渠道开关。",
+    "Requires the Users permission. This token can enable or disable users without security verification; deletion, role changes, password resets, and permission changes still require verification.": "需要用户权限。此令牌可在无需安全验证的情况下启用或禁用用户；删除用户、角色变更、重置密码和权限变更仍需验证。",
     "Requires upstream WebSocket support": "需上游支持 WebSocket",
     "Rerank": "重新排序",
     "Reroll": "重绘",
@@ -7131,6 +7135,8 @@
     "Unable to parse structured pricing": "无法解析为结构化价格",
     "Unable to prepare chat link. Please ensure you have an enabled API key.": "无法准备聊天链接。请确保您有一个已启用的 API 密钥。",
     "Unable to read clipboard": "无法读取剪贴板",
+    "Unattended": "无人值守",
+    "Unattended access requires the Users permission": "无人值守访问需要用户权限",
     "Unauthorized": "未授权",
     "Unauthorized Access": "未经授权的访问",
     "Unauthorized, insufficient privileges": "无权进行此操作，权限不足",
@@ -7816,8 +7822,6 @@
     "Zhipu": "智谱",
     "Zhipu GLM": "智谱GLM",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放",
-    "Plugin routes": "插件路由",
-    "{{on}} of {{total}} on": "已开启 {{on}}/{{total}}"
+    "Zoom": "缩放"
   }
 }

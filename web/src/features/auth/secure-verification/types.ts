@@ -78,7 +78,11 @@ export type VerificationOperation =
     }
   | {
       scope: 'access_token.generate'
-      context: { scopes: string[]; expires_at: number }
+      context: {
+        scopes: string[]
+        expires_at: number
+        allow_unattended: boolean
+      }
     }
   | {
       scope: 'access_token.update'

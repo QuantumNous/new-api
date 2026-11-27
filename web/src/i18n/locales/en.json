@@ -102,6 +102,7 @@
     "{{name}} failed: {{error}}": "{{name}} failed: {{error}}",
     "{{name}} stops processing requests, including on channels that added it.": "{{name}} stops processing requests, including on channels that added it.",
     "{{name}}: {{reason}}": "{{name}}: {{reason}}",
+    "{{on}} of {{total}} on": "{{on}} of {{total}} on",
     "{{operation}} (ID: {{id}})": "{{operation}} (ID: {{id}})",
     "{{percent}}% OFF": "{{percent}}% OFF",
     "{{percent}}% used": "{{percent}}% used",
@@ -527,6 +528,7 @@
     "Allow self-signed or hostname-mismatched SMTP certificates": "Allow self-signed or hostname-mismatched SMTP certificates",
     "Allow service_tier passthrough": "Allow service_tier passthrough",
     "Allow speed passthrough": "Allow speed passthrough",
+    "Allow unattended management": "Allow unattended management",
     "Allow updates": "Allow updates",
     "Allow upstream callbacks": "Allow upstream callbacks",
     "Allow users to check in daily for random quota rewards": "Allow users to check in daily for random quota rewards",
@@ -5026,6 +5028,7 @@
     "Plugin login failed: {{error}}": "Plugin login failed: {{error}}",
     "Plugin metadata": "Plugin metadata",
     "Plugin metadata contains an unknown field \"{{field}}\". If this plugin was downloaded from the official marketplace, it may require a newer version of new-api. Try updating new-api and installing the plugin again.": "Plugin metadata contains an unknown field \"{{field}}\". If this plugin was downloaded from the official marketplace, it may require a newer version of new-api. Try updating new-api and installing the plugin again.",
+    "Plugin routes": "Plugin routes",
     "Plugin sandbox": "Plugin sandbox",
     "Plugin saved, activation required": "Plugin saved, activation required",
     "Plugin setting updated": "Plugin setting updated",
@@ -5604,6 +5607,7 @@
     "Required. The upstream address this plugin sends requests to.": "Required. The upstream address this plugin sends requests to.",
     "Requires an available channel and access to its group.": "Requires an available channel and access to its group.",
     "Requires global auto-disable and this channel option.": "Requires global auto-disable and this channel option.",
+    "Requires the Users permission. This token can enable or disable users without security verification; deletion, role changes, password resets, and permission changes still require verification.": "Requires the Users permission. This token can enable or disable users without security verification; deletion, role changes, password resets, and permission changes still require verification.",
     "Requires upstream WebSocket support": "Requires upstream WebSocket support",
     "Rerank": "Rerank",
     "Reroll": "Reroll",
@@ -7131,6 +7135,8 @@
     "Unable to parse structured pricing": "Unable to parse structured pricing",
     "Unable to prepare chat link. Please ensure you have an enabled API key.": "Unable to prepare chat link. Please ensure you have an enabled API key.",
     "Unable to read clipboard": "Unable to read clipboard",
+    "Unattended": "Unattended",
+    "Unattended access requires the Users permission": "Unattended access requires the Users permission",
     "Unauthorized": "Unauthorized",
     "Unauthorized Access": "Unauthorized Access",
     "Unauthorized, insufficient privileges": "Unauthorized, insufficient privileges",
@@ -7816,8 +7822,6 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom",
-    "Plugin routes": "Plugin routes",
-    "{{on}} of {{total}} on": "{{on}} of {{total}} on"
+    "Zoom": "Zoom"
   }
 }
