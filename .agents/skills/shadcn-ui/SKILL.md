@@ -14,33 +14,17 @@ description: >-
 
 Skills give AI assistants project-aware context about shadcn/ui. When used, the assistant knows how to find, install, compose, and customize components using the correct APIs and patterns for your project.
 
-For example, you can ask:
-
-- _"Add a login form with email and password fields."_
-- _"Create a settings page with a form for updating profile information."_
-- _"Build a dashboard with a sidebar, stats cards, and a data table."_
-- _"Switch to --preset [CODE]"_
-- _"Can you add a hero from @tailark?"_
-
-The skill reads your project's `components.json` and provides your framework, aliases, installed components, icon library, and base library so it can generate correct code on the first try.
+Project context comes from `web/components.json` (framework, aliases, installed components, icon library, base library).
 
 ---
 
-## Install (ecosystem vs this repo)
+## Running the CLI
 
-Official install from [Skills — shadcn/ui](https://ui.shadcn.com/docs/skills.md):
-
-```bash
-npx skills add shadcn/ui
-```
-
-That installs the skill where the `skills` CLI is available. **This repository** keeps the same intent under `.agents/skills/shadcn-ui/` (overview here + **vendored** upstream docs in [`vendor/shadcn/`](./vendor/shadcn/)) and runs the shadcn CLI from the frontend app root:
+Run the shadcn CLI from the frontend app root:
 
 ```bash
 cd web && bunx shadcn@latest info --json
 ```
-
-Learn more about skills at [skills.sh](https://skills.sh).
 
 ---
 
