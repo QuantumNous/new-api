@@ -2,8 +2,6 @@ github.com/MoeForge/moego v0.1.0-alpha.5 h1:/pFyEhm0GYdOGfwawNjzLx+DoDQVoCI0dLsu
 github.com/MoeForge/moego v0.1.0-alpha.5/go.mod h1:SBNiQjCpWC3IEBMKFBOwOyhhQ3jywMrISqCwJTdr4aA=
 github.com/MoeForge/moejs v0.1.0 h1:w5/bM4wVRrnMdLbQG32BM+yVcoA9wjQqdGlX3XekzG4=
 github.com/MoeForge/moejs v0.1.0/go.mod h1:GDaH0vQSxKDN7FCyBaLEZgqsGKRyIYBfje/p74aZQ3k=
-github.com/QuantumNous/new-api/relaykit v0.3.8 h1:b7+R2bUkhMXcHo/M96Pdk+QZ7pOX5je7F4qoOhmi2u0=
-github.com/QuantumNous/new-api/relaykit v0.3.8/go.mod h1:K4aiL028UeqryVKk20UipJ+3pI3vZwkaRNZ4ZEJxGbg=
 github.com/anknown/ahocorasick v0.0.0-20190904063843-d75dbd5169c0 h1:onfun1RA+KcxaMk1lfrRnwCd1UUuOjJM/lri5eM1qMs=
 github.com/anknown/ahocorasick v0.0.0-20190904063843-d75dbd5169c0/go.mod h1:4yg+jNTYlDEzBjhGS96v+zjyA3lfXlFd5CiTLIkPBLI=
 github.com/anknown/darts v0.0.0-20151216065714-83ff685239e6 h1:HblK3eJHq54yET63qPCTJnks3loDse5xRmmqHgHzwoI=
