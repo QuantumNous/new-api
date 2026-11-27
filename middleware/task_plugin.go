@@ -213,7 +213,7 @@ func PrepareTaskPluginRoute() gin.HandlerFunc {
 			failures         []string
 		)
 		rejectedPlugins := make(map[string][]string)
-		for _, candidate := range eligible {
+		for candidateIndex, candidate := range eligible {
 			candidateContext := requestContext
 			candidateContext.Params = pluginruntime.RouteParams(c.Params, candidate.Route)
 			var (
@@ -258,12 +258,34 @@ func PrepareTaskPluginRoute() gin.HandlerFunc {
 					renderTaskPluginQuery(c, pinned, candidateContext, intent.taskIDs, candidate.Route.Render, true)
 					return
 				}
-				owned, lookupErr := taskPluginOwnsTasks(c, candidate.Plugin.Meta, intent.taskIDs)
+				retrievable, lookupErr := taskPluginRetrievableIDs(c, candidate.Plugin.Meta, intent.taskIDs)
 				if lookupErr != nil {
 					abortTaskPluginRouteError(c, http.StatusInternalServerError)
 					return
 				}
-				if owned {
+				// An empty batch retrieves nothing, so no shared candidate
+				// answers it. A non-empty batch still needs every id, unless
+				// the collect branch below relaxes that.
+				ownsQuery := len(retrievable) > 0
+				for _, taskID := range intent.taskIDs {
+					if _, found := retrievable[taskID]; !found {
+						ownsQuery = false
+						break
+					}
+				}
+				// A collect route may answer when it can retrieve at least one
+				// id and no other candidate can retrieve the rest. An unknown
+				// id does not block it. A candidate that can retrieve nothing
+				// does not answer a shared path.
+				if !ownsQuery && candidate.Route.Missing == pluginruntime.RouteMissingCollect && len(retrievable) > 0 {
+					elsewhere, elsewhereErr := taskPluginSharedQueryOwnedElsewhere(c, eligible, candidateIndex, intent.taskIDs, retrievable)
+					if elsewhereErr != nil {
+						abortTaskPluginRouteError(c, http.StatusInternalServerError)
+						return
+					}
+					ownsQuery = !elsewhere
+				}
+				if ownsQuery {
 					pinned.Plugin, pinned.Route = candidate.Plugin, candidate.Route
 					c.Set(pluginruntime.ContextKeyPinnedRoute, pinned)
 					c.Set(pluginruntime.ContextKeyPinnedPlugin, pluginruntime.PinnedPlugin{Generation: pinned.Generation, Plugin: candidate.Plugin})
@@ -499,19 +521,55 @@ func renderTaskPluginRouteQuery(c *gin.Context, pinned pluginruntime.PinnedRoute
 	renderTaskPluginQuery(c, pinned, requestContext, []string{taskIDs[ownerIndex]}, owner.Route.Render, false)
 }
 
-// taskPluginOwnsTasks reports whether every task id names a retrievable task
-// of the caller on one of the plugin's platforms.
-func taskPluginOwnsTasks(c *gin.Context, meta pluginruntime.Meta, taskIDs []string) (bool, error) {
+// taskPluginRetrievableIDs returns the requested ids that name a retrievable
+// task of the caller on one of the plugin's platforms.
+func taskPluginRetrievableIDs(c *gin.Context, meta pluginruntime.Meta, taskIDs []string) (map[string]struct{}, error) {
 	tasks, err := model.GetByTaskIdsForPlatforms(common.GetContextKeyInt(c, constant.ContextKeyUserId), taskPluginLegacyPlatforms(meta), taskIDs)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	for _, taskID := range taskIDs {
-		if !slices.ContainsFunc(tasks, func(task *model.Task) bool { return task.TaskID == taskID && task.ResultRetrievable() }) {
-			return false, nil
+	retrievable := make(map[string]struct{}, len(tasks))
+	for _, task := range tasks {
+		if task.ResultRetrievable() {
+			retrievable[task.TaskID] = struct{}{}
 		}
 	}
-	return true, nil
+	return retrievable, nil
+}
+
+// taskPluginSharedQueryOwnedElsewhere reports whether another candidate on the
+// same path can retrieve a requested id that this plugin cannot. Those ids
+// still decide which plugin owns the batch; missing:collect must not report
+// them as missed.
+func taskPluginSharedQueryOwnedElsewhere(c *gin.Context, candidates []pluginruntime.RouteBinding, self int, taskIDs []string, retrievable map[string]struct{}) (bool, error) {
+	missing := make([]string, 0, len(taskIDs))
+	seen := make(map[string]struct{}, len(taskIDs))
+	for _, taskID := range taskIDs {
+		if _, found := retrievable[taskID]; found {
+			continue
+		}
+		if _, found := seen[taskID]; found {
+			continue
+		}
+		seen[taskID] = struct{}{}
+		missing = append(missing, taskID)
+	}
+	if len(missing) == 0 {
+		return false, nil
+	}
+	for index, other := range candidates {
+		if index == self {
+			continue
+		}
+		found, err := taskPluginRetrievableIDs(c, other.Plugin.Meta, missing)
+		if err != nil {
+			return false, err
+		}
+		if len(found) > 0 {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // RouteTaskPluginEndpoint selects between ordinary relay and plugin channels
@@ -1478,20 +1536,30 @@ func renderTaskPluginQuery(
 	for _, task := range tasks {
 		tasksByID[task.TaskID] = task
 	}
+	collectMissing := multiple && pinned.Route.Missing == pluginruntime.RouteMissingCollect
 	views := make([]dto.TaskView, 0, len(taskIDs))
+	var missed []string
+	seenMissed := map[string]struct{}{}
 	for _, taskID := range taskIDs {
 		task := tasksByID[taskID]
 		if task == nil || !task.ResultRetrievable() {
-			logger.LogDebug(
-				c,
-				"task_plugin subsystem=query event=lookup_failed generation=%d plugin=%q reason=task_not_found requested=%d found=%d",
-				generation,
-				pinned.Plugin.Meta.Key,
-				len(taskIDs),
-				len(tasks),
-			)
-			abortTaskPluginRouteError(c, http.StatusNotFound)
-			return
+			if !collectMissing {
+				logger.LogDebug(
+					c,
+					"task_plugin subsystem=query event=lookup_failed generation=%d plugin=%q reason=task_not_found requested=%d found=%d",
+					generation,
+					pinned.Plugin.Meta.Key,
+					len(taskIDs),
+					len(tasks),
+				)
+				abortTaskPluginRouteError(c, http.StatusNotFound)
+				return
+			}
+			if _, seen := seenMissed[taskID]; !seen {
+				seenMissed[taskID] = struct{}{}
+				missed = append(missed, taskID)
+			}
+			continue
 		}
 		view, viewErr := service.BuildTaskPluginView(task)
 		if viewErr != nil {
@@ -1523,6 +1591,12 @@ func renderTaskPluginQuery(
 		}
 	}
 	presenterContext["artifacts"] = artifacts
+	if collectMissing {
+		if missed == nil {
+			missed = []string{}
+		}
+		presenterContext["missedTaskIds"] = missed
+	}
 	renderStarted := time.Now()
 	result, err := pinned.Plugin.Engine.CallPath(c.Request.Context(), "native", []string{renderer}, presenterContext, pluginruntime.RawJSON(encoded))
 	if err != nil {
@@ -1629,6 +1703,47 @@ func WriteNativeReply(c *gin.Context, status int, value any) error {
 	return nil
 }
 
+// taskUpstreamErrorValue is the vendor response a passthrough submit route's
+// error presenter reads. A JSON body stays a value; anything else stays text.
+func taskUpstreamErrorValue(reply *dto.TaskUpstreamReply) map[string]any {
+	// JSON, including null, is the parsed value. Anything else, including an
+	// empty or whitespace-only body, stays the original text.
+	body := any(string(reply.Body))
+	var decoded any
+	if common.Unmarshal(reply.Body, &decoded) == nil {
+		body = decoded
+	}
+	value := map[string]any{"status": reply.StatusCode, "body": body}
+	if reply.RetryAfter != "" {
+		value["retryAfter"] = reply.RetryAfter
+	}
+	return value
+}
+
+// routeRequestContextForNativeError returns the prepared route request when
+// present, otherwise a minimal context from the HTTP request so early
+// native.error (before PrepareTaskPluginRoute) can still run.
+func routeRequestContextForNativeError(c *gin.Context) (pluginruntime.RouteRequestContext, bool) {
+	if value, exists := c.Get(pluginruntime.ContextKeyRouteRequest); exists {
+		if requestContext, ok := value.(pluginruntime.RouteRequestContext); ok {
+			return requestContext, true
+		}
+	}
+	if c == nil || c.Request == nil {
+		return pluginruntime.RouteRequestContext{}, false
+	}
+	path := c.Request.URL.Path
+	if path == "" {
+		path = "/"
+	}
+	return pluginruntime.RouteRequestContext{
+		Path:   path,
+		Method: c.Request.Method,
+		Params: map[string]string{},
+		Query:  map[string][]string{},
+	}, true
+}
+
 // RespondTaskPluginError gives a pinned plugin a sanitized error DTO and writes
 // its native error body with the host's status, unless the body is a reply
 // wrapper that answers with the vendor's own status.
@@ -1649,16 +1764,19 @@ func RespondTaskPluginError(c *gin.Context, taskErr *dto.TaskError) bool {
 	}
 	requestID := c.GetString(common.RequestIdKey)
 	hasRenderer, err := pinned.Plugin.Engine.HasCallablePath(c.Request.Context(), "native", "error")
-	requestValue, exists := c.Get(pluginruntime.ContextKeyRouteRequest)
-	requestContext, ok := requestValue.(pluginruntime.RouteRequestContext)
-	if err == nil && hasRenderer && exists && ok {
-		body, callErr := pinned.Plugin.Engine.CallMember(c.Request.Context(), "native", "error", requestContext.JSValue(), map[string]any{
+	requestContext, hasRequest := routeRequestContextForNativeError(c)
+	if err == nil && hasRenderer && hasRequest {
+		errorValue := map[string]any{
 			"code":       sanitized.Code,
 			"message":    sanitized.Message,
 			"httpStatus": sanitized.HTTPStatus,
 			"retryable":  sanitized.Retryable,
 			"requestId":  requestID,
-		})
+		}
+		if pinned.Route.UpstreamError == pluginruntime.RouteUpstreamErrorPassthrough && taskErr.UpstreamReply != nil {
+			errorValue["upstream"] = taskUpstreamErrorValue(taskErr.UpstreamReply)
+		}
+		body, callErr := pinned.Plugin.Engine.CallMember(c.Request.Context(), "native", "error", requestContext.JSValue(), errorValue)
 		if callErr == nil {
 			callErr = WriteNativeReply(c, sanitized.HTTPStatus, body)
 		}

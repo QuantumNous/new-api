@@ -1336,6 +1336,165 @@ export function parseTaskResult() { return {status: "SUCCESS"}; }
 	assert.NotContains(t, recorder.Body.String(), "secret")
 }
 
+func TestPrepareTaskPluginDynamicQueryCollectsMissingIDs(t *testing.T) {
+	setupTaskPluginRouteDB(t)
+	source := func(missing string) string {
+		return `
+export const meta = {
+  apiVersion: 1, key: "route-query-miss-test", name: "Query", version: "1.0.0",
+  author: {name: "Test"},
+  models: ["query-model"], fetchMode: "per_task",
+  routes: [{method: "POST", path: "/vendor/query", type: "dynamic", decode: "decodeQuery", render: "renderQuery"` + missing + `}],
+};
+export const native = {
+  decodeQuery: function() { return {kind: "query", taskIds: ["task-b", "missing-task", "missing-task", "foreign-task", "discarded-task"]}; },
+  renderQuery: function(ctx, tasks) {
+    return {ids: tasks.map(function(task) { return task.task_id; }), missed: ctx.missedTaskIds || null};
+  },
+};
+export function buildSubmitRequest() { return {url: "https://example.com"}; }
+export function parseSubmitResponse() { return {taskId: "one"}; }
+export function buildQueryRequest() { return {url: "https://example.com"}; }
+export function parseTaskResult() { return {status: "SUCCESS"}; }
+`
+	}
+	insertTaskPluginRouteTask(t, &model.Task{
+		TaskID: "task-b", UserId: 7, Platform: constant.TaskPlatform("route-query-miss-test"),
+		Status: model.TaskStatusSuccess,
+	})
+	insertTaskPluginRouteTask(t, &model.Task{
+		TaskID: "foreign-task", UserId: 8, Platform: constant.TaskPlatform("route-query-miss-test"),
+	})
+	insertTaskPluginRouteTask(t, &model.Task{
+		TaskID: "discarded-task", UserId: 7, Platform: constant.TaskPlatform("route-query-miss-test"),
+		Status: model.TaskStatusSuccess, PrivateData: model.TaskPrivateData{ResultDiscarded: true},
+	})
+
+	serve := func(plugin *jsplugin.LoadedPlugin) *httptest.ResponseRecorder {
+		router := gin.New()
+		router.POST("/vendor/query",
+			pinTaskPluginRoute(plugin, 0),
+			func(c *gin.Context) {
+				c.Set("id", 7)
+				c.Next()
+			},
+			PrepareTaskPluginRoute(),
+		)
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodPost, "/vendor/query", strings.NewReader(`{}`))
+		request.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(recorder, request)
+		return recorder
+	}
+
+	plain := compileTaskRoutePlugin(t, source(""))
+	missingAll := serve(plain)
+	assert.Equal(t, http.StatusNotFound, missingAll.Code)
+
+	collected := serve(compileTaskRoutePlugin(t, source(`, missing: "collect"`)))
+	assert.Equal(t, http.StatusOK, collected.Code)
+	assert.JSONEq(t, `{"ids":["task-b"],"missed":["missing-task","foreign-task","discarded-task"]}`, collected.Body.String())
+}
+
+func TestRespondTaskPluginErrorPassesUpstreamReply(t *testing.T) {
+	plugin := compileTaskRoutePlugin(t, `
+export const meta = {apiVersion:1,key:"upstream-error",name:"Upstream",version:"1.0.0",author:{name:"Test"},models:["model"],fetchMode:"per_task",routes:[{method:"POST",path:"/vendor/submit",type:"submit",decode:"decode",render:"created",upstreamError:"passthrough"}]};
+export const native = {
+  decode: function() { return {kind:"submit", model:"model", requestBody:{}}; },
+  created: function() { return {}; },
+  error: function(ctx, error) {
+    if (error.upstream) {
+      const reply = {__status: error.upstream.status, __body: error.upstream.body};
+      if (error.upstream.retryAfter) reply.__headers = {"Retry-After": error.upstream.retryAfter};
+      return reply;
+    }
+    return {leaked: false, code: error.httpStatus, message: error.message};
+  }
+};
+export function buildSubmitRequest(){return {}} export function parseSubmitResponse(){return {taskId:"one"}} export function buildQueryRequest(){return {}} export function parseTaskResult(){return {status:"SUCCESS"}}
+`)
+	taskErr := &dto.TaskError{
+		Code:       "fail_to_fetch_task",
+		Message:    `{"code":2000,"status":"error","message":"slow down"}`,
+		StatusCode: http.StatusTooManyRequests,
+		UpstreamReply: &dto.TaskUpstreamReply{
+			StatusCode: http.StatusTooManyRequests,
+			Body:       []byte(`{"code":2000,"status":"error","message":"slow down"}`),
+			RetryAfter: "5",
+		},
+	}
+	call := func(passthrough bool) *httptest.ResponseRecorder {
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest(http.MethodPost, "/vendor/submit", nil)
+		route := plugin.Meta.Routes[0]
+		if !passthrough {
+			route.UpstreamError = ""
+		}
+		c.Set(jsplugin.ContextKeyPinnedRoute, jsplugin.PinnedRoute{Plugin: plugin, Route: route})
+		c.Set(jsplugin.ContextKeyRouteRequest, jsplugin.RouteRequestContext{Method: http.MethodPost, Path: "/vendor/submit"})
+		require.True(t, RespondTaskPluginError(c, taskErr))
+		return recorder
+	}
+
+	passed := call(true)
+	assert.Equal(t, http.StatusTooManyRequests, passed.Code)
+	assert.Equal(t, "5", passed.Header().Get("Retry-After"))
+	assert.JSONEq(t, `{"code":2000,"status":"error","message":"slow down"}`, passed.Body.String())
+
+	kept := call(false)
+	assert.Equal(t, http.StatusTooManyRequests, kept.Code)
+	assert.Empty(t, kept.Header().Get("Retry-After"))
+	assert.JSONEq(t, `{"leaked":false,"code":429,"message":"{\"code\":2000,\"status\":\"error\",\"message\":\"slow down\"}"}`, kept.Body.String())
+}
+
+func TestRespondTaskPluginErrorPreservesUpstreamBody(t *testing.T) {
+	plugin := compileTaskRoutePlugin(t, `
+export const meta = {apiVersion:1,key:"upstream-body",name:"Upstream",version:"1.0.0",author:{name:"Test"},models:["model"],fetchMode:"per_task",routes:[{method:"POST",path:"/vendor/submit",type:"submit",decode:"decode",render:"created",upstreamError:"passthrough"}]};
+export const native = {
+  decode: function() { return {kind:"submit", model:"model"}; },
+  created: function() { return {}; },
+  error: function(ctx, error) { return {__status: error.upstream.status, __body: error.upstream.body}; }
+};
+export function buildSubmitRequest(){return {}} export function parseSubmitResponse(){return {taskId:"one"}} export function buildQueryRequest(){return {}} export function parseTaskResult(){return {status:"SUCCESS"}}
+`)
+	for _, testCase := range []struct {
+		name string
+		body []byte
+		want string
+	}{
+		{name: "json object", body: []byte(`{"ok":true}`), want: `{"ok":true}`},
+		{name: "json null", body: []byte(`null`), want: `null`},
+		{name: "json false", body: []byte(`false`), want: `false`},
+		{name: "json zero", body: []byte(`0`), want: `0`},
+		{name: "json empty string", body: []byte(`""`), want: `""`},
+		{name: "json empty array", body: []byte(`[]`), want: `[]`},
+		{name: "json with surrounding whitespace", body: []byte(" {\"ok\":true}\n"), want: `{"ok":true}`},
+		{name: "empty", body: nil, want: `""`},
+		{name: "whitespace", body: []byte(" \n\t"), want: "\" \\n\\t\""},
+		{name: "plain text", body: []byte("slow down"), want: `"slow down"`},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			context, _ := gin.CreateTestContext(recorder)
+			context.Request = httptest.NewRequest(http.MethodPost, "/vendor/submit", nil)
+			context.Set(jsplugin.ContextKeyPinnedRoute, jsplugin.PinnedRoute{Plugin: plugin, Route: plugin.Meta.Routes[0]})
+			context.Set(jsplugin.ContextKeyRouteRequest, jsplugin.RouteRequestContext{Method: http.MethodPost, Path: "/vendor/submit"})
+			require.True(t, RespondTaskPluginError(context, &dto.TaskError{
+				Code:       "invalid_request",
+				Message:    "Invalid request",
+				StatusCode: http.StatusBadRequest,
+				UpstreamReply: &dto.TaskUpstreamReply{
+					StatusCode: http.StatusBadRequest,
+					Body:       testCase.body,
+				},
+			}))
+			assert.Equal(t, http.StatusBadRequest, recorder.Code)
+			assert.JSONEq(t, testCase.want, recorder.Body.String())
+		})
+	}
+}
+
 func TestPrepareTaskPluginDynamicDecoderRejectsRendererField(t *testing.T) {
 	plugin := compileTaskRoutePlugin(t, `
 export const meta = {apiVersion:1,key:"dynamic-renderer",name:"Dynamic",version:"1.0.0",author:{name:"Test"},models:["model"],fetchMode:"per_task",routes:[{method:"POST",path:"/vendor/query",type:"dynamic",decode:"decode",render:"show"}]};
@@ -1515,6 +1674,70 @@ func TestTaskPluginErrorFallbackIsSanitized(t *testing.T) {
 			assert.NotContains(t, recorder.Body.String(), "password")
 		})
 	}
+}
+
+func TestAbortWithOpenAiMessageEarlyNativeErrorOptIn(t *testing.T) {
+	optIn := compileTaskRoutePlugin(t, `
+export const meta = {
+  apiVersion: 1, key: "early-native-opt-in", name: "Early", version: "1.0.0",
+  author: {name: "Test"}, models: ["early"], fetchMode: "per_task", earlyNativeError: true,
+  routes: [{method: "POST", path: "/early/submit", type: "submit", decode: "decode", render: "created"}],
+};
+export function buildSubmitRequest() { return {url: "https://example.com"}; }
+export function parseSubmitResponse() { return {taskId: "one"}; }
+export function buildQueryRequest() { return {url: "https://example.com"}; }
+export function parseTaskResult() { return {status: "SUCCESS"}; }
+export const native = {
+  decode: function() { return {kind: "submit", model: "early", requestBody: {}}; },
+  created: function(_ctx, task) { return {id: task.task_id}; },
+  error: function(ctx, error) {
+    return {vendor: true, path: ctx.path, code: 2, status: "error", message: "Invalid API key", httpStatus: error.httpStatus};
+  },
+};
+`)
+	legacy := compileTaskRoutePlugin(t, `
+export const meta = {
+  apiVersion: 1, key: "early-native-legacy", name: "Legacy", version: "1.0.0",
+  author: {name: "Test"}, models: ["legacy"], fetchMode: "per_task",
+  routes: [{method: "POST", path: "/legacy/submit", type: "submit", decode: "decode", render: "created"}],
+};
+export function buildSubmitRequest() { return {url: "https://example.com"}; }
+export function parseSubmitResponse() { return {taskId: "one"}; }
+export function buildQueryRequest() { return {url: "https://example.com"}; }
+export function parseTaskResult() { return {status: "SUCCESS"}; }
+export const native = {
+  decode: function() { return {kind: "submit", model: "legacy", requestBody: {}}; },
+  created: function(_ctx, task) { return {id: task.task_id}; },
+  error: function() { return {should_not: "run"}; },
+};
+`)
+
+	t.Run("opt-in without Prepare uses native.error", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest(http.MethodPost, "/early/submit", nil)
+		c.Set(common.RequestIdKey, "early-req")
+		c.Set(jsplugin.ContextKeyPinnedRoute, jsplugin.PinnedRoute{Plugin: optIn, Route: optIn.Meta.Routes[0]})
+
+		abortWithOpenAiMessage(c, http.StatusUnauthorized, "Invalid token")
+
+		assert.Equal(t, http.StatusUnauthorized, recorder.Code)
+		assert.JSONEq(t, `{"vendor":true,"path":"/early/submit","code":2,"status":"error","message":"Invalid API key","httpStatus":401}`, recorder.Body.String())
+		assert.NotContains(t, recorder.Body.String(), "new_api_error")
+	})
+
+	t.Run("legacy without Prepare keeps new_api_error", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest(http.MethodPost, "/legacy/submit", nil)
+		c.Set(common.RequestIdKey, "legacy-req")
+		c.Set(jsplugin.ContextKeyPinnedRoute, jsplugin.PinnedRoute{Plugin: legacy, Route: legacy.Meta.Routes[0]})
+
+		abortWithOpenAiMessage(c, http.StatusUnauthorized, "Invalid token")
+
+		assert.Equal(t, http.StatusUnauthorized, recorder.Code)
+		assert.JSONEq(t, `{"error":{"message":"Invalid token (request id: legacy-req)","type":"new_api_error","code":""}}`, recorder.Body.String())
+	})
 }
 
 func TestResolvedTaskPluginIDsEnforcesPublicQueryContract(t *testing.T) {
@@ -2559,6 +2782,66 @@ func TestPrepareTaskPluginRouteAnswersSharedQueriesByTaskOwner(t *testing.T) {
 		assert.NotContains(t, recorder.Body.String(), "task_beta")
 		assert.NotContains(t, recorder.Body.String(), "task_foreign")
 	}
+}
+
+// missing:collect on a shared dynamic path reports ids no candidate can
+// retrieve, and still refuses a batch whose tasks belong to different plugins.
+func TestPrepareTaskPluginSharedDynamicQueryCollectsUnknownIDs(t *testing.T) {
+	setupTaskPluginRouteDB(t)
+	route := func(collect bool) string {
+		missing := ""
+		if collect {
+			missing = `, missing: "collect"`
+		}
+		return `[{method: "POST", path: "/probe/v1/fetch", type: "dynamic", decode: "fetchJobs", render: "renderFetch"` + missing + `}]`
+	}
+	extra := func(key string) string {
+		return fmt.Sprintf(`renderFetch(ctx, tasks) { return {by: %q, tasks: tasks.map(function(task) { return task.task_id; }), missed: ctx.missedTaskIds || null}; },`, key)
+	}
+	plugin := func(key string, collect bool) *jsplugin.LoadedPlugin {
+		return compileTaskRoutePlugin(t, sharedRouteTestPluginSource(key, `["probe-model"]`, route(collect), extra(key)))
+	}
+	insertTaskPluginRouteTask(t, &model.Task{TaskID: "task_alpha", UserId: 7, Platform: constant.TaskPlatform("share-alpha"), Status: model.TaskStatusSuccess})
+	insertTaskPluginRouteTask(t, &model.Task{TaskID: "task_beta", UserId: 7, Platform: constant.TaskPlatform("share-beta"), Status: model.TaskStatusSuccess})
+	insertTaskPluginRouteTask(t, &model.Task{TaskID: "task_foreign", UserId: 8, Platform: constant.TaskPlatform("share-alpha"), Status: model.TaskStatusSuccess})
+	insertTaskPluginRouteTask(t, &model.Task{
+		TaskID: "task_discarded", UserId: 7, Platform: constant.TaskPlatform("share-alpha"),
+		Status: model.TaskStatusSuccess, PrivateData: model.TaskPrivateData{ResultDiscarded: true},
+	})
+	both := sharedTaskPluginRouteRouter(t, plugin("share-alpha", true), plugin("share-beta", true))
+	alphaOnly := sharedTaskPluginRouteRouter(t, plugin("share-alpha", true), plugin("share-beta", false))
+	neither := sharedTaskPluginRouteRouter(t, plugin("share-alpha", false), plugin("share-beta", false))
+	notFound := `{"code":"task_not_found","message":"Task not found","data":null}`
+
+	for _, testCase := range []struct {
+		name, body, want string
+		router           http.Handler
+		status           int
+	}{
+		{name: "unknown id is missed", router: both, status: http.StatusOK, body: `{"ids":["task_alpha","missing-task","missing-task"]}`,
+			want: `{"by":"share-alpha","tasks":["task_alpha"],"missed":["missing-task"]}`},
+		{name: "foreign and discarded ids are missed", router: both, status: http.StatusOK, body: `{"ids":["task_foreign","task_alpha","task_discarded"]}`,
+			want: `{"by":"share-alpha","tasks":["task_alpha"],"missed":["task_foreign","task_discarded"]}`},
+		{name: "later plugin owns the known id", router: both, status: http.StatusOK, body: `{"ids":["missing-task","task_beta"]}`,
+			want: `{"by":"share-beta","tasks":["task_beta"],"missed":["missing-task"]}`},
+		{name: "split batch stays not found", router: both, status: http.StatusNotFound, body: `{"ids":["task_alpha","task_beta"]}`, want: notFound},
+		{name: "nothing retrievable stays not found", router: both, status: http.StatusNotFound, body: `{"ids":["missing-a","missing-b"]}`, want: notFound},
+		{name: "empty batch stays not found with collect", router: both, status: http.StatusNotFound, body: `{"ids":[]}`, want: notFound},
+		{name: "collect does not take another plugin's task", router: alphaOnly, status: http.StatusNotFound, body: `{"ids":["task_alpha","task_beta"]}`, want: notFound},
+		{name: "without collect a missing id is not found", router: neither, status: http.StatusNotFound, body: `{"ids":["task_alpha","missing-task"]}`, want: notFound},
+		{name: "empty batch stays not found without collect", router: neither, status: http.StatusNotFound, body: `{"ids":[]}`, want: notFound},
+		{name: "without collect the owner still answers", router: neither, status: http.StatusOK, body: `{"ids":["task_beta"]}`,
+			want: `{"by":"share-beta","tasks":["task_beta"],"missed":null}`},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			recorder := performSharedRouteRequest(testCase.router, http.MethodPost, "/probe/v1/fetch", testCase.body)
+			assert.Equal(t, testCase.status, recorder.Code, recorder.Body.String())
+			assert.JSONEq(t, testCase.want, recorder.Body.String())
+		})
+	}
+	ownedPath := performSharedRouteRequest(both, http.MethodPost, "/share-alpha/probe/v1/fetch", `{"ids":["task_alpha","task_beta","missing-task"]}`)
+	assert.Equal(t, http.StatusOK, ownedPath.Code, ownedPath.Body.String())
+	assert.JSONEq(t, `{"by":"share-alpha","tasks":["task_alpha"],"missed":["task_beta","missing-task"]}`, ownedPath.Body.String())
 }
 
 // A query route whose taskIdParam is not a path parameter reads the task id

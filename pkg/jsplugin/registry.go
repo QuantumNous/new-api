@@ -86,30 +86,34 @@ func (t *LocalizedText) UnmarshalJSON(data []byte) error {
 }
 
 type Meta struct {
-	RequiredCapabilities []string                    `json:"requiredCapabilities,omitempty"`
-	SubmitResponseTypes  []string                    `json:"submitResponseTypes,omitempty"`
-	SortPriority         int                         `json:"sortPriority,omitempty"`
-	Website              string                      `json:"website,omitempty"`
-	APIVersion           int                         `json:"apiVersion"`
-	Key                  string                      `json:"key"`
-	Name                 string                      `json:"name"`
-	NameI18n             LocalizedText               `json:"name_i18n,omitempty"` // the locales of a name given as an object; Name is its en text
-	Icon                 string                      `json:"icon,omitempty"`
-	Description          LocalizedText               `json:"description,omitempty"`
-	Version              string                      `json:"version"`
-	Author               AuthorMeta                  `json:"author"`
-	BaseURL              string                      `json:"baseUrl,omitempty"`
-	ChannelTypes         []int                       `json:"channelTypes,omitempty"`
-	Models               []string                    `json:"models"`
-	FetchMode            string                      `json:"fetchMode"`
-	AllowedHosts         []string                    `json:"allowedHosts"`
-	Upstreams            []string                    `json:"upstreams,omitempty"`
-	Routes               []Route                     `json:"routes"`
-	Protocols            []ProtocolClaim             `json:"protocols"`
-	UsageSchema          map[string]UsageFieldSchema `json:"usageSchema,omitempty"`
-	UsageExamples        []UsageExample              `json:"usageExamples,omitempty"`
-	UsageProfiles        []UsageProfile              `json:"usageProfiles,omitempty"`
-	Auth                 AuthMeta                    `json:"auth"`
+	RequiredCapabilities []string      `json:"requiredCapabilities,omitempty"`
+	SubmitResponseTypes  []string      `json:"submitResponseTypes,omitempty"`
+	SortPriority         int           `json:"sortPriority,omitempty"`
+	Website              string        `json:"website,omitempty"`
+	APIVersion           int           `json:"apiVersion"`
+	Key                  string        `json:"key"`
+	Name                 string        `json:"name"`
+	NameI18n             LocalizedText `json:"name_i18n,omitempty"` // the locales of a name given as an object; Name is its en text
+	Icon                 string        `json:"icon,omitempty"`
+	Description          LocalizedText `json:"description,omitempty"`
+	Version              string        `json:"version"`
+	Author               AuthorMeta    `json:"author"`
+	BaseURL              string        `json:"baseUrl,omitempty"`
+	ChannelTypes         []int         `json:"channelTypes,omitempty"`
+	Models               []string      `json:"models"`
+	FetchMode            string        `json:"fetchMode"`
+	AllowedHosts         []string      `json:"allowedHosts"`
+	Upstreams            []string      `json:"upstreams,omitempty"`
+	// EarlyNativeError lets TokenAuth and other pre-Prepare failures on this
+	// plugin's pinned native routes call native.error. Plugins that omit it
+	// keep the host's OpenAI-shaped new_api_error for those failures.
+	EarlyNativeError bool                        `json:"earlyNativeError,omitempty"`
+	Routes           []Route                     `json:"routes"`
+	Protocols        []ProtocolClaim             `json:"protocols"`
+	UsageSchema      map[string]UsageFieldSchema `json:"usageSchema,omitempty"`
+	UsageExamples    []UsageExample              `json:"usageExamples,omitempty"`
+	UsageProfiles    []UsageProfile              `json:"usageProfiles,omitempty"`
+	Auth             AuthMeta                    `json:"auth"`
 	// Relay is the provider part: the Advanced Custom routes a type-61
 	// channel bound to the plugin serves.
 	Relay []dto.AdvancedCustomRoute `json:"relay,omitempty"`
@@ -657,6 +661,15 @@ func CompilePlugin(source string, options Options) (*LoadedPlugin, error) {
 			}
 		}
 	}
+	if meta.EarlyNativeError {
+		has, hasErr := engine.HasCallablePath(context.Background(), "native", "error")
+		if hasErr != nil {
+			return nil, hasErr
+		}
+		if !has {
+			return nil, fmt.Errorf("plugin %s meta earlyNativeError requires native.error", meta.Key)
+		}
+	}
 	for _, claim := range meta.Protocols {
 		protocol := claim.Name
 		definition, _ := HostProtocol(protocol)
@@ -787,7 +800,7 @@ func CompilePlugin(source string, options Options) (*LoadedPlugin, error) {
 }
 
 // taskOnlyMetaFields are the manifest fields only a task part reads.
-var taskOnlyMetaFields = []string{"routes", "protocols", "fetchMode", "submitResponseTypes", "usageSchema", "usageExamples", "usageProfiles", "auth", "channelTypes", "upstreams"}
+var taskOnlyMetaFields = []string{"routes", "protocols", "fetchMode", "submitResponseTypes", "usageSchema", "usageExamples", "usageProfiles", "auth", "channelTypes", "upstreams", "earlyNativeError"}
 
 // ProviderHooks are the optional credential, relay and channel exports of a
 // plugin.
@@ -1380,7 +1393,7 @@ func decodeMeta(value any) (Meta, error) {
 	}
 	for field := range object {
 		switch field {
-		case "requiredCapabilities", "submitResponseTypes", "sortPriority", "website", "apiVersion", "key", "name", "icon", "description", "version", "author", "baseUrl", "channelTypes", "channelType", "compatibleChannelTypes", "models", "fetchMode", "allowedHosts", "upstreams", "routes", "protocols", "usageSchema", "usageExamples", "usageProfiles", "auth", "endpoints", "submitPaths", "actions", "relay", "configSchema", "optional", "scope", "samples", "channelConfig", "keyHint":
+		case "requiredCapabilities", "submitResponseTypes", "sortPriority", "website", "apiVersion", "key", "name", "icon", "description", "version", "author", "baseUrl", "channelTypes", "channelType", "compatibleChannelTypes", "models", "fetchMode", "allowedHosts", "upstreams", "earlyNativeError", "routes", "protocols", "usageSchema", "usageExamples", "usageProfiles", "auth", "endpoints", "submitPaths", "actions", "relay", "configSchema", "optional", "scope", "samples", "channelConfig", "keyHint":
 		default:
 			return Meta{}, &UnknownMetaFieldError{Field: field}
 		}
@@ -1487,6 +1500,11 @@ func decodeMeta(value any) (Meta, error) {
 	meta.Upstreams, err = strictStringSlice(object, "upstreams")
 	if err != nil {
 		return Meta{}, err
+	}
+	if value, exists := object["earlyNativeError"]; exists {
+		if meta.EarlyNativeError, ok = value.(bool); !ok {
+			return Meta{}, fmt.Errorf("plugin meta earlyNativeError must be a boolean")
+		}
 	}
 	meta.Routes, err = decodeRoutes(object["routes"])
 	if err != nil {
@@ -2279,7 +2297,7 @@ func decodeRoutes(value any) ([]Route, error) {
 		}
 		for key := range object {
 			switch key {
-			case "method", "path", "type", "action", "decode", "render", "taskIdParam", "models", "retainResult":
+			case "method", "path", "type", "action", "decode", "render", "taskIdParam", "models", "retainResult", "missing", "upstreamError":
 			default:
 				return nil, fmt.Errorf("plugin meta route %d has unknown field %q", index, key)
 			}
@@ -2323,6 +2341,20 @@ func decodeRoutes(value any) ([]Route, error) {
 				return nil, fmt.Errorf("plugin meta route %d retainResult must be a boolean", index)
 			}
 			route.RetainResult = &retain
+		}
+		if value, exists := object["missing"]; exists {
+			text, ok := value.(string)
+			if !ok || text != RouteMissingCollect {
+				return nil, fmt.Errorf("plugin meta route %d missing must be %q", index, RouteMissingCollect)
+			}
+			route.Missing = text
+		}
+		if value, exists := object["upstreamError"]; exists {
+			text, ok := value.(string)
+			if !ok || text != RouteUpstreamErrorPassthrough {
+				return nil, fmt.Errorf("plugin meta route %d upstreamError must be %q", index, RouteUpstreamErrorPassthrough)
+			}
+			route.UpstreamError = text
 		}
 		routes = append(routes, route)
 	}

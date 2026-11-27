@@ -777,6 +777,7 @@ export function parseTaskResult() { return {status:"SUCCESS"}; }
 				assert.Equal(t, tc.wantCode, taskErr.Code)
 				assert.Equal(t, tc.status, taskErr.StatusCode)
 				assert.Contains(t, taskErr.Message, "upstream body")
+				assert.Nil(t, taskErr.UpstreamReply)
 				assert.Nil(t, result)
 				return
 			}
@@ -786,6 +787,48 @@ export function parseTaskResult() { return {status:"SUCCESS"}; }
 			assert.JSONEq(t, `{"status":`+strconv.Itoa(tc.status)+`}`, string(result.TaskData))
 		})
 	}
+}
+
+func TestRelayTaskSubmitPassthroughKeepsUpstreamReply(t *testing.T) {
+	service.InitHttpClient()
+	const source = `
+export const meta = {apiVersion:1,key:"status-echo",name:"Status Echo",version:"1.0.0",author:{name:"Test"},models:["declared-model"],fetchMode:"per_task"};
+export function buildSubmitRequest(ctx) { return {url: ctx.baseUrl+"/submit", method:"POST", body:{model: ctx.model}, action:"text_to_video"}; }
+export function parseSubmitResponse(ctx, response) { return {taskId: response.body.id}; }
+export function buildQueryRequest(ctx) { return {url: ctx.baseUrl+"/query"}; }
+export function parseTaskResult() { return {status:"SUCCESS"}; }
+`
+	saveBillingConfig(t)
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting.billing_mode": `{"declared-model":"tiered_expr"}`,
+		"billing_setting.billing_expr": `{"declared-model":"tier(\"flat\", 3)"}`,
+	}))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Retry-After", "5")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte(`{"code":2000,"status":"error","message":"slow down"}`))
+	}))
+	defer server.Close()
+
+	c, info := newTaskSubmitContext(t, "declared-model", "")
+	common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, server.URL)
+	c.Set("group", "default")
+	info.UserGroup, info.UsingGroup = "default", "default"
+	info.OriginModelName = "declared-model"
+	info.Billing = &imageReservation{limit: 1 << 30}
+	pinMappingOrderPlugin(t, c, source)
+	c.Set(pluginruntime.ContextKeyPinnedRoute, pluginruntime.PinnedRoute{
+		Route: pluginruntime.Route{Type: pluginruntime.RouteTypeSubmit, UpstreamError: pluginruntime.RouteUpstreamErrorPassthrough},
+	})
+
+	result, taskErr := RelayTaskSubmit(c, info)
+	require.NotNil(t, taskErr)
+	assert.Nil(t, result)
+	assert.Equal(t, http.StatusTooManyRequests, taskErr.StatusCode)
+	require.NotNil(t, taskErr.UpstreamReply)
+	assert.Equal(t, "5", taskErr.UpstreamReply.RetryAfter)
+	assert.JSONEq(t, `{"code":2000,"status":"error","message":"slow down"}`, string(taskErr.UpstreamReply.Body))
 }
 
 // A retry prices the plugin it lands on from scratch and holds that price

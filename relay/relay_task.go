@@ -391,7 +391,17 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	// or 202 Accepted, and parseSubmitResponse receives the exact status code.
 	if resp.StatusCode/100 != 2 {
 		responseBody, _ := io.ReadAll(resp.Body)
-		return nil, service.TaskErrorWrapper(fmt.Errorf("%s", string(responseBody)), "fail_to_fetch_task", resp.StatusCode, common.UpstreamAddresses(c)...)
+		taskErr := service.TaskErrorWrapper(fmt.Errorf("%s", string(responseBody)), "fail_to_fetch_task", resp.StatusCode, common.UpstreamAddresses(c)...)
+		// A route that opts in keeps the vendor response for its error
+		// presenter. Every other submit route still gets the sanitized error.
+		if jsplugin.PinnedRoutePassesUpstreamError(c) {
+			taskErr.UpstreamReply = &dto.TaskUpstreamReply{
+				StatusCode: resp.StatusCode,
+				Body:       responseBody,
+				RetryAfter: strings.TrimSpace(resp.Header.Get("Retry-After")),
+			}
+		}
+		return nil, taskErr
 	}
 
 	// 10. Parse only. The controller presents the response after the durable

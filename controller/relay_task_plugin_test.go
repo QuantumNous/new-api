@@ -652,6 +652,22 @@ export function buildQueryRequest(){throw new Error("completed submissions must 
 	}
 }
 
+func TestPassthroughSubmitKeepsAuthErrorRetry(t *testing.T) {
+	c := taskSubmissionTestContext()
+	unauthorized := &dto.TaskError{StatusCode: http.StatusUnauthorized}
+	forbidden := &dto.TaskError{StatusCode: http.StatusForbidden}
+	assert.Equal(t, "retry", decideTaskRetry(c, unauthorized, 1).Action)
+	assert.Equal(t, "retry", decideTaskRetry(c, forbidden, 1).Action)
+	c.Set(pluginruntime.ContextKeyPinnedRoute, pluginruntime.PinnedRoute{
+		Route: pluginruntime.Route{UpstreamError: pluginruntime.RouteUpstreamErrorPassthrough},
+	})
+	assert.Equal(t, "retry", decideTaskRetry(c, unauthorized, 1).Action)
+	assert.Equal(t, "retry", decideTaskRetry(c, forbidden, 1).Action)
+	assert.Equal(t, service.PolicyDecision{Action: "stop", Reason: "status_not_retryable", Source: "system"}, decideTaskRetry(c, &dto.TaskError{StatusCode: http.StatusBadRequest}, 1))
+	assert.Equal(t, "retry", decideTaskRetry(c, &dto.TaskError{StatusCode: http.StatusTooManyRequests}, 1).Action)
+	assert.Equal(t, "retry", decideTaskRetry(c, &dto.TaskError{StatusCode: http.StatusInternalServerError}, 1).Action)
+}
+
 func TestAcceptedSubmitStreamNeverRetries(t *testing.T) {
 	c := taskSubmissionTestContext()
 	assert.Equal(t, service.PolicyDecision{Action: "stop", Reason: "task_accepted", Source: "system"}, decideTaskRetry(c, &dto.TaskError{StatusCode: 502, LocalError: true, NoRetry: true}, 3))
