@@ -2,6 +2,13 @@
 # 中文（简体）翻译文件
 
 # Errors returned to AI clients
+image_proxy.method: "图片下载仅支持 GET 或 HEAD"
+image_proxy.invalid: "图片链接无效"
+image_proxy.unavailable: "图片暂时无法下载"
+image_proxy.download_failed: "图片下载失败"
+image_proxy.unsupported: "返回内容不是支持的图片格式"
+image_proxy.create_failed: "无法生成图片链接"
+image_proxy.secret_required: "图片链接代理需要配置固定的 CRYPTO_SECRET 或 SESSION_SECRET，请联系管理员"
 common.database_error: "数据库出错，请联系管理员"
 auth.user_banned: "用户已被封禁"
 token.get_info_failed: "获取令牌信息失败，请稍后重试"

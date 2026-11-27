@@ -121,6 +121,11 @@ func zhipu4vImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 
+	jsonResp, err = service.RewriteImageURLs(c, jsonResp)
+	if err != nil {
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody, types.ErrOptionWithSkipRetry())
+	}
+
 	service.IOCopyBytesGracefully(c, resp, jsonResp)
 
 	return &dto.Usage{}, nil

@@ -1,6 +1,13 @@
 # English translations
 
 # Errors returned to AI clients
+image_proxy.method: "Image download requires GET or HEAD"
+image_proxy.invalid: "Image link is invalid"
+image_proxy.unavailable: "Image download is unavailable"
+image_proxy.download_failed: "Image download failed"
+image_proxy.unsupported: "Image response is not a supported image"
+image_proxy.create_failed: "Failed to create image link"
+image_proxy.secret_required: "Image URL proxy requires a persistent CRYPTO_SECRET or SESSION_SECRET; contact the administrator"
 common.database_error: "Database error, please contact the administrator"
 auth.user_banned: "User has been banned"
 token.get_info_failed: "Failed to get token info, please try again later"

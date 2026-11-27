@@ -38,6 +38,9 @@ func ShouldCopyUpstreamHeader(c *gin.Context, k string, v []string) bool {
 		}
 		return false
 	}
+	if c != nil && ImageURLProxyEnabled(c) {
+		return false
+	}
 	return true
 }
 
@@ -59,6 +62,10 @@ func IOCopyBytesGracefully(c *gin.Context, src *http.Response, data []byte) {
 			}
 			c.Writer.Header().Set(k, v[0])
 		}
+	}
+
+	if ImageURLProxyEnabled(c) {
+		c.Header("Content-Type", "application/json")
 	}
 
 	// set Content-Length header manually BEFORE calling WriteHeader
