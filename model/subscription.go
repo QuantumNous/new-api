@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/cachex"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/samber/hot"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
@@ -754,21 +756,31 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (*common.M
 	return nil, nil
 }
 
-func calcSubscriptionBalanceQuota(priceAmount float64) (int, error) {
-	if priceAmount <= 0 {
+// BalanceQuota returns the wallet quota charged for the plan price.
+func (p SubscriptionPlan) BalanceQuota() (int, error) {
+	if p.PriceAmount < 0 || math.IsNaN(p.PriceAmount) || math.IsInf(p.PriceAmount, 0) {
+		return 0, common.NewMessage("Price cannot be negative")
+	}
+	if p.PriceAmount == 0 {
 		return 0, nil
 	}
-	if common.QuotaPerUnit <= 0 {
+	if common.QuotaPerUnit <= 0 || math.IsNaN(common.QuotaPerUnit) || math.IsInf(common.QuotaPerUnit, 0) {
 		return 0, common.NewMessage("Quota unit is misconfigured")
 	}
-	quota := decimal.NewFromFloat(priceAmount).
-		Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
-		Ceil()
+	rate := operation_setting.GetUsdToCurrencyRate(operation_setting.USDExchangeRate)
+	if rate <= 0 || math.IsNaN(rate) || math.IsInf(rate, 0) {
+		return 0, common.NewMessage("Balance payment is unavailable")
+	}
+	amount := decimal.NewFromFloat(p.PriceAmount).Mul(decimal.NewFromFloat(common.QuotaPerUnit))
+	quota, remainder := amount.QuoRem(decimal.NewFromFloat(rate), 0)
+	if remainder.IsPositive() {
+		quota = quota.Add(decimal.NewFromInt(1))
+	}
 	return common.WalletQuotaFromDecimalStrict(quota)
 }
 
 // PurchaseSubscriptionWithBalance creates a subscription by deducting the user's wallet quota.
-func PurchaseSubscriptionWithBalance(userId int, planId int) error {
+func PurchaseSubscriptionWithBalance(userId int, planId int, expectedQuota *int) error {
 	if userId <= 0 || planId <= 0 {
 		return errors.New("invalid userId or planId")
 	}
@@ -785,16 +797,16 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 		if !plan.Enabled {
 			return common.NewMessage("Subscription plan is not enabled")
 		}
-		if plan.PriceAmount < 0 {
-			return common.NewMessage("Price cannot be negative")
-		}
 		if plan.AllowBalancePay != nil && !*plan.AllowBalancePay {
 			return common.NewMessage("This plan does not allow balance redemption")
 		}
 
-		requiredQuota, err := calcSubscriptionBalanceQuota(plan.PriceAmount)
+		requiredQuota, err := plan.BalanceQuota()
 		if err != nil {
 			return err
+		}
+		if expectedQuota != nil && *expectedQuota != requiredQuota {
+			return common.NewMessage("The balance price changed. Refresh and try again.")
 		}
 
 		var user User

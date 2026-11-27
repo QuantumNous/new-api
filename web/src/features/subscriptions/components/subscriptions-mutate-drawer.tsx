@@ -63,8 +63,9 @@ import {
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { getPaymentErrorTranslation } from '@/features/wallet/lib/payment'
-import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+import { getCurrencyLabel } from '@/lib/currency'
 import { handleServerError } from '@/lib/handle-server-error'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import {
   createPlan,
@@ -98,8 +99,8 @@ export function SubscriptionsMutateDrawer({
   const { t } = useTranslation()
   const isEdit = !!currentRow?.plan?.id
   const { triggerRefresh } = useSubscriptions()
-  const { meta: currencyMeta } = getCurrencyDisplay()
-  const tokensOnly = currencyMeta.kind === 'tokens'
+  const currency = useSystemConfigStore((state) => state.config.currency)
+  const tokensOnly = currency.quotaDisplayType === 'TOKENS'
   const currencyLabel = getCurrencyLabel()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [groupOptions, setGroupOptions] = useState<string[]>([])
@@ -337,7 +338,11 @@ export function SubscriptionsMutateDrawer({
                   name='price_amount'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t('Plan Price')}</FormLabel>
+                      <FormLabel>
+                        {t('Plan Price ({{currency}})', {
+                          currency: tokensOnly ? 'USD' : currencyLabel,
+                        })}
+                      </FormLabel>
                       <FormControl>
                         <Input
                           {...field}
@@ -351,16 +356,13 @@ export function SubscriptionsMutateDrawer({
                           }
                         />
                       </FormControl>
-                      <FormDescription>
-                        {t(
-                          'Amount the user pays to purchase this plan; the actual currency depends on the payment gateway.'
-                        )}
-                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+              </div>
 
+              <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
                 <FormField
                   control={form.control}
                   name='total_amount'

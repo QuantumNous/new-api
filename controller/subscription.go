@@ -15,7 +15,8 @@ import (
 // ---- Shared types ----
 
 type SubscriptionPlanDTO struct {
-	Plan model.SubscriptionPlan `json:"plan"`
+	Plan         model.SubscriptionPlan `json:"plan"`
+	BalanceQuota *int                   `json:"balance_quota,omitempty"`
 }
 
 type BillingPreferenceRequest struct {
@@ -23,7 +24,8 @@ type BillingPreferenceRequest struct {
 }
 
 type SubscriptionBalancePayRequest struct {
-	PlanId int `json:"plan_id"`
+	PlanId        int  `json:"plan_id"`
+	ExpectedQuota *int `json:"expected_quota"`
 }
 
 // ---- User APIs ----
@@ -42,9 +44,13 @@ func GetSubscriptionPlans(c *gin.Context) {
 	result := make([]SubscriptionPlanDTO, 0, len(plans))
 	for _, p := range plans {
 		p.NormalizeDefaults()
-		result = append(result, SubscriptionPlanDTO{
-			Plan: p,
-		})
+		record := SubscriptionPlanDTO{Plan: p}
+		if *p.AllowBalancePay {
+			if quota, err := p.BalanceQuota(); err == nil {
+				record.BalanceQuota = &quota
+			}
+		}
+		result = append(result, record)
 	}
 	common.ApiSuccess(c, result)
 }
@@ -108,7 +114,7 @@ func SubscriptionRequestBalancePay(c *gin.Context) {
 		return
 	}
 
-	if err := model.PurchaseSubscriptionWithBalance(userId, req.PlanId); err != nil {
+	if err := model.PurchaseSubscriptionWithBalance(userId, req.PlanId, req.ExpectedQuota); err != nil {
 		common.ApiError(c, err)
 		return
 	}
