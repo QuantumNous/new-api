@@ -687,7 +687,50 @@ type ClaudeUsage struct {
 	ClaudeCacheCreation5mTokens int                  `json:"claude_cache_creation_5_m_tokens"`
 	ClaudeCacheCreation1hTokens int                  `json:"claude_cache_creation_1_h_tokens"`
 	ServerToolUse               *ClaudeServerToolUse `json:"server_tool_use,omitempty"`
-	BillingUsage                *BillingUsage        `json:"billing_usage,omitempty"`
+	// OutputTokensDetails breaks down output_tokens; thinking_tokens is a
+	// subset of output_tokens, which stays the billed total.
+	OutputTokensDetails *ClaudeOutputTokensDetails `json:"output_tokens_details,omitempty"`
+	BillingUsage        *BillingUsage              `json:"billing_usage,omitempty"`
+}
+
+type ClaudeOutputTokensDetails struct {
+	ThinkingTokens int `json:"thinking_tokens"`
+	// ThinkingTokensPresent records an explicit 0; a non-zero count implies
+	// presence. An empty or null thinking_tokens is not a reported count.
+	ThinkingTokensPresent bool `json:"-"`
+}
+
+func (d *ClaudeOutputTokensDetails) HasThinkingTokens() bool {
+	return d != nil && (d.ThinkingTokensPresent || d.ThinkingTokens != 0)
+}
+
+func (d *ClaudeOutputTokensDetails) UnmarshalJSON(data []byte) error {
+	type plain ClaudeOutputTokensDetails
+	var decoded struct {
+		plain
+		ThinkingTokens *int `json:"thinking_tokens"`
+	}
+	decoded.plain = plain(*d)
+	if err := kitutil.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*d = ClaudeOutputTokensDetails(decoded.plain)
+	if decoded.ThinkingTokens != nil {
+		d.ThinkingTokens = *decoded.ThinkingTokens
+		d.ThinkingTokensPresent = d.ThinkingTokens == 0
+	}
+	return nil
+}
+
+// Do not turn an absent count into an explicit zero on another gateway hop.
+func (d ClaudeOutputTokensDetails) MarshalJSON() ([]byte, error) {
+	var thinking *int
+	if d.HasThinkingTokens() {
+		thinking = &d.ThinkingTokens
+	}
+	return kitutil.Marshal(struct {
+		ThinkingTokens *int `json:"thinking_tokens,omitempty"`
+	}{thinking})
 }
 
 type ClaudeCacheCreationUsage struct {
@@ -707,6 +750,40 @@ func (u *ClaudeUsage) GetCacheCreation1hTokens() int {
 		return 0
 	}
 	return u.CacheCreation.Ephemeral1hInputTokens
+}
+
+// ReportedThinkingDetails returns the reported thinking breakdown: the native
+// output_tokens_details first, otherwise the count a recognized OpenAI
+// billing snapshot carries from an earlier gateway hop. Nil means unreported.
+func (u *ClaudeUsage) ReportedThinkingDetails() *ClaudeOutputTokensDetails {
+	if u == nil {
+		return nil
+	}
+	if u.OutputTokensDetails.HasThinkingTokens() {
+		return u.OutputTokensDetails
+	}
+	if reasoningTokens, ok := u.BillingUsage.ReportedOpenAIReasoning(); ok {
+		return &ClaudeOutputTokensDetails{ThinkingTokens: reasoningTokens, ThinkingTokensPresent: reasoningTokens == 0}
+	}
+	return nil
+}
+
+// ThinkingTokensWithin turns a reported (raw) thinking count into the value
+// shown beside outputTokens, the known cumulative output total.
+//
+// reported is false when nothing is shown: the count was not reported, or a
+// positive count has no known total yet (outputTokens <= 0). A total that has
+// not arrived is not an authoritative 0, so a positive count is never shown as
+// a reported 0. An upstream-reported 0 (or negative) count is shown as 0.
+func ThinkingTokensWithin(raw *ClaudeOutputTokensDetails, outputTokens int) (shown int, reported bool) {
+	if !raw.HasThinkingTokens() {
+		return 0, false
+	}
+	if raw.ThinkingTokens > 0 && outputTokens <= 0 {
+		return 0, false
+	}
+	shown, _ = BoundedReasoningTokens(raw.ThinkingTokens, outputTokens)
+	return shown, true
 }
 
 func (u *ClaudeUsage) GetCacheCreationTotalTokens() int {

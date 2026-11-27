@@ -161,8 +161,7 @@
             "completion_tokens_details": {
               "text_tokens": 0,
               "audio_tokens": 0,
-              "image_tokens": 0,
-              "reasoning_tokens": 0
+              "image_tokens": 0
             },
             "input_tokens": 4,
             "output_tokens": 2,

@@ -7,7 +7,8 @@ import (
 
 // MergeUsageNonZero overlays usage snapshots: a later non-zero field
 // overwrites the current value, while a later zero value never erases an
-// earlier positive count. Compatible BillingUsage snapshots follow the same
+// earlier positive count. Reasoning counts are the exception: presence wins,
+// including explicit zero. Compatible BillingUsage snapshots follow the same
 // rule within their provider-native payload.
 func MergeUsageNonZero(current *Usage, incoming *Usage) *Usage {
 	if current == nil {
@@ -69,8 +70,9 @@ func MergeUsageNonZero(current *Usage, incoming *Usage) *Usage {
 	if incoming.CompletionTokenDetails.ImageTokens > 0 {
 		current.CompletionTokenDetails.ImageTokens = incoming.CompletionTokenDetails.ImageTokens
 	}
-	if incoming.CompletionTokenDetails.ReasoningTokens > 0 {
+	if incoming.CompletionTokenDetails.HasReasoningTokens() {
 		current.CompletionTokenDetails.ReasoningTokens = incoming.CompletionTokenDetails.ReasoningTokens
+		current.CompletionTokenDetails.ReasoningTokensPresent = incoming.CompletionTokenDetails.ReasoningTokensPresent
 	}
 
 	if incoming.UsageSemantic != "" {
@@ -170,6 +172,10 @@ func MergeClaudeUsageNonZero(current *ClaudeUsage, incoming *ClaudeUsage) *Claud
 	}
 	if incoming.OutputTokens > 0 {
 		merged.OutputTokens = incoming.OutputTokens
+	}
+	if incoming.OutputTokensDetails.HasThinkingTokens() {
+		details := *incoming.OutputTokensDetails
+		merged.OutputTokensDetails = &details
 	}
 	if incoming.ClaudeCacheCreation5mTokens > 0 {
 		merged.ClaudeCacheCreation5mTokens = incoming.ClaudeCacheCreation5mTokens

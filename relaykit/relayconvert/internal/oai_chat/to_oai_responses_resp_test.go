@@ -101,6 +101,32 @@ func TestUsageFromChatUsagePreservesCacheCreationInputTokensAlone(t *testing.T) 
 	assert.Equal(t, 9, converted.InputTokensDetails.CacheCreationInputTokens)
 }
 
+// The reasoning-presence codec omits an unreported count; an explicit 0 the
+// upstream reported must still reach the Responses usage.
+func TestUsageFromChatUsageKeepsReportedZeroReasoning(t *testing.T) {
+	for _, tc := range []struct {
+		usage, want string
+		present     bool
+	}{
+		{`{"completion_tokens":80,"completion_tokens_details":{"reasoning_tokens":0}}`, `"reasoning_tokens":0`, true},
+		{`{"completion_tokens":80,"completion_tokens_details":{"reasoning_tokens":66}}`, `"reasoning_tokens":66`, true},
+		{`{"completion_tokens":80}`, ``, false},
+	} {
+		var usage dto.Usage
+		require.NoError(t, kitutil.UnmarshalJsonStr(tc.usage, &usage))
+		converted := UsageFromChatUsage(&usage)
+		converted.BillingUsage = nil
+		encoded, err := kitutil.Marshal(converted)
+		require.NoError(t, err)
+		assert.Equal(t, tc.present, converted.CompletionTokenDetails.HasReasoningTokens(), tc.usage)
+		if tc.present {
+			assert.Contains(t, string(encoded), tc.want)
+		} else {
+			assert.NotContains(t, string(encoded), `"reasoning_tokens"`)
+		}
+	}
+}
+
 func TestChatCompletionsResponseToResponsesEmitsReasoningSummaryBeforeText(t *testing.T) {
 	message := dto.Message{Role: "assistant", Content: "final answer"}
 	message.ReasoningContent = lo.ToPtr("thinking summary")

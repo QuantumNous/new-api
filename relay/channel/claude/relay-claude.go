@@ -72,7 +72,7 @@ func shouldSkipClaudeMessageDeltaUsagePatch(info *relaycommon.RelayInfo) bool {
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled {
 		return true
 	}
-	if info == nil {
+	if info == nil || info.ChannelMeta == nil {
 		return false
 	}
 	return info.ChannelSetting.PassThroughBodyEnabled
@@ -116,11 +116,17 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 			if claudeResponse.Message != nil {
 				info.UpstreamModelName = claudeResponse.Message.Model
 			}
+			if !shouldSkipClaudeMessageDeltaUsagePatch(info) {
+				data = relayconvert.PatchClaudeThinkingTokensData(data, "message.usage", claudeInfo.Usage)
+			}
 		} else if claudeResponse.Type == "message_delta" {
 			// 确保 message_delta 的 usage 包含完整的 input_tokens 和 cache 相关字段
 			// 解决 AWS Bedrock 等上游返回的 message_delta 缺少这些字段的问题
 			if !shouldSkipClaudeMessageDeltaUsagePatch(info) {
 				data = patchClaudeMessageDeltaUsageData(data, buildMessageDeltaPatchUsage(&claudeResponse, claudeInfo))
+				// The accumulated count also covers a snapshot that arrived
+				// only with message_start.
+				data = relayconvert.PatchClaudeThinkingTokensData(data, "usage", claudeInfo.Usage)
 			}
 		}
 		countClaudeStreamBillableTools(info, &claudeResponse)
@@ -382,6 +388,9 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens = claudeResponse.Usage.CacheCreationInputTokens
 		claudeInfo.Usage.ClaudeCacheCreation5mTokens = claudeResponse.Usage.GetCacheCreation5mTokens()
 		claudeInfo.Usage.ClaudeCacheCreation1hTokens = claudeResponse.Usage.GetCacheCreation1hTokens()
+		shownThinking, reportedThinking := dto.ThinkingTokensWithin(claudeResponse.Usage.ReportedThinkingDetails(), claudeResponse.Usage.OutputTokens)
+		claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens = shownThinking
+		claudeInfo.Usage.CompletionTokenDetails.ReasoningTokensPresent = reportedThinking && shownThinking == 0
 	}
 	var responseData []byte
 	switch info.RelayFormat {
@@ -410,6 +419,9 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		}
 	case types.RelayFormatClaude:
 		responseData = data
+		if !shouldSkipClaudeMessageDeltaUsagePatch(info) {
+			responseData = []byte(relayconvert.PatchClaudeThinkingTokensData(string(data), "usage", claudeInfo.Usage))
+		}
 	case types.RelayFormatGemini:
 		{
 			convertResult, convertErr := service.ConvertResponse(c, info, types.RelayFormatGemini, &claudeResponse)

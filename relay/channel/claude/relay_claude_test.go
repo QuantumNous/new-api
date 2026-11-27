@@ -502,3 +502,156 @@ func TestClaudeResponsePassesInputTransformationsThrough(t *testing.T) {
 	require.Nil(t, HandleStreamResponseData(c, info, &ClaudeResponseInfo{Usage: &dto.Usage{}}, event))
 	assert.Contains(t, w.Body.String(), "data: "+event+"\n")
 }
+
+func TestClaudeThinkingTokensMapToOpenAIReasoningTokens(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("non-stream", func(t *testing.T) {
+		info := &relaycommon.RelayInfo{
+			RelayFormat: types.RelayFormatOpenAI,
+			ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "claude-opus-5-5"},
+		}
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+		body := `{"id":"msg_1","type":"message","role":"assistant","model":"claude-opus-5-5",` +
+			`"content":[{"type":"thinking","thinking":"short summary","signature":"sig"},{"type":"text","text":"hi"}],` +
+			`"stop_reason":"end_turn","usage":{"input_tokens":4,"output_tokens":120,"output_tokens_details":{"thinking_tokens":40}}}`
+		claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{}}
+		require.Nil(t, HandleClaudeResponseData(c, info, claudeInfo, nil, []byte(body)))
+
+		var resp dto.OpenAITextResponse
+		require.NoError(t, common.Unmarshal(w.Body.Bytes(), &resp))
+		assert.Equal(t, 120, resp.Usage.CompletionTokens)
+		assert.Equal(t, 40, resp.Usage.CompletionTokenDetails.ReasoningTokens)
+	})
+
+	// An upstream Messages endpoint that is itself a gateway may keep the
+	// reasoning count only in billing_usage.openai_usage. Messages and Chat
+	// clients read it from their standard field; totals stay unchanged.
+	t.Run("billing snapshot only", func(t *testing.T) {
+		snapshotUsage := `"usage":{"input_tokens":105,"output_tokens":316,"billing_usage":{"source":"oai_chat","semantic":"openai",` +
+			`"openai_usage":{"prompt_tokens":105,"completion_tokens":316,"total_tokens":421,"completion_tokens_details":{"reasoning_tokens":266}}}}`
+		body := `{"id":"msg_1","type":"message","role":"assistant","model":"kimi-k3.1-pro",` +
+			`"content":[{"type":"thinking","thinking":"t"},{"type":"text","text":"hi"}],"stop_reason":"end_turn",` + snapshotUsage + `}`
+		for _, tc := range []struct {
+			format types.RelayFormat
+			path   string
+		}{
+			{types.RelayFormatClaude, "usage.output_tokens_details.thinking_tokens"},
+			{types.RelayFormatOpenAI, "usage.completion_tokens_details.reasoning_tokens"},
+		} {
+			info := &relaycommon.RelayInfo{RelayFormat: tc.format, ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "kimi-k3.1-pro"}}
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+			claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{}}
+			require.Nil(t, HandleClaudeResponseData(c, info, claudeInfo, nil, []byte(body)))
+			var resp map[string]any
+			require.NoError(t, common.Unmarshal(w.Body.Bytes(), &resp))
+			value := any(resp)
+			for key := range strings.SplitSeq(tc.path, ".") {
+				object, ok := value.(map[string]any)
+				require.True(t, ok, "%s: missing %s", tc.format, tc.path)
+				value = object[key]
+			}
+			assert.EqualValues(t, 266, value, tc.format)
+			assert.Equal(t, 316, claudeInfo.Usage.CompletionTokens, "settlement output is unchanged")
+		}
+
+		// Streamed Messages: the final message_delta gets the same top-level field.
+		info := &relaycommon.RelayInfo{RelayFormat: types.RelayFormatClaude, ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "kimi-k3.1-pro"}, StreamStatus: relaycommon.NewStreamStatus()}
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+		claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{}}
+		require.Nil(t, HandleStreamResponseData(c, info, claudeInfo, `{"type":"message_delta","delta":{"stop_reason":"end_turn"},`+snapshotUsage+`}`))
+		assert.Contains(t, w.Body.String(), `"output_tokens_details":{"thinking_tokens":266}`)
+
+		// The snapshot may arrive only with message_start; later events
+		// omit it. Every usage event still exposes the known count.
+		info = &relaycommon.RelayInfo{RelayFormat: types.RelayFormatClaude, ChannelMeta: &relaycommon.ChannelMeta{}, StreamStatus: relaycommon.NewStreamStatus()}
+		w = httptest.NewRecorder()
+		c, _ = gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+		claudeInfo = &ClaudeResponseInfo{Usage: &dto.Usage{}}
+		for _, event := range []string{
+			`{"type":"message_start","message":{"id":"m","type":"message","role":"assistant","model":"m","content":[],` + snapshotUsage + `}}`,
+			`{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":316}}`,
+			`{"type":"message_stop"}`,
+		} {
+			require.Nil(t, HandleStreamResponseData(c, info, claudeInfo, event))
+		}
+		var deltaUsage map[string]any
+		for line := range strings.SplitSeq(w.Body.String(), "\n") {
+			if strings.HasPrefix(line, "data: ") && strings.Contains(line, `"message_delta"`) {
+				var event map[string]any
+				require.NoError(t, common.UnmarshalJsonStr(strings.TrimPrefix(line, "data: "), &event))
+				deltaUsage = event["usage"].(map[string]any)
+			}
+		}
+		require.NotNil(t, deltaUsage)
+		assert.EqualValues(t, map[string]any{"thinking_tokens": float64(266)}, deltaUsage["output_tokens_details"])
+		assert.EqualValues(t, 316, deltaUsage["output_tokens"])
+
+		// A native body without the snapshot is forwarded byte for byte.
+		native := `{"id":"msg_1","type":"message","role":"assistant","model":"m","content":[],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":2}}`
+		w = httptest.NewRecorder()
+		c, _ = gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+		require.Nil(t, HandleClaudeResponseData(c, &relaycommon.RelayInfo{RelayFormat: types.RelayFormatClaude, ChannelMeta: &relaycommon.ChannelMeta{}}, &ClaudeResponseInfo{Usage: &dto.Usage{}}, nil, []byte(native)))
+		assert.Equal(t, native, w.Body.String())
+	})
+
+	t.Run("stream message_delta", func(t *testing.T) {
+		claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{PromptTokens: 4, CompletionTokens: 2}}
+		ok := FormatClaudeResponseInfo(&dto.ClaudeResponse{
+			Type: "message_delta",
+			Usage: &dto.ClaudeUsage{
+				OutputTokens:        300,
+				OutputTokensDetails: &dto.ClaudeOutputTokensDetails{ThinkingTokens: 75},
+			},
+		}, nil, claudeInfo)
+		require.True(t, ok)
+		usage := buildOpenAIStyleUsageFromClaudeUsage(claudeInfo.Usage)
+		assert.Equal(t, 300, usage.CompletionTokens)
+		assert.Equal(t, 75, usage.CompletionTokenDetails.ReasoningTokens)
+	})
+
+	t.Run("stream message_delta reported zero replaces, absent keeps", func(t *testing.T) {
+		for _, tc := range []struct {
+			name    string
+			output  int
+			details *dto.ClaudeOutputTokensDetails
+			want    int
+		}{
+			{name: "explicit zero", output: 120, details: &dto.ClaudeOutputTokensDetails{ThinkingTokens: 0, ThinkingTokensPresent: true}, want: 0},
+			// An empty breakdown object is not a reported count.
+			{name: "empty breakdown keeps", output: 120, details: &dto.ClaudeOutputTokensDetails{}, want: 40},
+			{name: "absent", output: 120, details: nil, want: 40},
+			{name: "absent with lowered total", output: 30, details: nil, want: 30},
+		} {
+			claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{PromptTokens: 4, CompletionTokens: 50}}
+			claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens = 40
+			require.True(t, FormatClaudeResponseInfo(&dto.ClaudeResponse{
+				Type:  "message_delta",
+				Usage: &dto.ClaudeUsage{OutputTokens: tc.output, OutputTokensDetails: tc.details},
+			}, nil, claudeInfo))
+			assert.Equal(t, tc.want, claudeInfo.Usage.CompletionTokenDetails.ReasoningTokens, tc.name)
+		}
+	})
+
+	t.Run("bounded by output_tokens", func(t *testing.T) {
+		for _, tc := range []struct{ thinking, output, want int }{
+			{thinking: 500, output: 100, want: 100},
+			{thinking: -5, output: 100, want: 0},
+		} {
+			usage := relayconvert.UsageFromClaudeAPIUsage(&dto.ClaudeUsage{
+				InputTokens:         1,
+				OutputTokens:        tc.output,
+				OutputTokensDetails: &dto.ClaudeOutputTokensDetails{ThinkingTokens: tc.thinking},
+			})
+			assert.Equal(t, tc.want, usage.CompletionTokenDetails.ReasoningTokens)
+		}
+	})
+}

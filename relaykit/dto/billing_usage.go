@@ -220,6 +220,33 @@ func newGeminiChatBillingUsage(metadata *GeminiUsageMetadata, estimated bool) *B
 	}
 }
 
+// ReportedOpenAIReasoning returns the reasoning count of a recognized,
+// non-estimated OpenAI snapshot. Another gateway hop may keep the upstream
+// count only here; ok is false when the snapshot did not report one.
+func (usage *BillingUsage) ReportedOpenAIReasoning() (reasoningTokens int, ok bool) {
+	if usage == nil || usage.Estimated || usage.OpenAIUsage == nil {
+		return 0, false
+	}
+	if !strings.EqualFold(usage.Source, BillingUsageSourceOAIChat) &&
+		!strings.EqualFold(usage.Source, BillingUsageSourceOAIResponses) &&
+		!strings.EqualFold(usage.Semantic, BillingUsageSemanticOpenAI) {
+		return 0, false
+	}
+	details := usage.OpenAIUsage.CompletionTokenDetails
+	if !details.HasReasoningTokens() {
+		return 0, false
+	}
+	return details.ReasoningTokens, true
+}
+
+// BoundedReasoningTokens bounds a reported reasoning count for display by
+// the output total it is shown beside. It never changes totals or snapshots;
+// bounded reports whether the upstream value was out of range.
+func BoundedReasoningTokens(reasoningTokens int, outputTokens int) (shown int, bounded bool) {
+	shown = min(max(reasoningTokens, 0), max(outputTokens, 0))
+	return shown, shown != reasoningTokens
+}
+
 func CloneBillingUsage(usage *BillingUsage) *BillingUsage {
 	if usage == nil {
 		return nil
@@ -410,6 +437,10 @@ func cloneClaudeUsage(usage *ClaudeUsage) *ClaudeUsage {
 	if usage.ServerToolUse != nil {
 		serverToolUse := *usage.ServerToolUse
 		clone.ServerToolUse = &serverToolUse
+	}
+	if usage.OutputTokensDetails != nil {
+		outputTokensDetails := *usage.OutputTokensDetails
+		clone.OutputTokensDetails = &outputTokensDetails
 	}
 	return &clone
 }

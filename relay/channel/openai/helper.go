@@ -42,9 +42,6 @@ func handleClaudeFormat(c *gin.Context, data string, info *relaycommon.RelayInfo
 		return err
 	}
 
-	if streamResponse.Usage != nil {
-		info.EnsureClaudeConvertInfo().Usage = streamResponse.Usage
-	}
 	result, err := service.ConvertStreamResponse(c, info, types.RelayFormatClaude, &streamResponse)
 	if err != nil {
 		return err
@@ -210,8 +207,13 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 			return
 		}
 
-		info.ClaudeConvertInfo.Usage = usage
-
+		// The converter retains every upstream usage snapshot. Do not replace
+		// it with the last chunk's partial accounting usage at stream close.
+		state := info.EnsureClaudeConvertInfo()
+		if state.Usage == nil {
+			state.Usage = usage
+		}
+		info.SendResponseCount++
 		result, err := service.ConvertStreamResponse(c, info, types.RelayFormatClaude, &streamResponse)
 		if err != nil {
 			common.SysLog(common.LogText("error converting Claude stream response: %s", err.Error()))
@@ -225,7 +227,15 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 		for _, resp := range claudeResponses {
 			_ = helper.ClaudeData(c, *resp)
 		}
-		info.ClaudeConvertInfo.Done = true
+		// Without finish_reason or [DONE] the upstream stream was cut short.
+		// Leave it unterminated so the client cannot take a partial message
+		// (or tool input) for a completed end_turn.
+		if state.FinishReason == "" && info.StreamStatus != nil && info.StreamStatus.EndReason != relaycommon.StreamEndReasonDone {
+			return
+		}
+		for _, resp := range relayconvert.FinalizeStreamResponseOpenAI2Claude(info) {
+			_ = helper.ClaudeData(c, *resp)
+		}
 
 	case types.RelayFormatGemini:
 		var streamResponse dto.ChatCompletionsStreamResponse

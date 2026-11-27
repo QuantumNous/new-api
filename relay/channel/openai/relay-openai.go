@@ -305,6 +305,7 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		forceFormat = true
 	}
 
+	upstreamUsage := simpleResponse.Usage
 	usageModified := false
 	if simpleResponse.Usage.PromptTokens == 0 {
 		completionTokens := simpleResponse.Usage.CompletionTokens
@@ -346,7 +347,14 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 			break
 		}
 	case types.RelayFormatClaude:
-		convertResult, err := service.ConvertResponse(c, info, types.RelayFormatClaude, &simpleResponse)
+		clientResponse := simpleResponse
+		if usageModified {
+			// The existing prompt-estimation path replaces accounting usage.
+			// Recover reported reasoning for display without changing settlement.
+			clientResponse.Usage.CompletionTokenDetails = upstreamUsage.CompletionTokenDetails
+			clientResponse.Usage.BillingUsage = dto.CloneBillingUsage(upstreamUsage.BillingUsage)
+		}
+		convertResult, err := service.ConvertResponse(c, info, types.RelayFormatClaude, &clientResponse)
 		if err != nil {
 			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 		}
