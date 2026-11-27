@@ -579,9 +579,31 @@ type ResponsesOutputContent struct {
 	Annotations []any  `json:"annotations"`
 }
 
+// ResponsesReasoningSummaryPart is a reasoning summary part. It is also the
+// part of response.content_part.added/done events, where an output_text part
+// carries Annotations.
 type ResponsesReasoningSummaryPart struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
+	Type        string `json:"type"`
+	Text        string `json:"text"`
+	Annotations []any  `json:"annotations,omitempty"`
+}
+
+// MarshalJSON always writes annotations on an output_text part, which
+// Responses requires even when it is empty.
+func (p ResponsesReasoningSummaryPart) MarshalJSON() ([]byte, error) {
+	type responsesPart ResponsesReasoningSummaryPart
+	if p.Type != "output_text" {
+		return kitutil.Marshal(responsesPart(p))
+	}
+	annotations := p.Annotations
+	if annotations == nil {
+		annotations = []any{}
+	}
+	return kitutil.Marshal(struct {
+		Type        string `json:"type"`
+		Text        string `json:"text"`
+		Annotations []any  `json:"annotations"`
+	}{Type: p.Type, Text: p.Text, Annotations: annotations})
 }
 
 const (

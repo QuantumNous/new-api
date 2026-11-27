@@ -21,6 +21,8 @@ const (
 	responsesEventIncomplete                = "response.incomplete"
 	responsesEventOutputTextDelta           = "response.output_text.delta"
 	responsesEventOutputTextAnnotationAdded = "response.output_text.annotation.added"
+	responsesEventContentPartAdded          = "response.content_part.added"
+	responsesEventContentPartDone           = "response.content_part.done"
 	responsesEventOutputItemAdded           = "response.output_item.added"
 	responsesEventOutputItemDone            = "response.output_item.done"
 	responsesEventFunctionArgsDelta         = "response.function_call_arguments.delta"
