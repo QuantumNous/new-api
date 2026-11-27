@@ -461,6 +461,12 @@ export const STATIC_I18N_KEYS = [
   'Opus Model',
   'Enter model name',
 
+  // AI Switch dialog
+  'Import to AI Switch',
+  'Open AI Switch',
+  'AI Switch',
+  'Model fields are optional. Leave them empty to pass the model names used by the client through unchanged.',
+
   // User binding dialog
   'Account Binding Management',
   'Built-in',
