@@ -263,7 +263,7 @@ bun run dev -- --port 5173
 | `relay/` | 上流アダプターとリクエストのルーティング |
 | `service/`、`model/` | ビジネスロジックと永続化 |
 | [relaykit/](./relaykit/README.md) | プロトコル DTO と変換を提供する、独立してビルド可能な Go モジュール |
-| [plugins/tasks/](./plugins/tasks/) | JavaScript タスクプラグイン。作成方法とホストの境界は [Task Plugin API v1](./docs/plugin-api/v1.md) を参照 |
+| [plugins/tasks/](./plugins/tasks/) | JavaScript タスクプラグイン。作成方法とホストの境界は [Task Plugin API v1](./pluginkit/v1.md) を参照 |
 | `web/` | Web 管理画面。[フロントエンドの規約](./web/AGENTS.md)を参照 |
 | [electron/](./electron/README.md) | デスクトップアプリのラッパーとパッケージング |
 

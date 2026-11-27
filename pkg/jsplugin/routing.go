@@ -1,7 +1,6 @@
 package jsplugin
 
 import (
-	"encoding/json"
 	"fmt"
 	"maps"
 	"net/http"
@@ -11,208 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MoeForge/moego/regexp"
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/pluginkit"
 	"github.com/gin-gonic/gin"
 )
-
-type RouteType string
-
-const (
-	RouteTypeSubmit  RouteType = "submit"
-	RouteTypeQuery   RouteType = "query"
-	RouteTypeDynamic RouteType = "dynamic"
-)
-
-type Route struct {
-	Method      string    `json:"method"`
-	Path        string    `json:"path"`
-	Type        RouteType `json:"type"`
-	Action      string    `json:"action,omitempty"`
-	Decode      string    `json:"decode,omitempty"`
-	Render      string    `json:"render,omitempty"`
-	TaskIDParam string    `json:"taskIdParam,omitempty"`
-	// RetainResult, when explicitly false on a submit or dynamic route, tells
-	// the host not to persist the upstream snapshot of an immediate terminal
-	// result and to treat the task as not found on every retrieval surface
-	// afterwards. nil means the route did not declare it (retain).
-	RetainResult *bool `json:"retainResult,omitempty"`
-	// Models restricts this route to the listed models. The host matches the
-	// canonical top-level "model" body field before any JS hook runs; empty
-	// means unrestricted. Must be a subset of meta.models.
-	Models []string `json:"models,omitempty"`
-}
-
-// ProtocolClaim is one entry of meta.protocols. Models narrows the protocol's
-// endpoint bindings to a subset of meta.models; empty binds every model.
-// Supports names the request forms a mode-bearing protocol accepts; decode
-// and normalize rewrite it into host-table order.
-type ProtocolClaim struct {
-	Name       string   `json:"name"`
-	Models     []string `json:"models,omitempty"`
-	Supports   []string `json:"supports,omitempty"`
-	objectForm bool
-}
-
-// ProtocolMode is one client request form a host protocol operation accepts
-// and the plugin hook that implements it.
-type ProtocolMode struct {
-	Name string
-	Hook string
-}
-
-type BodyKind string
-
-const (
-	BodyNone      BodyKind = "none"
-	BodyJSON      BodyKind = "json"
-	BodyForm      BodyKind = "form"
-	BodyMultipart BodyKind = "multipart"
-)
-
-type HostProtocolOperation struct {
-	Name                    string
-	Methods                 []string
-	Path                    string
-	BodyKinds               []BodyKind
-	ModelField              string
-	RequiredProtocolMembers []string
-	Modes                   []ProtocolMode
-	RequiredDriverHooks     []string
-}
-
-type HostProtocolDefinition struct {
-	Name       string
-	Operations []HostProtocolOperation
-}
-
-var hostProtocols = []HostProtocolDefinition{
-	{Name: "openai_responses", Operations: []HostProtocolOperation{
-		{Name: "create", Methods: []string{http.MethodPost}, Path: "/v1/responses", BodyKinds: []BodyKind{BodyJSON}, ModelField: "model", RequiredProtocolMembers: []string{"decodeRequest"}, Modes: []ProtocolMode{{Name: "stream", Hook: "renderEvents"}, {Name: "sync", Hook: "renderFinal"}, {Name: "background", Hook: "renderFinal"}}},
-		{Name: "retrieve", Methods: []string{http.MethodGet}, Path: "/v1/responses/:response_id", BodyKinds: []BodyKind{BodyNone}},
-	}},
-	{Name: "openai_video", Operations: []HostProtocolOperation{
-		{Name: "create", Methods: []string{http.MethodPost}, Path: "/v1/videos", BodyKinds: []BodyKind{BodyJSON, BodyMultipart}, ModelField: "model", RequiredProtocolMembers: []string{"decodeRequest"}},
-		{Name: "retrieve", Methods: []string{http.MethodGet}, Path: "/v1/videos/:task_id", BodyKinds: []BodyKind{BodyNone}, RequiredProtocolMembers: []string{"render"}},
-		{Name: "content", Methods: []string{http.MethodGet, http.MethodHead}, Path: "/v1/videos/:task_id/content", BodyKinds: []BodyKind{BodyNone}, RequiredDriverHooks: []string{"listArtifacts", "buildContentRequest"}},
-	}},
-	// The OpenAI Images API is synchronous: both operations create a task and
-	// the host answers with the rendered image response once the task is
-	// terminal, so there is no retrieve operation and no request modes.
-	{Name: ProtocolOpenAIImage, Operations: []HostProtocolOperation{
-		{Name: "generate", Methods: []string{http.MethodPost}, Path: "/v1/images/generations", BodyKinds: []BodyKind{BodyJSON}, ModelField: "model", RequiredProtocolMembers: []string{"decodeRequest", "render"}},
-		{Name: "edit", Methods: []string{http.MethodPost}, Path: "/v1/images/edits", BodyKinds: []BodyKind{BodyJSON, BodyMultipart}, ModelField: "model", RequiredProtocolMembers: []string{"decodeRequest", "render"}},
-	}},
-}
-
-// ProtocolOpenAIImage is the host protocol that serves the OpenAI Images API
-// (`POST /v1/images/generations` and `POST /v1/images/edits`) from a plugin.
-const ProtocolOpenAIImage = "openai_image"
-
-func HostProtocol(name string) (HostProtocolDefinition, bool) {
-	for _, definition := range hostProtocols {
-		if definition.Name == name {
-			return definition, true
-		}
-	}
-	return HostProtocolDefinition{}, false
-}
-
-func HostProtocols() []HostProtocolDefinition {
-	definitions := make([]HostProtocolDefinition, len(hostProtocols))
-	for index, definition := range hostProtocols {
-		definitions[index] = definition
-		definitions[index].Operations = append([]HostProtocolOperation(nil), definition.Operations...)
-		for operationIndex := range definitions[index].Operations {
-			operation := &definitions[index].Operations[operationIndex]
-			operation.Methods = append([]string(nil), operation.Methods...)
-			operation.BodyKinds = append([]BodyKind(nil), operation.BodyKinds...)
-			operation.RequiredProtocolMembers = append([]string(nil), operation.RequiredProtocolMembers...)
-			operation.Modes = append([]ProtocolMode(nil), operation.Modes...)
-			operation.RequiredDriverHooks = append([]string(nil), operation.RequiredDriverHooks...)
-		}
-	}
-	return definitions
-}
-
-// DefinedModes returns each distinct mode on the protocol in host-table order.
-func (d HostProtocolDefinition) DefinedModes() []ProtocolMode {
-	seen := make(map[string]struct{})
-	modes := make([]ProtocolMode, 0)
-	for _, operation := range d.Operations {
-		for _, mode := range operation.Modes {
-			if _, exists := seen[mode.Name]; exists {
-				continue
-			}
-			seen[mode.Name] = struct{}{}
-			modes = append(modes, mode)
-		}
-	}
-	return modes
-}
-
-func orderProtocolSupports(protocol string, supports []string) []string {
-	if len(supports) == 0 {
-		return supports
-	}
-	definition, ok := HostProtocol(protocol)
-	if !ok {
-		return supports
-	}
-	rank := make(map[string]int)
-	for index, mode := range definition.DefinedModes() {
-		rank[mode.Name] = index
-	}
-	ordered := append([]string(nil), supports...)
-	slices.SortStableFunc(ordered, func(left, right string) int {
-		leftRank, leftKnown := rank[left]
-		rightRank, rightKnown := rank[right]
-		switch {
-		case leftKnown && rightKnown:
-			if leftRank < rightRank {
-				return -1
-			}
-			if leftRank > rightRank {
-				return 1
-			}
-			return 0
-		case leftKnown:
-			return -1
-		case rightKnown:
-			return 1
-		default:
-			return 0
-		}
-	})
-	return ordered
-}
-
-func LookupHostProtocolOperation(method, path string) (string, HostProtocolOperation, bool) {
-	method = strings.ToUpper(strings.TrimSpace(method))
-	for _, definition := range hostProtocols {
-		for _, operation := range definition.Operations {
-			if operation.Path != path || operation.ModelField == "" {
-				continue
-			}
-			if slices.Contains(operation.Methods, method) {
-				return definition.Name, operation, true
-			}
-		}
-	}
-	return "", HostProtocolOperation{}, false
-}
-
-// RouteBinding is one address a plugin serves. Besides each declared route the
-// host registers its copy under /{key} (Pinned), which always reaches this
-// plugin. A declared route whose first segment is the key, or a proper prefix
-// of it (/ali for alibaba, /suno for sunoapi), already does (OwnPrefix) and
-// gets no copy.
-type RouteBinding struct {
-	Plugin    *LoadedPlugin
-	Route     Route
-	Pinned    bool
-	OwnPrefix bool
-}
 
 // RouteGroup is one method and path shape of the inner router with every
 // binding that serves it, in ascending key order. GinPath names each wildcard
@@ -304,132 +105,6 @@ func DiscardsImmediateResult(c *gin.Context) bool {
 	return endpoint.Protocol == ProtocolOpenAIImage
 }
 
-// FileReference returns the opaque ref of the index-th uploaded file in a
-// multipart field. The first file keeps the historical `request_file:<field>`
-// spelling; later files in the same repeated field (`image[]`, `image[]`)
-// append `#<index>` so a plugin can address each of them.
-func FileReference(field string, index int) string {
-	if index <= 0 {
-		return "request_file:" + field
-	}
-	return "request_file:" + field + "#" + strconv.Itoa(index)
-}
-
-// ParseFileReference resolves a ref produced by FileReference back to the
-// multipart field and the zero-based file index within that field.
-func ParseFileReference(ref string) (field string, index int, ok bool) {
-	rest, found := strings.CutPrefix(ref, "request_file:")
-	if !found || rest == "" {
-		return "", 0, false
-	}
-	field, suffix, hasIndex := strings.Cut(rest, "#")
-	if field == "" {
-		return "", 0, false
-	}
-	if !hasIndex {
-		return field, 0, true
-	}
-	parsed, err := strconv.Atoi(suffix)
-	if err != nil || parsed < 0 || strconv.Itoa(parsed) != suffix {
-		return "", 0, false
-	}
-	return field, parsed, true
-}
-
-// RouteRequestContext is the canonical request view exposed to declarative
-// routing hooks. RequestBody contains decoded JSON or multipart text fields;
-// raw binary and multipart file bytes remain host-owned.
-type RouteRequestContext struct {
-	Path   string              `json:"path"`
-	Method string              `json:"method"`
-	Params map[string]string   `json:"params"`
-	Query  map[string][]string `json:"query"`
-	Body   any                 `json:"body"`
-	// Headers is the client's request headers without gateway credentials,
-	// which hooks read as requestHeaders.
-	Headers     map[string]string `json:"-"`
-	Files       []map[string]any  `json:"-"`
-	RequestBody any               `json:"-"`
-	// BodyText is the JSON body as the client sent it, which JSValueFor
-	// gives to plugins that preserve JSON order; Body stays the Go value the
-	// host reads. Body storage never changes these bytes, which the engine
-	// parses in place.
-	BodyText json.RawMessage `json:"-"`
-}
-
-// JSValue shares the request with hooks without copying it: the engine never
-// writes JavaScript changes back into Go values, so the request must only stay
-// unchanged while a hook runs. Missing params, query and headers still reach
-// hooks as empty objects rather than null.
-func (r RouteRequestContext) JSValue() map[string]any {
-	params, query, headers := r.Params, r.Query, r.Headers
-	if params == nil {
-		params = map[string]string{}
-	}
-	if query == nil {
-		query = map[string][]string{}
-	}
-	if headers == nil {
-		headers = map[string]string{}
-	}
-	return map[string]any{
-		"path":           r.Path,
-		"method":         r.Method,
-		"params":         params,
-		"query":          query,
-		"requestHeaders": headers,
-		"body":           r.Body,
-	}
-}
-
-// JSValueFor is JSValue for the decode hooks of the plugin meta describes. A
-// plugin that preserves JSON order receives a JSON body as its text, which the
-// engine parses in place, members in the client's order: a decoder reads the
-// body, so it is parsed for every call.
-func (r RouteRequestContext) JSValueFor(meta Meta) map[string]any {
-	value := r.JSValue()
-	if len(r.BodyText) > 0 && meta.PreservesJSONOrder() {
-		value["body"] = map[string]any{"kind": string(BodyJSON), "value": RawJSON(r.BodyText)}
-	}
-	return value
-}
-
-type ProtocolRequestContext struct {
-	RouteRequestContext
-	Protocol  string `json:"protocol"`
-	Operation string `json:"operation"`
-	Model     string `json:"model"`
-	// UpstreamModel is the declared machine identity when Model is a
-	// channel-mapping alias; empty otherwise. Decode hooks that key rate
-	// tables or request shaping by model must use it over Model.
-	UpstreamModel string `json:"upstreamModel,omitempty"`
-	Stream        bool   `json:"stream"`
-}
-
-func (p ProtocolRequestContext) JSValue() map[string]any {
-	return p.withProtocol(p.RouteRequestContext.JSValue())
-}
-
-// JSValueFor is RouteRequestContext.JSValueFor with the protocol fields.
-func (p ProtocolRequestContext) JSValueFor(meta Meta) map[string]any {
-	return p.withProtocol(p.RouteRequestContext.JSValueFor(meta))
-}
-
-func (p ProtocolRequestContext) withProtocol(value map[string]any) map[string]any {
-	value["protocol"] = p.Protocol
-	value["operation"] = p.Operation
-	value["model"] = p.Model
-	if p.UpstreamModel != "" {
-		value["upstreamModel"] = p.UpstreamModel
-	}
-	value["stream"] = p.Stream
-	return value
-}
-
-// SupportsHostProtocol reports whether the current host release has a
-// concrete wire/state machine for an otherwise valid manifest endpoint.
-func SupportsHostProtocol(protocol string) bool { _, ok := HostProtocol(protocol); return ok }
-
 // RoutingGeneration is an immutable, request-pinnable view of all effective
 // plugins and their deterministic routing indexes.
 type RoutingGeneration struct {
@@ -451,63 +126,6 @@ type RoutingGeneration struct {
 	// switched off included.
 	factoryKeys map[string]struct{}
 	skipped     []SkippedRoute
-}
-
-var (
-	routeMethodPattern = regexp.MustCompile(`^(GET|POST|PUT|PATCH|DELETE)$`)
-	pathNamePattern    = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
-	staticSegment      = regexp.MustCompile(`^[A-Za-z0-9._~-]+$`)
-	memberNamePattern  = regexp.MustCompile(`^[A-Za-z_$][A-Za-z0-9_$]*$`)
-)
-
-// reservedRouteNamespaces are host paths a plugin route may never enter:
-// console pages, assets and the generic task routes. The other host
-// namespaces, such as /api, follow the outer router's static routes and are
-// decided at admission.
-var reservedRouteNamespaces = []string{
-	"/assets",
-	"/setup",
-	"/v1/tasks",
-	"/console",
-	"/login",
-	"/forbidden",
-	"/sign-in",
-	"/sign-up",
-	"/forgot-password",
-	"/oauth",
-	"/otp",
-	"/register",
-	"/reset",
-	"/privacy-policy",
-	"/user-agreement",
-	"/about",
-	"/pricing",
-	"/rankings",
-	"/user",
-	"/401",
-	"/403",
-	"/404",
-	"/500",
-	"/503",
-	"/chat2link",
-	"/system-settings",
-	"/channels",
-	"/chat",
-	"/dashboard",
-	"/errors",
-	"/keys",
-	"/models",
-	"/playground",
-	"/profile",
-	"/redemption-codes",
-	"/request-processing",
-	"/security",
-	"/subscriptions",
-	"/system-info",
-	"/task-plugins",
-	"/usage-logs",
-	"/users",
-	"/wallet",
 }
 
 func (g *RoutingGeneration) Get(key string) (*LoadedPlugin, bool) {
@@ -564,7 +182,7 @@ func (g *RoutingGeneration) CanonicalModel(model string) (string, bool) {
 	if _, ok := g.byModel[model]; ok {
 		return model, true
 	}
-	declared, ok := g.canonicalModelByFold[asciiFold(model)]
+	declared, ok := g.canonicalModelByFold[ASCIIFold(model)]
 	return declared, ok
 }
 
@@ -585,11 +203,11 @@ func (g *RoutingGeneration) LookupDeclaredRoutes(method, path string) []RouteBin
 	if g == nil {
 		return nil
 	}
-	normalizedMethod, err := normalizeRouteMethod(method)
+	normalizedMethod, err := pluginkit.NormalizeRouteMethod(method)
 	if err != nil {
 		return nil
 	}
-	shape, err := routePathShape(path)
+	shape, err := pluginkit.RoutePathShape(path)
 	if err != nil {
 		return nil
 	}
@@ -600,7 +218,7 @@ func (g *RoutingGeneration) LookupEndpoint(method, path, model string) (Protocol
 	if g == nil {
 		return ProtocolBinding{}, false
 	}
-	normalizedMethod, err := normalizeRouteMethod(method)
+	normalizedMethod, err := pluginkit.NormalizeRouteMethod(method)
 	if err != nil {
 		return ProtocolBinding{}, false
 	}
@@ -617,7 +235,7 @@ func (g *RoutingGeneration) LookupEndpointCandidates(method, path, model string)
 	if g == nil {
 		return nil
 	}
-	normalizedMethod, err := normalizeRouteMethod(method)
+	normalizedMethod, err := pluginkit.NormalizeRouteMethod(method)
 	if err != nil {
 		return nil
 	}
@@ -655,7 +273,7 @@ func (g *RoutingGeneration) RouteGroups() []RouteGroup {
 		if _, skip := skipped[binding.Plugin.Meta.Key+" "+binding.Route.Method+" "+binding.Route.Path]; skip {
 			continue
 		}
-		shape, err := routePathShape(binding.Route.Path)
+		shape, err := pluginkit.RoutePathShape(binding.Route.Path)
 		if err != nil {
 			continue
 		}
@@ -796,250 +414,6 @@ func cloneStringSet(source map[string]struct{}) map[string]struct{} {
 	return clone
 }
 
-func normalizeRouteMethod(method string) (string, error) {
-	method = strings.ToUpper(strings.TrimSpace(method))
-	if !routeMethodPattern.MatchString(method) {
-		return "", fmt.Errorf("plugin route method %q is not supported", method)
-	}
-	return method, nil
-}
-
-// NormalizeRoutePath validates the canonical path syntax used by plugin route
-// declarations. A trailing slash is allowed and remains significant.
-func NormalizeRoutePath(routePath string) (string, error) {
-	if routePath == "" || routePath[0] != '/' {
-		return "", fmt.Errorf("plugin route path must start with /")
-	}
-	if routePath == "/" {
-		return "", fmt.Errorf("plugin route path / is reserved")
-	}
-	if strings.ContainsAny(routePath, "?#%") {
-		return "", fmt.Errorf("plugin route path %q must not contain a query, fragment, or percent-encoding", routePath)
-	}
-	if strings.Contains(routePath, "//") {
-		return "", fmt.Errorf("plugin route path %q must not contain empty segments", routePath)
-	}
-
-	segments := strings.Split(strings.TrimPrefix(routePath, "/"), "/")
-	seenNames := make(map[string]struct{})
-	for index, segment := range segments {
-		if segment == "" && index == len(segments)-1 {
-			continue
-		}
-		if segment == "." || segment == ".." {
-			return "", fmt.Errorf("plugin route path %q must not contain dot segments", routePath)
-		}
-		if after, ok := strings.CutPrefix(segment, ":"); ok {
-			name := after
-			if !pathNamePattern.MatchString(name) {
-				return "", fmt.Errorf("plugin route path %q has invalid parameter %q", routePath, segment)
-			}
-			if _, exists := seenNames[name]; exists {
-				return "", fmt.Errorf("plugin route path %q repeats parameter %q", routePath, name)
-			}
-			seenNames[name] = struct{}{}
-			continue
-		}
-		if after, ok := strings.CutPrefix(segment, "*"); ok {
-			name := after
-			if index != len(segments)-1 || !pathNamePattern.MatchString(name) {
-				return "", fmt.Errorf("plugin route path %q has an invalid catch-all segment", routePath)
-			}
-			if _, exists := seenNames[name]; exists {
-				return "", fmt.Errorf("plugin route path %q repeats parameter %q", routePath, name)
-			}
-			seenNames[name] = struct{}{}
-			continue
-		}
-		if !staticSegment.MatchString(segment) {
-			return "", fmt.Errorf("plugin route path %q has invalid segment %q", routePath, segment)
-		}
-	}
-	return routePath, nil
-}
-
-func routePathShape(routePath string) (string, error) {
-	normalized, err := NormalizeRoutePath(routePath)
-	if err != nil {
-		return "", err
-	}
-	segments := strings.Split(strings.TrimPrefix(normalized, "/"), "/")
-	for index, segment := range segments {
-		if strings.HasPrefix(segment, ":") {
-			segments[index] = ":"
-		} else if strings.HasPrefix(segment, "*") {
-			segments[index] = "*"
-		}
-	}
-	return "/" + strings.Join(segments, "/"), nil
-}
-
-func endpointIndexKey(method, path, model string) string {
-	return method + "\x00" + path + "\x00" + model
-}
-
-func intersectingReservedNamespace(routePath string) (string, bool) {
-	for _, namespace := range reservedRouteNamespaces {
-		if routePatternIntersectsNamespace(routePath, namespace) {
-			return namespace, true
-		}
-	}
-	return "", false
-}
-
-func routePatternIntersectsNamespace(routePath, namespace string) bool {
-	routeSegments := strings.Split(strings.Trim(strings.TrimPrefix(routePath, "/"), "/"), "/")
-	namespaceSegments := strings.Split(strings.TrimPrefix(namespace, "/"), "/")
-	for index, namespaceSegment := range namespaceSegments {
-		if index >= len(routeSegments) {
-			return false
-		}
-		routeSegment := routeSegments[index]
-		if strings.HasPrefix(routeSegment, "*") {
-			return true
-		}
-		if !strings.HasPrefix(routeSegment, ":") && routeSegment != namespaceSegment {
-			return false
-		}
-	}
-	return true
-}
-
-func validateRoute(route *Route) error {
-	if route.Method != strings.ToUpper(strings.TrimSpace(route.Method)) {
-		return fmt.Errorf("plugin route method %q must use canonical uppercase spelling", route.Method)
-	}
-	method, err := normalizeRouteMethod(route.Method)
-	if err != nil {
-		return err
-	}
-	route.Method = method
-	route.Path, err = NormalizeRoutePath(route.Path)
-	if err != nil {
-		return err
-	}
-	if namespace, reserved := intersectingReservedNamespace(route.Path); reserved {
-		return fmt.Errorf("plugin route path %q intersects reserved namespace %s", route.Path, namespace)
-	}
-	switch route.Type {
-	case RouteTypeSubmit:
-		if route.Decode == "" || route.Render == "" || route.TaskIDParam != "" {
-			return fmt.Errorf("submit route %s %s must declare decode and render and must not declare taskIdParam", route.Method, route.Path)
-		}
-	case RouteTypeQuery:
-		if route.Decode != "" || strings.TrimSpace(route.Render) == "" {
-			return fmt.Errorf("query route %s %s must declare render and must not declare decode", route.Method, route.Path)
-		}
-		if route.Action != "" {
-			return fmt.Errorf("query route %s %s must not declare action", route.Method, route.Path)
-		}
-		if route.RetainResult != nil {
-			return fmt.Errorf("query route %s %s must not declare retainResult", route.Method, route.Path)
-		}
-		if route.TaskIDParam == "" {
-			route.TaskIDParam = "task_id"
-		}
-		if !pathNamePattern.MatchString(route.TaskIDParam) {
-			return fmt.Errorf("query route %s %s has invalid taskIdParam %q", route.Method, route.Path, route.TaskIDParam)
-		}
-	case RouteTypeDynamic:
-		if route.Decode == "" || route.Render == "" || route.TaskIDParam != "" {
-			return fmt.Errorf("dynamic route %s %s must declare decode and render and must not declare taskIdParam", route.Method, route.Path)
-		}
-	default:
-		return fmt.Errorf("plugin route %s %s has unsupported type %q", route.Method, route.Path, route.Type)
-	}
-	if route.Decode != "" && !memberNamePattern.MatchString(route.Decode) {
-		return fmt.Errorf("plugin route %s %s has invalid decode %q", route.Method, route.Path, route.Decode)
-	}
-	if route.Render != "" && !memberNamePattern.MatchString(route.Render) {
-		return fmt.Errorf("plugin route %s %s has invalid render %q", route.Method, route.Path, route.Render)
-	}
-	if strings.TrimSpace(route.Action) != route.Action {
-		return fmt.Errorf("plugin route %s %s action must not have surrounding whitespace", route.Method, route.Path)
-	}
-	if len(route.Models) > 0 {
-		if route.Type == RouteTypeQuery {
-			return fmt.Errorf("query route %s %s must not declare models", route.Method, route.Path)
-		}
-		if err := validateModelScope(route.Models, fmt.Sprintf("route %s %s", route.Method, route.Path)); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// validateModelScope enforces the shared rules for route.models and
-// per-protocol models entries: non-empty canonical names, no duplicates.
-func validateModelScope(models []string, subject string) error {
-	seen := make(map[string]struct{}, len(models))
-	for _, model := range models {
-		if strings.TrimSpace(model) == "" || strings.TrimSpace(model) != model {
-			return fmt.Errorf("plugin %s models must contain non-empty canonical names", subject)
-		}
-		folded := asciiFold(model)
-		if _, duplicate := seen[folded]; duplicate {
-			return fmt.Errorf("plugin %s models must be unique case-insensitively", subject)
-		}
-		seen[folded] = struct{}{}
-	}
-	return nil
-}
-
-func pathHasParameter(routePath, name string) bool {
-	return slices.Contains(strings.Split(routePath, "/"), ":"+name)
-}
-
-// TaskIDInQuery reports whether a query route reads its task id from the
-// query string, as the MiniMax v1 query does (?task_id=): the route's path
-// has no parameter named taskIdParam.
-func (r Route) TaskIDInQuery() bool {
-	return r.Type == RouteTypeQuery && !pathHasParameter(r.Path, r.TaskIDParam)
-}
-
-// routeHasOwnPrefix reports whether a declared route already lives under the
-// plugin's own address: its first segment is the key or a proper prefix of it.
-func routeHasOwnPrefix(key, routePath string) bool {
-	first, _, _ := strings.Cut(strings.TrimPrefix(routePath, "/"), "/")
-	return first != "" && strings.HasPrefix(key, first)
-}
-
-// PluginRouteBindings returns the addresses plugin serves: each declared route
-// and, unless the route lives under the plugin's own prefix, its /{key} copy.
-// A plugin that declares the copy's address itself (TypeSafe 1.2.0 declares
-// /v1/systemone and /typesafe/v1/systemone) serves it by that declaration.
-func PluginRouteBindings(plugin *LoadedPlugin) []RouteBinding {
-	key := plugin.Meta.Key
-	declared := make(map[string]struct{}, len(plugin.Meta.Routes))
-	for _, route := range plugin.Meta.Routes {
-		// Declared paths were validated at load.
-		shape, _ := routePathShape(route.Path)
-		declared[route.Method+" "+shape] = struct{}{}
-	}
-	bindings := make([]RouteBinding, 0, 2*len(plugin.Meta.Routes))
-	for _, route := range plugin.Meta.Routes {
-		if routeHasOwnPrefix(key, route.Path) {
-			bindings = append(bindings, RouteBinding{Plugin: plugin, Route: route, OwnPrefix: true})
-			continue
-		}
-		bindings = append(bindings, RouteBinding{Plugin: plugin, Route: route})
-		pinned := route
-		pinned.Path = "/" + key + route.Path
-		shape, _ := routePathShape(pinned.Path)
-		if _, exists := declared[route.Method+" "+shape]; !exists {
-			bindings = append(bindings, RouteBinding{Plugin: plugin, Route: pinned, Pinned: true})
-		}
-	}
-	return bindings
-}
-
-func ResolveRouteAction(route Route, resolvedAction string) string {
-	if strings.TrimSpace(resolvedAction) != "" {
-		return resolvedAction
-	}
-	return route.Action
-}
-
 func buildRoutingGeneration(factory, override map[string]*LoadedPlugin, number uint64) (*RoutingGeneration, error) {
 	effective := effectivePlugins(factory, override)
 	return buildRoutingGenerationFromPlugins(effective, number)
@@ -1159,7 +533,7 @@ func buildRoutingGenerationFromPlugins(effective map[string]*LoadedPlugin, numbe
 			if _, exists := generation.byModel[model]; !exists {
 				generation.byModel[model] = plugin
 			}
-			folded := asciiFold(model)
+			folded := ASCIIFold(model)
 			if existing, exists := generation.canonicalModelByFold[folded]; exists {
 				if existing != model {
 					otherKey := plugin.Meta.Key
@@ -1182,7 +556,7 @@ func buildRoutingGenerationFromPlugins(effective map[string]*LoadedPlugin, numbe
 		// Plugins may share a path shape; the request resolves which one
 		// serves it (see PinnedRoute).
 		for _, binding := range PluginRouteBindings(plugin) {
-			shape, err := routePathShape(binding.Route.Path)
+			shape, err := pluginkit.RoutePathShape(binding.Route.Path)
 			if err != nil {
 				return nil, err
 			}
@@ -1240,4 +614,8 @@ func PreflightRoutingConflict(current *RoutingGeneration, candidate *LoadedPlugi
 	effective[candidate.Meta.Key] = candidate
 	_, err := buildRoutingGenerationFromPlugins(effective, number)
 	return err
+}
+
+func endpointIndexKey(method, path, model string) string {
+	return method + "\x00" + path + "\x00" + model
 }

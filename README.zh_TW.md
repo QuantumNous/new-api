@@ -262,7 +262,7 @@ bun run dev -- --port 5173
 | `relay/` | 上游介接與請求調度 |
 | `service/`、`model/` | 業務邏輯與持久化 |
 | [relaykit/](./relaykit/README.md) | 可獨立建置的協定 DTO 與轉換 Go 模組 |
-| [plugins/tasks/](./plugins/tasks/) | JavaScript 任務外掛；編寫方式與宿主邊界見 [Task Plugin API v1](./docs/plugin-api/v1.md) |
+| [plugins/tasks/](./plugins/tasks/) | JavaScript 任務外掛；編寫方式與宿主邊界見 [Task Plugin API v1](./pluginkit/v1.md) |
 | `web/` | Web 控制台，參閱[前端開發約定](./web/AGENTS.md) |
 | [electron/](./electron/README.md) | 桌面封裝與打包 |
 

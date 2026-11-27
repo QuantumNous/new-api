@@ -1,4 +1,4 @@
-package jsplugin
+package pluginkit
 
 import (
 	"context"
@@ -7,8 +7,6 @@ import (
 	"reflect"
 	"strings"
 	"time"
-
-	"github.com/QuantumNous/new-api/common"
 )
 
 // Fixture describes deterministic calls into a plugin. Arguments and expected
@@ -37,8 +35,15 @@ type FixtureReport struct {
 // order. unixNow is fixed by the fixture to keep signing and timestamp hooks
 // reproducible.
 func ReplayFixture(ctx context.Context, source string, data []byte) (FixtureReport, error) {
+	return ReplayFixtureWith(ctx, CompilePlugin, source, data)
+}
+
+// ReplayFixtureWith is ReplayFixture with the host's own admission: compile
+// loads the plugin, for example CompilePlugin followed by the host's route
+// checks.
+func ReplayFixtureWith(ctx context.Context, compile func(source string, options Options) (*LoadedPlugin, error), source string, data []byte) (FixtureReport, error) {
 	var fixture Fixture
-	if err := common.Unmarshal(data, &fixture); err != nil {
+	if err := unmarshalJSON(data, &fixture); err != nil {
 		return FixtureReport{}, fmt.Errorf("decode fixture: %w", err)
 	}
 	if len(fixture.Cases) == 0 {
@@ -50,7 +55,7 @@ func ReplayFixture(ctx context.Context, source string, data []byte) (FixtureRepo
 		fixed := time.Unix(*fixture.UnixNow, 0)
 		options.Now = func() time.Time { return fixed }
 	}
-	plugin, err := NewRegistry().Register(source, options)
+	plugin, err := compile(source, options)
 	if err != nil {
 		return FixtureReport{}, fmt.Errorf("compile plugin: %w", err)
 	}
@@ -67,7 +72,7 @@ func ReplayFixture(ctx context.Context, source string, data []byte) (FixtureRepo
 
 		args := make([]any, len(testCase.Args))
 		for argumentIndex, raw := range testCase.Args {
-			if err = common.Unmarshal(raw, &args[argumentIndex]); err != nil {
+			if err = unmarshalJSON(raw, &args[argumentIndex]); err != nil {
 				return report, fmt.Errorf("%s: decode argument %d: %w", caseName, argumentIndex+1, err)
 			}
 		}
@@ -96,15 +101,15 @@ func ReplayFixture(ctx context.Context, source string, data []byte) (FixtureRepo
 			return report, fmt.Errorf("%s: expected is required when expectedError is empty", caseName)
 		}
 		var expected any
-		if err = common.Unmarshal(testCase.Expected, &expected); err != nil {
+		if err = unmarshalJSON(testCase.Expected, &expected); err != nil {
 			return report, fmt.Errorf("%s: decode expected value: %w", caseName, err)
 		}
-		actualData, marshalErr := common.Marshal(result)
+		actualData, marshalErr := marshalJSON(result)
 		if marshalErr != nil {
 			return report, fmt.Errorf("%s: encode actual value: %w", caseName, marshalErr)
 		}
 		var actual any
-		if err = common.Unmarshal(actualData, &actual); err != nil {
+		if err = unmarshalJSON(actualData, &actual); err != nil {
 			return report, fmt.Errorf("%s: normalize actual value: %w", caseName, err)
 		}
 		if !reflect.DeepEqual(expected, actual) {

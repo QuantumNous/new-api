@@ -8,7 +8,7 @@ This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI pro
 
 ## Tech Stack
 
-- **Backend**: Go 1.26 for the root module and `tokenkit/`, Go 1.25.1 for `relaykit/` (see each module’s `go.mod`), Gin web framework, GORM v2 ORM
+- **Backend**: Go 1.26 for the root module and `tokenkit/`, Go 1.25.1 for `relaykit/` and `pluginkit/` (see each module’s `go.mod`), Gin web framework, GORM v2 ORM
 - **Frontend**: React 19, TypeScript, Rsbuild 2, TanStack Router/Query/Table, Zustand, Base UI, Tailwind CSS 4
 - **Databases**: SQLite, MySQL, PostgreSQL for the primary database (all three must be supported); a separately configured log database also supports ClickHouse
 - **Cache**: Redis (go-redis) + in-memory cache
@@ -21,7 +21,8 @@ This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI pro
 - The Go gateway handles management APIs, upstream relay, billing, and background tasks across `router/`, `middleware/`, `controller/`, `service/`, `model/`, and `relay/`.
 - `relaykit/` is an independent Go module for protocol DTOs and conversions; transport, authentication, database access, and billing stay in the host.
 - `tokenkit/` is an independent Go module for text and image token counting and estimation; request parsing, file loading, and billing stay in the host.
-- JavaScript task plugins live in `plugins/tasks/`, run through `pkg/jsplugin/`, and integrate with host task polling and settlement.
+- `pluginkit/` is an independent Go module for the plugin API v1 contract, its documents, the plugin utilities and the moejs execution layer; `pkg/jsplugin/` keeps the registry, routing and CLI and re-exports pluginkit's names.
+- JavaScript task plugins live in `plugins/tasks/`, run through `pluginkit/` and `pkg/jsplugin/`, and integrate with host task polling and settlement.
 - `web/` is the React frontend (see `web/AGENTS.md`); `electron/` is the desktop wrapper.
 
 ## Internationalization (i18n)
@@ -77,10 +78,10 @@ This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI pro
 - Remove ineffective `omitempty` tags on non-pointer struct fields only after confirming the active JSON encoder preserves the same output. Do not change field types or omission behavior as part of a style cleanup; optional relay scalar fields must still follow the pointer rules below.
 - Format modified Go files with `gofmt` and remove unused imports after these changes.
 
-**relaykit and tokenkit module independence:** The `relaykit/` and `tokenkit/` Go modules MUST remain independently buildable.
+**relaykit, tokenkit and pluginkit module independence:** The `relaykit/`, `tokenkit/` and `pluginkit/` Go modules MUST remain independently buildable.
 
-- Code under `relaykit/` or `tokenkit/` MUST NOT import or depend on packages from the root `new-api` module, or rely on root-only configuration, generated files, or workspace wiring. `tokenkit/` also MUST NOT depend on `relaykit/`.
-- Any change affecting `relaykit/`, `tokenkit/`, or their public APIs MUST be verified with `GOWORK=off go build ./...` inside that module; a successful root-module build is not sufficient.
+- Code under `relaykit/`, `tokenkit/` or `pluginkit/` MUST NOT import or depend on packages from the root `new-api` module, or rely on root-only configuration, generated files, or workspace wiring. `tokenkit/` also MUST NOT depend on `relaykit/`; `pluginkit/` may. Host settings reach `pluginkit/` through `pluginkit.Configure`.
+- Any change affecting `relaykit/`, `tokenkit/`, `pluginkit/`, or their public APIs MUST be verified with `GOWORK=off go build ./...` inside that module; a successful root-module build is not sufficient.
 
 **JSON package:** In the root Go module, all JSON marshal/unmarshal operations MUST use the wrapper functions in `common/json.go`:
 
@@ -92,7 +93,7 @@ This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI pro
 
 Do NOT directly import or call `encoding/json` in business code. `json.RawMessage`, `json.Number`, and other type definitions from `encoding/json` may still be referenced as types, but actual marshal/unmarshal calls must go through `common.*`.
 
-Inside `relaykit/`, use `kitutil.*` from `relaykit/relayconvert/kitutil/json.go`, never host `common`. Direct encoder calls belong only in codec implementations.
+Inside `relaykit/`, use `kitutil.*` from `relaykit/relayconvert/kitutil/json.go`, never host `common`. Inside `pluginkit/`, use the functions in `pluginkit/json.go`. Direct encoder calls belong only in codec implementations.
 
 **Database compatibility:** All database code MUST work with SQLite, MySQL >= 5.7.8, and PostgreSQL >= 9.6 simultaneously.
 
@@ -122,7 +123,7 @@ Inside `relaykit/`, use `kitutil.*` from `relaykit/relayconvert/kitutil/json.go`
 
 **JavaScript task plugins (mandatory):**
 
-- Before implementing, modifying, or reviewing JavaScript task plugins or their host API/runtime, MUST read [Task Plugin API v1](docs/plugin-api/v1.md), including its description writing and translation conventions. When changing the plugin contract, also check `docs/plugin-api/v1.schema.json` and `docs/plugin-api/v1.d.ts` for consistency.
+- Before implementing, modifying, or reviewing JavaScript task plugins or their host API/runtime, MUST read [Task Plugin API v1](pluginkit/v1.md), including its description writing and translation conventions. When changing the plugin contract, also check `pluginkit/v1.schema.json` and `pluginkit/v1.d.ts` for consistency.
 - For numeric billing fields in `usageSchema` and `usageProfiles[].schema`, `description` MUST name the **billing subject + unit price**, because it labels the price input in the UI. For example, `image_count` uses `Image generation unit price` / `图片生成单价`, not `Generated image count` / `生成图片张数`; `seconds` uses `Video generation unit price` / `视频生成单价`. The field value remains a usage quantity, not a price.
 - Put units in `unit`. Keep protocol limits, usage sources, defaults, estimation, and settlement details in code comments or technical documentation. Descriptions must be short, equivalent across languages, and free of numeric prices and trailing punctuation. Follow the API document's separate wording rules for actions, booleans, and other enum conditions.
 - Review metadata wording explicitly before completing plugin work. These are authoring requirements; successful compilation, schema validation, or tests do not verify that descriptions follow them.

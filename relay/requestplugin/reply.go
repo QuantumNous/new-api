@@ -35,7 +35,7 @@ import (
 // StageReply is the stage name of reply checks in steps and records.
 const StageReply = jsplugin.ReplyHook
 
-// Parts of the reply check contract (docs/plugin-api/v1.md).
+// Parts of the reply check contract (pluginkit/v1.md).
 const (
 	// replyMask replaces every masked span; plugins cannot choose it.
 	replyMask = "***"

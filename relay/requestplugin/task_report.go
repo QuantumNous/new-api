@@ -18,7 +18,7 @@ import (
 )
 
 // Limits of a task report, part of the published plugin contract
-// (docs/plugin-api/v1.md).
+// (pluginkit/v1.md).
 const (
 	// maxTaskRequestBytes is the largest request a task keeps for its report.
 	maxTaskRequestBytes = 64 << 10

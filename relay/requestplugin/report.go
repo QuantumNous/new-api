@@ -29,7 +29,7 @@ import (
 )
 
 // Limits of the report hooks, part of the published plugin contract
-// (docs/plugin-api/v1.md).
+// (pluginkit/v1.md).
 const (
 	// maxReportResponseBytes is how much of the response a record keeps.
 	maxReportResponseBytes = 1 << 20
@@ -117,7 +117,7 @@ func (p *Plan) capture(c *gin.Context, group, model string, channelType int, bou
 	c.Writer = p.response
 }
 
-// The record a report hook receives; docs/plugin-api/v1.md describes it.
+// The record a report hook receives; pluginkit/v1.md describes it.
 type reportRecord struct {
 	RequestID       string                            `json:"requestId"`
 	User            reportUser                        `json:"user"`
