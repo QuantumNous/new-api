@@ -64,6 +64,11 @@ func TestHailuoUsageProfilesPerModel(t *testing.T) {
 			resolutions: []string{"768P", "2K"},
 		},
 		{
+			models:      []string{"MiniMax-H3-Max"},
+			fields:      []string{"input_images", "input_video_seconds", "resolution", "seconds"},
+			resolutions: []string{"480P", "768P"},
+		},
+		{
 			models:      []string{"MiniMax-Hailuo-2.3", "MiniMax-Hailuo-2.3-Fast"},
 			fields:      []string{"resolution", "seconds"},
 			resolutions: []string{"768P", "1080P"},
@@ -399,6 +404,21 @@ func TestHailuoH3RejectsOutOfContractRequests(t *testing.T) {
 			require.ErrorContains(t, err, testCase.wantErr)
 		})
 	}
+	for _, testCase := range []struct {
+		name    string
+		request map[string]any
+		wantErr string
+	}{
+		{"H3-Max duration below its minimum", map[string]any{"prompt": "p", "duration": 4}, "MiniMax-H3-Max duration must be an integer between 5 and 15"},
+		{"H3-Max does not render 2K", map[string]any{"prompt": "p", "size": "2K"}, "MiniMax-H3-Max resolution must be 480P or 768P"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx := hailuoH3SubmitContext(testCase.request)
+			ctx["upstreamModel"] = "MiniMax-H3-Max"
+			_, err := plugin.Engine.Call(t.Context(), "buildSubmitRequest", ctx)
+			require.ErrorContains(t, err, testCase.wantErr)
+		})
+	}
 }
 
 // The /v1 models keep the flat request shape and endpoint.
@@ -526,6 +546,14 @@ func TestHailuoExtractUsageFacts(t *testing.T) {
 		}}, map[string]any{
 			"seconds": float64(5), "resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(15),
 		}},
+		{"H3-Max 480P", "MiniMax-H3-Max", map[string]any{"prompt": "p", "duration": 5, "size": "480P"}, map[string]any{
+			"seconds": float64(5), "resolution": "480P", "input_images": float64(0), "input_video_seconds": float64(0),
+		}},
+		{"H3-Max native body reserves an unreadable resolution at its dearest", "MiniMax-H3-Max", map[string]any{"vendorBody": map[string]any{
+			"model": "MiniMax-H3-Max", "duration": 5, "resolution": "2K", "content": []any{map[string]any{"type": "text", "text": "p"}},
+		}}, map[string]any{
+			"seconds": float64(5), "resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0),
+		}},
 		{"legacy model", "MiniMax-Hailuo-2.3", map[string]any{"prompt": "p", "duration": 10}, map[string]any{
 			"seconds": float64(10), "resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0),
 		}},
@@ -556,6 +584,11 @@ func TestHailuoH3CompletionUsageFacts(t *testing.T) {
 			name: "zero actual usage is retained for settlement",
 			body: `{"task":{"id":"1","status":"succeeded","resolution":"768P","usage":{"output_seconds":4,"input_seconds":0,"input_image_count":0}}}`,
 			want: map[string]any{"seconds": float64(4), "resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0)},
+		},
+		{
+			name: "H3-Max settles at 480P",
+			body: `{"task":{"id":"1","status":"succeeded","resolution":"480P","usage":{"output_seconds":5,"input_seconds":0,"input_image_count":0}}}`,
+			want: map[string]any{"seconds": float64(5), "resolution": "480P", "input_images": float64(0), "input_video_seconds": float64(0)},
 		},
 		{
 			name: "zero output cannot erase the submission reservation",

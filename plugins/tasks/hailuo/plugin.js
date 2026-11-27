@@ -29,6 +29,14 @@ const H3_USAGE_SCHEMA = {
   },
 };
 
+// MiniMax-H3-Max allows duration 5 to 15 and renders 480P or 768P.
+const H3_MAX_USAGE_SCHEMA = Object.assign({}, H3_USAGE_SCHEMA, {
+  resolution: {
+    enum: ["480P", "768P"],
+    description: RESOLUTION_DESCRIPTION,
+  },
+});
+
 // Hailuo 2.3 and 2.3-Fast allow duration 6 or 10 at 768P or 1080P.
 const HAILUO_23_USAGE_SCHEMA = {
   seconds: VIDEO_SECONDS_FIELD,
@@ -55,6 +63,13 @@ const HAILUO_01_USAGE_SCHEMA = {
 
 // MiniMax serves MiniMax-H3 on its /v2 video API and every other model on /v1.
 const H3_MODEL = "MiniMax-H3";
+// The models of that API, their resolutions from the cheapest to the dearest
+// (platform.minimax.io/docs/api-reference/video-generation-v2-create).
+const H3_SPECS = {
+  "MiniMax-H3": { minDuration: 4, resolutions: ["768P", "2K"] },
+  "MiniMax-H3-Max": { minDuration: 5, resolutions: ["480P", "768P"] },
+};
+const H3_MODELS = Object.keys(H3_SPECS);
 const V1_MODELS = [
   "MiniMax-Hailuo-2.3",
   "MiniMax-Hailuo-2.3-Fast",
@@ -89,17 +104,17 @@ export const meta = {
     en: "MiniMax Hailuo video generation (text-to-video, image-to-video, and MiniMax-H3 multimodal reference)",
     zh: "MiniMax 海螺视频生成（文生视频、图生视频、MiniMax-H3 多模态参考生视频）",
   },
-  version: "1.4.0",
+  version: "1.5.0",
   author: { name: "QuantumNous" },
   channelTypes: [35],
-  models: [H3_MODEL].concat(V1_MODELS),
+  models: H3_MODELS.concat(V1_MODELS),
   fetchMode: "per_task",
   upstreams: ["vendor", "new_api"],
   // Fallback for a channel alias that resolves to more than one model: the
   // union of every family's fields and resolutions.
   usageSchema: Object.assign({}, H3_USAGE_SCHEMA, {
     resolution: {
-      enum: ["512P", "768P", "720P", "1080P", "2K"],
+      enum: ["480P", "512P", "768P", "720P", "1080P", "2K"],
       description: RESOLUTION_DESCRIPTION,
     },
   }),
@@ -123,6 +138,16 @@ export const meta = {
         { label: "H3 2K 5s", facts: { seconds: 5, resolution: "2K", input_images: 0, input_video_seconds: 0 } },
         { label: "H3 2K 5s · 9 images", facts: { seconds: 5, resolution: "2K", input_images: 9, input_video_seconds: 0 } },
         { label: "H3 2K 5s · input video", facts: { seconds: 5, resolution: "2K", input_images: 0, input_video_seconds: 15 } },
+      ],
+    },
+    {
+      models: ["MiniMax-H3-Max"],
+      schema: H3_MAX_USAGE_SCHEMA,
+      examples: [
+        { label: "H3-Max 480P 5s", facts: { seconds: 5, resolution: "480P", input_images: 0, input_video_seconds: 0 } },
+        { label: "H3-Max 768P 5s", facts: { seconds: 5, resolution: "768P", input_images: 0, input_video_seconds: 0 } },
+        { label: "H3-Max 768P 5s · 9 images", facts: { seconds: 5, resolution: "768P", input_images: 9, input_video_seconds: 0 } },
+        { label: "H3-Max 768P 5s · input video", facts: { seconds: 5, resolution: "768P", input_images: 0, input_video_seconds: 15 } },
       ],
     },
     {
@@ -162,7 +187,7 @@ export const meta = {
     { method: "GET", path: "/hailuo/v1/query/video_generation/:task_id", type: "query", render: "taskStatus" },
     // The video of a /v1 task, under the file id its query reports.
     { method: "GET", path: "/v1/files/retrieve", type: "query", taskIdParam: "file_id", render: "fileRetrieve" },
-    { method: "POST", path: "/v2/video_generation", type: "submit", decode: "createH3Task", render: "taskCreated", models: [H3_MODEL] },
+    { method: "POST", path: "/v2/video_generation", type: "submit", decode: "createH3Task", render: "taskCreated", models: H3_MODELS },
     { method: "GET", path: "/v2/query/video_generation/:task_id", type: "query", render: "h3TaskStatus" },
   ],
   protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }, "openai_video"],
@@ -276,27 +301,30 @@ const H3_MAX_INPUT_VIDEO_SECONDS = 15;
 // array instead of flat frame fields, an explicit `ratio`, 768P/2K resolutions,
 // a task id path parameter on query, and a `{task: {...}}` query envelope.
 function isH3(model) {
-  return model === H3_MODEL;
+  return H3_MODELS.includes(model);
 }
 
 // MiniMax-H3 renders 4 to 15 seconds; the host protocols default to 5.
-function h3Duration(raw) {
+function h3Duration(raw, model) {
   if (raw === undefined || raw === null || raw === "") return H3_DEFAULT_DURATION;
   const seconds = Number(raw);
-  if (!Number.isInteger(seconds) || seconds < H3_MIN_DURATION || seconds > H3_MAX_DURATION) {
-    throw new Error(H3_MODEL + " duration must be an integer between " + H3_MIN_DURATION + " and " + H3_MAX_DURATION + " seconds");
+  const minimum = H3_SPECS[model].minDuration;
+  if (!Number.isInteger(seconds) || seconds < minimum || seconds > H3_MAX_DURATION) {
+    throw new Error(model + " duration must be an integer between " + minimum + " and " + H3_MAX_DURATION + " seconds");
   }
   return seconds;
 }
 
-function h3Resolution(req) {
+function h3Resolution(req, model) {
   const metadata = req.metadata || {};
   const raw = trimmed(metadata.resolution) || trimmed(req.resolution) || trimmed(req.size);
   if (!raw) return "768P";
   const value = raw.toUpperCase();
-  if (value.includes("2K")) return "2K";
-  if (value.includes("768")) return "768P";
-  throw new Error(H3_MODEL + " resolution must be 768P or 2K");
+  const resolutions = H3_SPECS[model].resolutions;
+  for (const resolution of resolutions) {
+    if (value.includes(resolution.replace("P", ""))) return resolution;
+  }
+  throw new Error(model + " resolution must be " + resolutions.join(" or "));
 }
 
 function h3MediaItem(type, url, role) {
@@ -438,14 +466,16 @@ function h3Ratio(req, content) {
 // protocols build from prompt, images, size and metadata, with defaults, or a
 // native body's own. MiniMax checks a native body; a duration or resolution
 // it leaves out or the plugin cannot read is reserved at the dearest.
-function h3Request(req) {
+function h3Request(req, model) {
   const body = req.vendorBody;
-  if (!body) return { content: h3Content(req), duration: h3Duration(req.duration), resolution: h3Resolution(req) };
+  if (!body) return { content: h3Content(req), duration: h3Duration(req.duration, model), resolution: h3Resolution(req, model) };
   const missing = body.duration === undefined || body.duration === null || body.duration === "";
+  const resolutions = H3_SPECS[model].resolutions;
+  const resolution = trimmed(body.resolution).toUpperCase();
   return {
     content: validateH3Content(body.content),
-    duration: missing ? H3_MAX_DURATION : h3Duration(body.duration),
-    resolution: trimmed(body.resolution).toUpperCase() === "768P" ? "768P" : "2K",
+    duration: missing ? H3_MAX_DURATION : h3Duration(body.duration, model),
+    resolution: resolutions.includes(resolution) ? resolution : resolutions[resolutions.length - 1],
   };
 }
 
@@ -565,7 +595,8 @@ export const native = {
     refuseCallback(body);
     if (!Array.isArray(body.content)) throw new Error("content must be an array");
     const content = validateH3Content(body.content);
-    h3Duration(body.duration);
+    // The widest range; the request builder checks the model the channel sends.
+    h3Duration(body.duration, H3_MODEL);
     return { kind: "submit", model: body.model, action: h3HasVisualContent(content) ? "image_to_video" : "text_to_video", requestBody: { model: body.model, vendorBody: body } };
   },
   // MiniMax answers /v1 with a base_resp envelope and /v2 with a bare task_id.
@@ -627,7 +658,7 @@ export function buildSubmitRequest(ctx) {
   const model = ctx.upstreamModel;
   const metadata = req.metadata || {};
   if (isH3(model)) {
-    const h3 = h3Request(req);
+    const h3 = h3Request(req, model);
     const content = h3.content;
     const h3Body = req.vendorBody
       ? Object.assign({}, req.vendorBody, { model: model })
@@ -690,7 +721,7 @@ export function extractUsage(ctx) {
   const req = ctx.requestBody || {};
   const model = ctx.upstreamModel || req.model;
   if (isH3(model)) {
-    const h3 = h3Request(req);
+    const h3 = h3Request(req, model);
     const content = h3.content;
     return {
       seconds: h3.duration,
@@ -824,7 +855,7 @@ export function extractUsageOnComplete(_task, _taskResult, body) {
   if (h3Task) {
     const resolution = trimmed(h3Task.resolution).toUpperCase();
     const facts = {};
-    if (resolution === "2K" || resolution === "768P") facts.resolution = resolution;
+    if (["480P", "768P", "2K"].includes(resolution)) facts.resolution = resolution;
     const usage = h3Task.usage && typeof h3Task.usage === "object" && !Array.isArray(h3Task.usage) ? h3Task.usage : {};
     const fields = [
       { key: "seconds", value: usage.output_seconds, minimum: H3_MIN_DURATION, maximum: H3_MAX_DURATION, integer: false },
