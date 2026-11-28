@@ -1,10 +1,12 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -238,7 +240,11 @@ func InitLogDB() (err error) {
 		common.SetLogDatabaseType(common.MainDatabaseType())
 		initCol()
 		if common.IsMasterNode {
-			return MigrateAuditLogs()
+			if err := MigrateAuditLogs(); err != nil {
+				return err
+			}
+			// The seed reads the log database, so it runs after LOG_DB exists.
+			return backfillUserUsedTokens()
 		}
 		return
 	}
@@ -268,8 +274,10 @@ func InitLogDB() (err error) {
 			return nil
 		}
 		common.SysLog(common.LogText("database migration started"))
-		err = migrateLOGDB()
-		return err
+		if err = migrateLOGDB(); err != nil {
+			return err
+		}
+		return backfillUserUsedTokens()
 	} else {
 		common.FatalLog(err)
 	}
@@ -277,6 +285,158 @@ func InitLogDB() (err error) {
 }
 
 var userQuotaColumns = []string{"quota", "used_quota", "aff_quota", "aff_history"}
+
+// usedTokensBackfillOptionKey marks a completed seed of users.used_tokens. The
+// update itself only raises the counter, so a retry after a failed start can
+// never pull a counter back to an older export total.
+const usedTokensBackfillOptionKey = "user_used_tokens_backfill"
+
+// usedTokensSeedChunk bounds how many users go into one CASE expression.
+const usedTokensSeedChunk = 500
+
+type userTokenSum struct {
+	UserId int   `gorm:"column:user_id"`
+	Total  int64 `gorm:"column:total"`
+}
+
+// consumeLogTokenSums reads consume-log token totals per user from the log
+// database. The log database can be a separate DSN (even ClickHouse), so this
+// cannot be a subquery inside the users update.
+func consumeLogTokenSums() (map[int]int64, error) {
+	sums := make(map[int]int64)
+	if LOG_DB == nil || !LOG_DB.Migrator().HasTable("logs") {
+		return sums, nil
+	}
+	var rows []userTokenSum
+	err := LOG_DB.Table("logs").
+		Select("user_id, COALESCE(SUM(prompt_tokens + completion_tokens), 0) AS total").
+		Where("type = ?", LogTypeConsume).
+		Group("user_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("sum consume log tokens: %w", err)
+	}
+	for _, row := range rows {
+		if row.Total > 0 {
+			sums[row.UserId] = row.Total
+		}
+	}
+	return sums, nil
+}
+
+// exportedTokenSums reads the per-user token totals the export table kept.
+func exportedTokenSums() (map[int]int64, error) {
+	sums := make(map[int]int64)
+	if !DB.Migrator().HasTable("quota_data") {
+		return sums, nil
+	}
+	var rows []userTokenSum
+	err := DB.Table("quota_data").
+		Select("user_id, COALESCE(SUM(token_used), 0) AS total").
+		Group("user_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("sum exported tokens: %w", err)
+	}
+	for _, row := range rows {
+		if row.Total > 0 {
+			sums[row.UserId] = row.Total
+		}
+	}
+	return sums, nil
+}
+
+// applyUserTokenSeed raises users.used_tokens towards the seed targets without
+// assigning them. The difference is computed inside the statement from the
+// row's own value, so two masters that seed at the same time cannot add a stale
+// difference twice: the second statement sees the committed value and adds
+// zero. For the same reason a run without the completion marker cannot
+// double-count, and a counter that other nodes keep incrementing is never
+// replaced by an older total.
+func applyUserTokenSeed(tx *gorm.DB, targets map[int]int64) error {
+	if len(targets) == 0 || !tx.Migrator().HasTable(&User{}) {
+		return nil
+	}
+	ids := make([]int, 0, len(targets))
+	for id := range targets {
+		ids = append(ids, id)
+	}
+	sort.Ints(ids)
+	for start := 0; start < len(ids); start += usedTokensSeedChunk {
+		end := min(start+usedTokensSeedChunk, len(ids))
+		var when, in strings.Builder
+		for i := start; i < end; i++ {
+			if i > start {
+				when.WriteByte(' ')
+				in.WriteByte(',')
+			}
+			fmt.Fprintf(&when, "WHEN %d THEN CASE WHEN COALESCE(used_tokens, 0) >= %d THEN 0 ELSE %d - COALESCE(used_tokens, 0) END",
+				ids[i], targets[ids[i]], targets[ids[i]])
+			fmt.Fprintf(&in, "%d", ids[i])
+		}
+		stmt := "UPDATE users SET used_tokens = COALESCE(used_tokens, 0) + CASE id " + when.String() + " ELSE 0 END" +
+			" WHERE id IN (" + in.String() + ")"
+		if err := tx.Exec(stmt).Error; err != nil {
+			return fmt.Errorf("seed users.used_tokens: %w", err)
+		}
+	}
+	return nil
+}
+
+// backfillUserUsedTokens seeds users.used_tokens from the token history that
+// existing installations already wrote before this column existed. Export data
+// only exists while DataExportEnabled is on, so the consume log is read as well;
+// the larger of the two is the target, which covers an export-off period
+// without counting the same request twice. The target is reached by adding the
+// difference to the current counter, so a counter that a serving node keeps
+// incrementing is never replaced by an older total. Completion is recorded only
+// after both sources have been applied, so a start that fails half way seeds
+// again on the next boot.
+func backfillUserUsedTokens() error {
+	if DB == nil || !DB.Migrator().HasTable(&User{}) {
+		return nil
+	}
+	// Check the marker first: an instance that already seeded must not pay for
+	// aggregating the whole consume history on every start.
+	var marker Option
+	err := DB.Where(&Option{Key: usedTokensBackfillOptionKey}).First(&marker).Error
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	exported, err := exportedTokenSums()
+	if err != nil {
+		return err
+	}
+	logSum, err := consumeLogTokenSums()
+	if err != nil {
+		return err
+	}
+	targets := make(map[int]int64, len(exported)+len(logSum))
+	for id, total := range exported {
+		targets[id] = total
+	}
+	for id, total := range logSum {
+		if totals, ok := targets[id]; !ok || total > totals {
+			targets[id] = total
+		}
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var marker Option
+		if err := tx.Where(&Option{Key: usedTokensBackfillOptionKey}).First(&marker).Error; err == nil {
+			return nil
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+
+		if err := applyUserTokenSeed(tx, targets); err != nil {
+			return err
+		}
+		return tx.Save(&Option{Key: usedTokensBackfillOptionKey, Value: "done"}).Error
+	})
+}
 
 // ensureUserQuotaColumns rejects a legacy 32-bit wallet schema before any
 // migrations run. The 64-bit-only build intentionally does not auto-upgrade

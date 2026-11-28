@@ -25,6 +25,8 @@ import { useTranslation } from 'react-i18next'
 import { StaggerContainer, StaggerItem } from '@/components/page-transition'
 import { Button } from '@/components/ui/button'
 import { getUserQuotaDates } from '@/features/dashboard/api'
+import { MetricToggle } from '@/features/dashboard/components/ui/metric-toggle'
+import { useDashboardMetricStore } from '@/stores/dashboard-metric-store'
 import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import type { QuotaDataItem } from '@/features/dashboard/types'
 import { useStatus } from '@/hooks/use-status'
@@ -56,7 +58,8 @@ function buildSummarySparklines(
   data: QuotaDataItem[],
   currentBalance: number,
   start: number,
-  end: number
+  end: number,
+  metric: 'quota' | 'tokens' = 'quota'
 ): Record<SummarySparklineKey, number[]> {
   const usage = Array.from({ length: SUMMARY_SPARKLINE_BUCKETS }, () => 0)
   const requests = Array.from({ length: SUMMARY_SPARKLINE_BUCKETS }, () => 0)
@@ -69,7 +72,8 @@ function buildSummarySparklines(
       end,
       SUMMARY_SPARKLINE_BUCKETS
     )
-    usage[index] += Number(item.quota) || 0
+    usage[index] +=
+      Number(metric === 'tokens' ? item.token_used : item.quota) || 0
     requests[index] += Number(item.count) || 0
   }
 
@@ -146,6 +150,7 @@ export function SummaryCards() {
   const remainQuota = Number(user?.quota ?? 0)
   const usedQuota = Number(user?.used_quota ?? 0)
   const requestCount = Number(user?.request_count ?? 0)
+  const metric = useDashboardMetricStore((state) => state.overview)
 
   const usageTrendQuery = useQuery({
     queryKey: [
@@ -166,12 +171,28 @@ export function SummaryCards() {
     staleTime: 60 * 1000,
   })
 
+  const recentTokens = useMemo(
+    () =>
+      (usageTrendQuery.data?.data ?? []).reduce(
+        (total, item) => total + (Number(item.token_used) || 0),
+        0
+      ),
+    [usageTrendQuery.data?.data]
+  )
+
+  // Lifetime token total reported by the backend (same scope as used_quota).
+  const usedTokens = Number(user?.used_tokens ?? 0)
+
   const summaryValues = useMemo(() => {
+    const usedDisplay =
+      metric === 'tokens'
+        ? formatNumber(Math.round(usedTokens))
+        : formatQuota(usedQuota)
     return {
-      usedDisplay: formatQuota(usedQuota),
+      usedDisplay,
       requestCountDisplay: formatNumber(requestCount),
     }
-  }, [requestCount, usedQuota])
+  }, [requestCount, usedQuota, usedTokens, metric])
 
   const currencyEnabledFromStore = isCurrencyDisplayEnabled()
   const statusCurrencyFlag =
@@ -190,13 +211,15 @@ export function SummaryCards() {
         usageTrendQuery.data?.data ?? [],
         remainQuota,
         summaryTimeRange.start_timestamp,
-        summaryTimeRange.end_timestamp
+        summaryTimeRange.end_timestamp,
+        metric
       ),
     [
       remainQuota,
       summaryTimeRange.end_timestamp,
       summaryTimeRange.start_timestamp,
       usageTrendQuery.data?.data,
+      metric,
     ]
   )
 
@@ -213,7 +236,10 @@ export function SummaryCards() {
   const healthCfg = HEALTH_CONFIG[healthLevel]
   const runwayDays = getRunwayDays(remainQuota, recentUsage)
 
-  const todayUsageDisplay = formatQuota(recentUsage)
+  const todayUsageDisplay =
+    metric === 'tokens'
+      ? formatNumber(Math.round(recentTokens))
+      : formatQuota(recentUsage)
   let runwayDisplay: string
   if (runwayDays !== null) {
     if (runwayDays < 1) {
@@ -232,8 +258,8 @@ export function SummaryCards() {
   const items = useSummaryCardsConfig({
     ...summaryValues,
     todayUsageDisplay,
-    currencyEnabled,
-    currencyLabel,
+    currencyEnabled: metric === 'tokens' ? true : currencyEnabled,
+    currencyLabel: metric === 'tokens' ? 'Tokens' : currencyLabel,
   }).map((config, index) => {
     const tones = ['accent-1', 'accent-2', 'accent-3'] as const
 
@@ -265,6 +291,7 @@ export function SummaryCards() {
                 {t('Monitor balance, usage, and request volume')}
               </p>
             </div>
+            <MetricToggle area='overview' />
           </div>
           <StaggerContainer className='grid grid-cols-3 gap-1.5 sm:gap-3'>
             {items.map((it) => (
@@ -316,7 +343,9 @@ export function SummaryCards() {
                   <span className='truncate'>{t('Last 24h usage')}</span>
                 </div>
                 <div className='text-foreground mt-1.5 truncate text-xs font-semibold tabular-nums'>
-                  {formatQuota(recentUsage)}
+                  {metric === 'tokens'
+                    ? formatNumber(Math.round(recentTokens))
+                    : formatQuota(recentUsage)}
                 </div>
               </div>
               <div className='bg-background/60 rounded-lg px-2.5 py-2'>
