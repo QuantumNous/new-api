@@ -13,6 +13,8 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetRequestURLForImageGeneration(t *testing.T) {
@@ -34,6 +36,23 @@ func TestGetRequestURLForImageGeneration(t *testing.T) {
 	if got != want {
 		t.Fatalf("GetRequestURL() = %q, want %q", got, want)
 	}
+}
+
+func TestGetRequestURLForChatCompletionsUsesOpenAICompatibleEndpoint(t *testing.T) {
+	t.Parallel()
+
+	info := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeChatCompletions,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl: "https://api.minimax.chat",
+		},
+	}
+
+	got, err := GetRequestURL(info)
+	require.NoError(t, err, "GetRequestURL returned error")
+
+	want := "https://api.minimax.chat/v1/chat/completions"
+	assert.Equal(t, want, got)
 }
 
 func TestConvertImageRequest(t *testing.T) {
