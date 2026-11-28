@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -106,7 +105,7 @@ func CommonClaudeHeadersOperation(c *gin.Context, req *http.Header, info *relayc
 	// common headers operation
 	// A client may send several anthropic-beta lines; the API reads one
 	// comma-separated list, so forward all of them.
-	anthropicBeta := strings.Join(c.Request.Header.Values("anthropic-beta"), ",")
+	anthropicBeta := relaycommon.CombinedHeaderValue(c.Request.Header, "anthropic-beta")
 	if anthropicBeta != "" {
 		req.Set("anthropic-beta", anthropicBeta)
 	}
