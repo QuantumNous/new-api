@@ -54,6 +54,7 @@
           "city"
         ]
       },
+      "strict": false,
       "type": "function"
     }
   ]
