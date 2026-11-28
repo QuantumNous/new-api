@@ -83,6 +83,17 @@ function renderLobeIconFallback(
   )
 }
 
+// Icon names stored in user config are often lowercase (e.g. "github"),
+// while @lobehub/icons exports are PascalCase (e.g. "Github").
+// Null prototype and the /^[A-Z]/ filter keep prototype keys ("constructor")
+// and non-component exports (toc, useFillId, *Mappings) out of resolution.
+const ICON_KEYS_BY_LOWERCASE: Record<string, string> = Object.create(null)
+for (const key of [...Object.keys(CUSTOM_ICONS), ...Object.keys(LobeIcons)]) {
+  if (/^[A-Z]/.test(key)) {
+    ICON_KEYS_BY_LOWERCASE[key.toLowerCase()] ??= key
+  }
+}
+
 /**
  * Parse a property value from string to appropriate type
  * @param raw - Raw string value
@@ -137,7 +148,8 @@ export function getLobeIcon(
   if (!trimmedName) return fallback
 
   const segments = trimmedName.split('.')
-  const baseKey = segments[0]
+  const baseKey =
+    ICON_KEYS_BY_LOWERCASE[segments[0].toLowerCase()] ?? segments[0]
   const CustomIcon = CUSTOM_ICONS[baseKey]
   if (CustomIcon) return <CustomIcon size={size} />
 
