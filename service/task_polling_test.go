@@ -174,11 +174,13 @@ func TestRedactVideoResponseBodyPreservesPollingPayloadShape(t *testing.T) {
 }
 
 func TestRedactVideoResponseBodyDropsInteractionInlineVideo(t *testing.T) {
-	body := []byte(`{"id":"int_1","status":"completed","steps":[{"type":"model_output","content":[{"type":"video","mime_type":"video/mp4","data":"` + strings.Repeat("a", 1024) + `"},{"type":"text","text":"done"}]}]}`)
+	body := []byte(`{"id":"int_1","status":"completed","steps":[{"type":"user_input","content":[{"type":"image","mime_type":"image/png","data":"` + strings.Repeat("b", 1024) + `"},{"type":"audio","mime_type":"audio/mp3","data":"` + strings.Repeat("c", 1024) + `"}]},{"type":"model_output","content":[{"type":"video","mime_type":"video/mp4","data":"` + strings.Repeat("a", 1024) + `"},{"type":"text","text":"done"}]}]}`)
 
 	var stored map[string]any
 	require.NoError(t, common.Unmarshal(redactVideoResponseBody(body), &stored))
-	content := stored["steps"].([]any)[0].(map[string]any)["content"].([]any)
+	steps := stored["steps"].([]any)
+	assert.Equal(t, []any{map[string]any{"type": "image", "mime_type": "image/png"}, map[string]any{"type": "audio", "mime_type": "audio/mp3"}}, steps[0].(map[string]any)["content"])
+	content := steps[1].(map[string]any)["content"].([]any)
 	assert.Equal(t, map[string]any{"type": "video", "mime_type": "video/mp4"}, content[0])
 	assert.Equal(t, "done", content[1].(map[string]any)["text"])
 }
