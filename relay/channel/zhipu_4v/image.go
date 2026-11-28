@@ -91,6 +91,12 @@ func zhipu4vImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		}
 
 		var b64 string
+		// 解决智普中url为base64编码图片的内容
+		if data.Url != "" && !strings.HasPrefix(data.Url, "http") {
+			data.B64Image = data.Url
+			data.Url = ""
+		}
+
 		switch {
 		case data.B64Json != "":
 			b64 = data.B64Json
