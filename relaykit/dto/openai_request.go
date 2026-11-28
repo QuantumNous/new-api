@@ -10,6 +10,7 @@ import (
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/samber/lo"
+	"github.com/tidwall/gjson"
 )
 
 type ResponseFormat struct {
@@ -420,8 +421,26 @@ type ToolCallRequest struct {
 	// Native is a complete vendor tool object sent instead of the fields
 	// above. Function has no omitempty, so a non-function tool would
 	// otherwise carry "function":{"name":""}, which vendor schemas with
-	// additionalProperties:false reject. Never read from client JSON.
+	// additionalProperties:false reject.
 	Native json.RawMessage `json:"-"`
+}
+
+func (t *ToolCallRequest) UnmarshalJSON(data []byte) error {
+	type Alias ToolCallRequest
+	var decoded Alias
+	if err := kitutil.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*t = ToolCallRequest(decoded)
+	// Preserve non-function/non-custom vendor tool objects carrying a nested
+	// model field so their original JSON shape (without an empty "function"
+	// object) survives decode, channel model_mapping, and upstream encoding.
+	if t.Type != "" && t.Type != "function" && t.Type != CustomType {
+		if m := gjson.GetBytes(data, "model"); m.Type == gjson.String && m.String() != "" {
+			t.Native = append(json.RawMessage(nil), data...)
+		}
+	}
+	return nil
 }
 
 func (t ToolCallRequest) MarshalJSON() ([]byte, error) {
