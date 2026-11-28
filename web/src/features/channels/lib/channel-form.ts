@@ -41,6 +41,11 @@ import {
   validateAdvancedCustomConfig,
 } from './advanced-custom'
 import { readTaskExtendPluginKeys } from './channel-plugin-extensions'
+import {
+  buildAvailabilityWindows,
+  parseAvailabilityWindows,
+  type ChannelAvailabilityWindow,
+} from './channel-availability'
 import { supportsResponsesWebSocket } from './responses-websocket'
 
 // ============================================================================
@@ -275,6 +280,17 @@ export const channelFormSchema = z
     responses_websocket_enabled: z.boolean().optional(),
     system_prompt: z.string().optional(),
     system_prompt_override: z.boolean().optional(),
+    // Channel availability windows (stored in setting JSON, not sent directly)
+    availability_windows: z
+      .array(
+        z.object({
+          timezone: z.string(),
+          weekdays: z.array(z.number().int().min(0).max(6)),
+          start: z.string(),
+          end: z.string(),
+        })
+      )
+      .optional(),
     // Type-specific settings (stored in settings JSON)
     is_enterprise_account: z.boolean().optional(), // OpenRouter specific
     vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
@@ -478,6 +494,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   responses_websocket_enabled: false,
   system_prompt: '',
   system_prompt_override: false,
+  availability_windows: [],
   // Type-specific settings
   is_enterprise_account: false,
   vertex_key_type: 'json',
@@ -529,6 +546,7 @@ export function transformChannelToFormDefaults(
     responses_websocket_enabled: false,
     system_prompt: '',
     system_prompt_override: false,
+    availability_windows: [] as ChannelAvailabilityWindow[],
   }
 
   if (channel.setting) {
@@ -557,6 +575,9 @@ export function transformChannelToFormDefaults(
           parsed.responses_websocket_enabled === true,
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
+        availability_windows: parseAvailabilityWindows(
+          parsed.availability_windows
+        ),
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -710,6 +731,13 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
       formData.responses_websocket_enabled === true,
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
+  }
+
+  const availabilityWindows = buildAvailabilityWindows(
+    formData.availability_windows ?? []
+  )
+  if (availabilityWindows) {
+    settingObj.availability_windows = availabilityWindows
   }
 
   const protocol = normalizeHttpProtocol(formData.http_protocol)

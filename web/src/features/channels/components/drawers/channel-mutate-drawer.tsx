@@ -243,6 +243,7 @@ import {
   ChannelConfiguration,
   ChannelConfigurationStatusIndicator,
 } from './channel-configuration'
+import { ChannelAvailabilityEditor } from '../channel-availability-editor'
 import { ChannelPluginConfigFields } from './channel-plugin-config-fields'
 import { ChannelProviderPicker } from './channel-provider-picker'
 import { ChannelRequestPluginsField } from './channel-request-plugins-field'
@@ -2438,6 +2439,8 @@ export function ChannelMutateDrawer({
           </FormItem>
         )}
       />
+
+      <ChannelAvailabilityEditor disabled={sensitiveLocked || isSubmitting} />
     </div>
   )
 
