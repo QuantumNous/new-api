@@ -446,6 +446,10 @@ func attachOpenAIResponsesRequest(request any, set Set, options *convmeta.Option
 			}
 			if definition.Function.Strict != nil {
 				tool["strict"] = *definition.Function.Strict
+			} else if set.Source == types.RelayFormatOpenAI {
+				// Chat Completions defaults to non-strict. Responses can require
+				// optional parameters when strict is omitted.
+				tool["strict"] = false
 			}
 			deleteEmptyStrings(tool)
 			tools = append(tools, tool)

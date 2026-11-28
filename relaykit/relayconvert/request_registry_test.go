@@ -997,6 +997,40 @@ func TestConvertRequestByIDDeduplicatesConversionChain(t *testing.T) {
 	assert.Equal(t, []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses}, info.ConversionChain)
 }
 
+func TestChatToResponsesPreservesFunctionStrictness(t *testing.T) {
+	var request dto.GeneralOpenAIRequest
+	require.NoError(t, kitutil.Unmarshal([]byte(`{
+		"model": "gpt-test",
+		"messages": [{"role":"user","content":"Look up a value."}],
+		"tools": [
+			{"type":"function","function":{"name":"lookup","parameters":{
+				"type":"object","properties":{"query":{"type":"string"},"note":{"type":"string"}},
+				"required":["query"],"additionalProperties":false
+			}}},
+			{"type":"function","function":{"name":"recent","strict":false,"parameters":{"type":"object"}}},
+			{"type":"function","function":{"name":"status","strict":true,"parameters":{
+				"type":"object","properties":{},"required":[],"additionalProperties":false
+			}}}
+		]
+	}`), &request))
+
+	result, err := ConvertRequestByID(nil, nil, ConverterOpenAIChatToOpenAIResponses, &request)
+
+	require.NoError(t, err)
+	responses, ok := result.Value.(*dto.OpenAIResponsesRequest)
+	require.True(t, ok)
+	assert.JSONEq(t, `[
+		{"type":"function","name":"lookup","strict":false,"parameters":{
+			"type":"object","properties":{"query":{"type":"string"},"note":{"type":"string"}},
+			"required":["query"],"additionalProperties":false
+		}},
+		{"type":"function","name":"recent","strict":false,"parameters":{"type":"object"}},
+		{"type":"function","name":"status","strict":true,"parameters":{
+			"type":"object","properties":{},"required":[],"additionalProperties":false
+		}}
+	]`, string(responses.Tools))
+}
+
 func TestConvertRequestByIDExecutesDirectClaudeToResponsesConverter(t *testing.T) {
 	info := &convmeta.Values{
 		ConversionChain: []types.RelayFormat{types.RelayFormatClaude},
