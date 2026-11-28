@@ -50,6 +50,12 @@ func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	return &usageResp.Usage, nil
 }
 
+// It is the exported entry point for other channels
+// that serve the OpenAI image shape.
+func OpenaiImageResponseCount(responseBody []byte) int64 {
+	return openaiImageResponseCount(responseBody)
+}
+
 // openaiImageResponseCount counts billable images in an OpenAI-format image
 // response body. An object-shaped data is one image when it carries url or
 // b64_json. For arrays the count is the larger of the url-bearing and the
@@ -87,6 +93,12 @@ func openaiImageResponseCount(responseBody []byte) int64 {
 func openaiImageDataHasField(item ojson.Result, field string) bool {
 	value := item.Get(field)
 	return value.Type == ojson.String && value.Raw != `""`
+}
+
+// It is the exported entry point for other channels
+// that serve the OpenAI image shape.
+func NormalizeOpenAIUsage(usage *dto.Usage) {
+	normalizeOpenAIUsage(usage)
 }
 
 // normalizeOpenAIUsage maps the OpenAI Images usage shape (input_tokens /

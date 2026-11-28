@@ -22,7 +22,12 @@ func GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		case constant.RelayModeChatCompletions:
 			return fmt.Sprintf("%s/v1/text/chatcompletion_v2", baseUrl), nil
 		case constant.RelayModeImagesGenerations:
+			if isMiniMaxH3ImageModel(info.GetUpstreamModelName()) {
+				return fmt.Sprintf("%s/v1/images/generations", baseUrl), nil
+			}
 			return fmt.Sprintf("%s/v1/image_generation", baseUrl), nil
+		case constant.RelayModeImagesEdits:
+			return fmt.Sprintf("%s/v1/images/edits", baseUrl), nil
 		case constant.RelayModeAudioSpeech:
 			return fmt.Sprintf("%s/v1/t2a_v2", baseUrl), nil
 		default:
