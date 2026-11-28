@@ -727,6 +727,11 @@ func AppendChannelAffinityAdminInfo(c *gin.Context, other *model.LogOther) {
 }
 
 func RecordChannelAffinity(c *gin.Context, channelID int) {
+	// Strict sessions are reserved before dispatch. Completion must not overwrite
+	// a newer binding after expiry or administrative clearing.
+	if RequestPolicy(c).SessionMode == "strict" {
+		return
+	}
 	if channelID <= 0 {
 		return
 	}

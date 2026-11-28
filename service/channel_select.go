@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -13,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 )
 
@@ -302,6 +304,41 @@ type ChannelSelectError struct {
 // filters. The group the channel was chosen from is returned for auto-group
 // callers. The caller still applies SetupContextForSelectedChannel.
 func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam) (*model.Channel, string, *ChannelSelectError) {
+	return selectChannelWithAffinity(c, modelName, retry, selectChannelForRequest)
+}
+
+// selectChannelWithAffinity arbitrates reservations around candidate selection.
+// Keeping selection explicit lets tests control competing cache misses without
+// mutable global hooks or changing the cache implementations.
+func selectChannelWithAffinity(c *gin.Context, modelName string, retry *RetryParam, selectCandidate func(*gin.Context, string, *RetryParam) (*model.Channel, string, *ChannelSelectError)) (*model.Channel, string, *ChannelSelectError) {
+	for range 2 {
+		channel, group, err := selectCandidate(c, modelName, retry)
+		key, ttl, active := getChannelAffinityContext(c)
+		if err != nil || channel == nil || !active || RequestPolicy(c).SessionMode != "strict" {
+			return channel, group, err
+		}
+		if ttl <= 0 {
+			ttl = operation_setting.GetChannelAffinitySetting().DefaultTTLSeconds
+		}
+		if ttl <= 0 {
+			ttl = 3600
+		}
+		// Reserve before dispatch, including on cache hits to renew the TTL.
+		// Failed requests retain the reservation: peers may already be using it.
+		winner, reserveErr := getChannelAffinityCache().GetOrSetWithTTL(key, channel.Id, time.Duration(ttl)*time.Second)
+		if reserveErr != nil {
+			logger.LogWarn(c, common.LogText("channel affinity reservation failed: err=%v", reserveErr))
+			break
+		}
+		if winner == channel.Id {
+			return channel, group, nil
+		}
+		// Reuse eligibility checks for the concurrent winner; never dispatch the loser.
+	}
+	return nil, "", &ChannelSelectError{StatusCode: http.StatusServiceUnavailable, Message: "strict_session_binding_unavailable"}
+}
+
+func selectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam) (*model.Channel, string, *ChannelSelectError) {
 	constraints := GetChannelConstraints(c)
 	if pin, found, overridden := constraints.ResolvedPin(); found {
 		for _, lost := range overridden {
@@ -359,7 +396,12 @@ func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam
 				}
 			}
 			if !affinityUsable && !ShouldKeepChannelAffinityOnChannelDisabled() {
-				ClearCurrentChannelAffinityCache(c)
+				// A stale request must not delete a newer reservation.
+				key, _, _ := getChannelAffinityContext(c)
+				_, clearErr := getChannelAffinityCache().CompareAndDelete(key, preferredChannelID)
+				if clearErr == nil && RequestPolicy(c).SessionMode != "strict" {
+					c.Set(ginKeyChannelAffinitySkipRetry, false)
+				}
 			}
 			if !affinityUsable && RequestPolicy(c).SessionMode == "strict" {
 				return nil, "", &ChannelSelectError{StatusCode: http.StatusServiceUnavailable, Message: "strict_session_binding_unavailable"}
