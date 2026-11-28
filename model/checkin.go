@@ -48,6 +48,22 @@ func HasCheckedInToday(userId int) (bool, error) {
 	return count > 0, err
 }
 
+// IsUserEligibleForCheckin checks completed payments, including subscription
+// purchases recorded as top-ups. Balance redemption is not an external payment.
+func IsUserEligibleForCheckin(userId int) (bool, error) {
+	if !operation_setting.GetCheckinSetting().PaidUsersOnly {
+		return true, nil
+	}
+
+	var payment TopUp
+	err := DB.Select("id").
+		Where("user_id = ? AND status = ? AND money > 0", userId, common.TopUpStatusSuccess).
+		Where("payment_method IS NULL OR payment_method <> ?", PaymentMethodBalance).
+		Where("payment_provider IS NULL OR payment_provider <> ?", PaymentProviderBalance).
+		Limit(1).Find(&payment).Error
+	return payment.Id > 0, err
+}
+
 // UserCheckin 执行用户签到
 // MySQL 和 PostgreSQL 使用事务保证原子性
 // SQLite 不支持嵌套事务，使用顺序操作 + 手动回滚
@@ -55,6 +71,13 @@ func UserCheckin(userId int) (*Checkin, error) {
 	setting := operation_setting.GetCheckinSetting()
 	if !setting.Enabled {
 		return nil, common.NewMessage("Check-in feature is not enabled")
+	}
+	eligible, err := IsUserEligibleForCheckin(userId)
+	if err != nil {
+		return nil, common.NewMessage("Failed to verify check-in eligibility")
+	}
+	if !eligible {
+		return nil, common.NewMessage("Check-in is available after a successful payment")
 	}
 
 	// 检查今天是否已签到

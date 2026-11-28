@@ -121,6 +121,7 @@ export function CheckinCalendarCard({
   }, [])
 
   const checkedToday = checkinData?.stats?.checked_in_today === true
+  const eligible = checkinData?.eligible !== false
   const todayAward = checkinRecordsMap[todayString]
 
   useEffect(() => {
@@ -249,6 +250,15 @@ export function CheckinCalendarCard({
     checkinButtonLabel = t('Loading...')
   } else if (checkedToday) {
     checkinButtonLabel = t('Checked in')
+  } else if (!eligible) {
+    checkinButtonLabel = t('Payment required')
+  }
+
+  let checkinDescription = t('Check in daily to receive random quota rewards')
+  if (checkedToday && todayAward !== undefined) {
+    checkinDescription = `${t('Today')} +${formatQuotaWithCurrency(todayAward)}`
+  } else if (!eligible) {
+    checkinDescription = t('Check-in is available after a successful payment')
   }
 
   return (
@@ -318,15 +328,13 @@ export function CheckinCalendarCard({
                   </span>
                 </div>
                 <p className='text-muted-foreground mt-1 line-clamp-2 text-xs sm:text-sm'>
-                  {checkedToday && todayAward !== undefined
-                    ? `${t('Today')} +${formatQuotaWithCurrency(todayAward)}`
-                    : t('Check in daily to receive random quota rewards')}
+                  {checkinDescription}
                 </p>
               </div>
             </button>
             <Button
               onClick={() => doCheckin()}
-              disabled={checkinLoading || checkedToday}
+              disabled={checkinLoading || checkedToday || !eligible}
               size='sm'
               className='w-full shrink-0 sm:w-auto'
             >

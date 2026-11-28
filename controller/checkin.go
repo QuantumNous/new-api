@@ -19,6 +19,11 @@ func GetCheckinStatus(c *gin.Context) {
 		return
 	}
 	userId := c.GetInt("id")
+	eligible, err := model.IsUserEligibleForCheckin(userId)
+	if err != nil {
+		common.ApiErrorT(c, "Failed to verify check-in eligibility")
+		return
+	}
 	// 获取月份参数，默认为当前月份
 	month := c.DefaultQuery("month", time.Now().Format("2006-01"))
 
@@ -31,10 +36,12 @@ func GetCheckinStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
-			"enabled":   setting.Enabled,
-			"min_quota": setting.MinQuota,
-			"max_quota": setting.MaxQuota,
-			"stats":     stats,
+			"enabled":         setting.Enabled,
+			"paid_users_only": setting.PaidUsersOnly,
+			"eligible":        eligible,
+			"min_quota":       setting.MinQuota,
+			"max_quota":       setting.MaxQuota,
+			"stats":           stats,
 		},
 	})
 }
