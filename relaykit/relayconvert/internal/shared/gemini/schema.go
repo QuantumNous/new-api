@@ -99,8 +99,17 @@ func cleanGeminiFunctionParametersWithDepth(params interface{}, depth int) inter
 		if items, ok := cleanedMap["items"].(map[string]interface{}); ok && items != nil {
 			cleanedMap["items"] = cleanGeminiFunctionParametersWithDepth(items, depth+1)
 		}
-		if itemsArray, ok := cleanedMap["items"].([]interface{}); ok && len(itemsArray) > 0 {
-			cleanedMap["items"] = cleanGeminiFunctionParametersWithDepth(itemsArray[0], depth+1)
+		if itemsArray, ok := cleanedMap["items"].([]any); ok {
+			if len(itemsArray) > 0 {
+				cleanedMap["items"] = cleanGeminiFunctionParametersWithDepth(itemsArray[0], depth+1)
+			} else {
+				// The draft-04 tuple form items: [] constrains an array to hold
+				// no elements, which a typed Schema cannot express. Dropping
+				// items instead would leave an ARRAY without an element schema,
+				// which Gemini rejects too, so fall back to its default element
+				// type.
+				cleanedMap["items"] = map[string]any{"type": "STRING"}
+			}
 		}
 
 		if nested, ok := cleanedMap["anyOf"].([]interface{}); ok && nested != nil {
@@ -170,8 +179,48 @@ func sanitizeGeminiEnum(schema map[string]interface{}) {
 }
 
 func normalizeGeminiSchemaTypeAndNullable(schema map[string]interface{}) {
+	normalizeGeminiTypeField(schema)
+	enforceGeminiArrayType(schema)
+}
+
+// inferGeminiSchemaType fills in a type for nodes that omit it.
+//
+// Gemini's Schema proto carries field predicates: a node holding items must
+// declare $type == Type.ARRAY, otherwise the whole request is rejected and the
+// client only sees a 400:
+//
+//   - GenerateContentRequest.tools[0].function_declarations[N].parameters
+//     .properties[x].items: field predicate failed: $type == Type.ARRAY
+//
+// Schema generators routinely omit type (JSON Schema allows it) or emit values
+// outside Gemini's six-value enum such as list, map or List[str]; this covers
+// both shapes.
+func inferGeminiSchemaType(schema map[string]any) {
+	if _, hasItems := schema["items"]; hasItems {
+		schema["type"] = "ARRAY"
+		return
+	}
+	if _, hasProps := schema["properties"]; hasProps {
+		schema["type"] = "OBJECT"
+	}
+}
+
+// enforceGeminiArrayType keeps type consistent with items. Some schemas
+// declare a type that contradicts a present items (for example type=STRING
+// with items); items wins because it is only meaningful on an ARRAY.
+func enforceGeminiArrayType(schema map[string]any) {
+	if _, hasItems := schema["items"]; !hasItems {
+		return
+	}
+	if t, _ := schema["type"].(string); t != "ARRAY" {
+		schema["type"] = "ARRAY"
+	}
+}
+
+func normalizeGeminiTypeField(schema map[string]any) {
 	rawType, ok := schema["type"]
 	if !ok || rawType == nil {
+		inferGeminiSchemaType(schema)
 		return
 	}
 
@@ -192,7 +241,10 @@ func normalizeGeminiSchemaTypeAndNullable(schema map[string]interface{}) {
 		case "null":
 			return "", true
 		default:
-			return t, false
+			// Non-standard types (list, map, "array[string]", List[str]) must
+			// not pass through: Gemini accepts only its six enum values and
+			// rejects anything else with a field predicate failure.
+			return "", false
 		}
 	}
 
@@ -202,6 +254,11 @@ func normalizeGeminiSchemaTypeAndNullable(schema map[string]interface{}) {
 		if isNull {
 			schema["nullable"] = true
 			delete(schema, "type")
+			return
+		}
+		if normalized == "" {
+			delete(schema, "type")
+			inferGeminiSchemaType(schema)
 			return
 		}
 		schema["type"] = normalized
@@ -215,7 +272,7 @@ func normalizeGeminiSchemaTypeAndNullable(schema map[string]interface{}) {
 					nullable = true
 					continue
 				}
-				if chosen == "" {
+				if chosen == "" && normalized != "" {
 					chosen = normalized
 				}
 			}
@@ -227,6 +284,7 @@ func normalizeGeminiSchemaTypeAndNullable(schema map[string]interface{}) {
 			schema["type"] = chosen
 		} else {
 			delete(schema, "type")
+			inferGeminiSchemaType(schema)
 		}
 	}
 }
