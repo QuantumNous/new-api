@@ -97,9 +97,14 @@ export function ExternalBillingPage(): ReactElement {
     staleTime: 30_000,
   })
 
+  // A failed refetch keeps TanStack Query's previous data; only derive rows
+  // from a successful query so stale totals are never shown next to an error.
   const rows: ExternalBillingRow[] = useMemo(
-    () => (query.data?.data ?? []).slice().sort((a, b) => b.quota - a.quota),
-    [query.data]
+    () =>
+      query.isSuccess
+        ? (query.data?.data ?? []).slice().sort((a, b) => b.quota - a.quota)
+        : [],
+    [query.isSuccess, query.data]
   )
 
   const totalQuota = useMemo(() => rows.reduce((s, r) => s + r.quota, 0), [rows])
