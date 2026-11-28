@@ -663,7 +663,10 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
       <span className='min-w-0 truncate text-xs'>
         {currentModel?.label || t('Model')}
       </span>
-      <span className='bg-muted text-muted-foreground hidden max-w-20 shrink-0 rounded px-1.5 py-0.5 text-[10px] sm:inline-flex'>
+      <span
+        className='bg-muted text-muted-foreground hidden max-w-20 shrink-0 rounded px-1.5 py-0.5 text-[10px] sm:inline-flex'
+        title={currentGroup?.label}
+      >
         {currentGroup?.label || t('Group')}
       </span>
       <ChevronsUpDown className='text-muted-foreground ml-auto size-3.5 shrink-0 opacity-60' />
@@ -702,6 +705,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
               key={group.value}
               onClick={() => handleGroupChange(group.value)}
               ref={isSelected ? selectedGroupOptionRef : undefined}
+              title={group.label}
               type='button'
             >
               <span className='min-w-0 truncate font-medium'>
