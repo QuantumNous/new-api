@@ -379,6 +379,11 @@ func TestKling4(t *testing.T) {
 		assert.Equal(t, float64(15), parsed["completionTokens"])
 		assert.Equal(t, float64(15), parsed["totalTokens"])
 
+		marked := call(t, "parseTaskResult", ctx, reply(map[string]any{"id": "kling_4", "status": "succeeded",
+			"outputs": []any{map[string]any{"type": "video", "url": "https://cdn.example/out.mp4", "watermark_url": "https://cdn.example/marked.mp4"}},
+		}), map[string]any{"status": 200})
+		assert.Equal(t, "https://cdn.example/marked.mp4", marked["url"], "a requested watermark is delivered")
+
 		for _, tc := range []struct{ status, want string }{{"submitted", "SUBMITTED"}, {"processing", "IN_PROGRESS"}, {"failed", "FAILURE"}, {"paused", "UNKNOWN"}} {
 			parsed := call(t, "parseTaskResult", ctx, reply(map[string]any{"id": "kling_4", "status": tc.status, "message": "content check failed"}), map[string]any{"status": 200})
 			assert.Equal(t, tc.want, parsed["status"], tc.status)
@@ -481,6 +486,27 @@ func TestKling4(t *testing.T) {
 			sent = submit(t, openaiVideo, "kling-4.0", body)
 			assert.Equal(t, tc.settings, sent.body["settings"], tc.size)
 		}
+
+		// metadata.contents are Kling 4.0's own inputs and pick the endpoint.
+		sent = submit(t, openaiVideo, "kling-4.0", map[string]any{"model": "kling-4.0", "prompt": "edit @video_1", "metadata": map[string]any{
+			"settings": map[string]any{"resolution": "720p", "duration": 8},
+			"contents": []any{map[string]any{"type": "prompt", "text": "edit @video_1"}, map[string]any{"type": "base_video", "url": "https://cdn.example/v.mp4"}},
+		}})
+		assert.Equal(t, "https://api-singapore.klingai.com/omni-video/kling-4.0", sent.url)
+		assert.Equal(t, map[string]any{
+			"contents": []any{map[string]any{"type": "prompt", "text": "edit @video_1"}, map[string]any{"type": "base_video", "url": "https://cdn.example/v.mp4"}},
+			"settings": map[string]any{"resolution": "720p", "duration": float64(8)},
+		}, sent.body)
+
+		sent = submit(t, openaiVideo, "kling-4.0", map[string]any{"model": "kling-4.0", "prompt": "a ball rolls", "metadata": map[string]any{
+			"settings": map[string]any{"duration": 3},
+			"contents": []any{map[string]any{"type": "first_frame", "url": "https://cdn.example/f.png"}},
+		}})
+		assert.Equal(t, "https://api-singapore.klingai.com/image-to-video/kling-4.0", sent.url)
+		assert.Equal(t, map[string]any{
+			"contents": []any{map[string]any{"type": "prompt", "text": "a ball rolls"}, map[string]any{"type": "first_frame", "url": "https://cdn.example/f.png"}},
+			"settings": map[string]any{"duration": float64(3)},
+		}, sent.body)
 
 		// Kling 4.0 makes 3 to 30 seconds; another duration is refused before
 		// anything is reserved.

@@ -80,6 +80,7 @@ const KLING4_MAX_SECONDS = 30;
 // Whether an element is a video character is not in the request, so an
 // element counts as an input video.
 const KLING4_VIDEO_INPUTS = ["feature_video", "base_video", "element"];
+const KLING4_FRAME_TYPES = ["first_frame", "middle_frame", "last_frame"];
 const KLING4_ACTIONS = { "text-to-video": "text_to_video", "image-to-video": "image_to_video", "omni-video": "reference_to_video" };
 // The text-to-video aspect ratios of kling-v2-5-turbo, kling-v2-6 and
 // kling-v3, then of Kling 4.0. The host protocols send the one nearest the
@@ -333,8 +334,22 @@ function kling4Submission(ctx) {
   });
   let duration = metadata.duration;
   if (duration === undefined || duration === null) duration = req.duration;
-  for (const name of ["mode", "duration", "image", "image_tail"]) delete metadata[name];
-  const endpoint = frames.length ? "image-to-video" : "text-to-video";
+  // metadata.contents are Kling 4.0's own inputs and pick the endpoint.
+  const extraContents = Array.isArray(metadata.contents) ? metadata.contents : [];
+  for (const name of ["mode", "duration", "image", "image_tail", "contents"]) delete metadata[name];
+  const types = extraContents.map(function (item) {
+    return item && item.type;
+  });
+  const framesOnly = types.every(function (type) {
+    return type === "prompt" || KLING4_FRAME_TYPES.includes(type);
+  });
+  const hasFrame =
+    frames.length > 0 ||
+    types.some(function (type) {
+      return KLING4_FRAME_TYPES.includes(type);
+    });
+  let endpoint = frames.length ? "image-to-video" : "text-to-video";
+  if (extraContents.length) endpoint = framesOnly && hasFrame ? "image-to-video" : "omni-video";
   const settings = {};
   const size = trimmed(req.size);
   if (size) {
@@ -342,14 +357,17 @@ function kling4Submission(ctx) {
     // Kling 4.0 makes 720p and 1080p; a size gets the one whose shorter side
     // is nearer its own.
     settings.resolution = Math.min(dimensions.width, dimensions.height) < 900 ? "720p" : "1080p";
-    if (endpoint === "text-to-video") settings.aspect_ratio = aspectRatio(dimensions, KLING4_ASPECT_RATIOS);
+    if (endpoint !== "image-to-video") settings.aspect_ratio = aspectRatio(dimensions, KLING4_ASPECT_RATIOS);
   }
   if (duration !== undefined && duration !== null) settings.duration = kling4Duration(duration);
   let body;
   if (endpoint === "text-to-video") body = req.prompt ? { prompt: req.prompt } : {};
   else {
-    const contents = req.prompt ? [{ type: "prompt", text: req.prompt }] : [];
-    for (const frame of frames) contents.push({ type: frame[0], url: filePlaceholder(frame[1]) });
+    const contents = extraContents.slice();
+    if (req.prompt && !types.includes("prompt")) contents.unshift({ type: "prompt", text: req.prompt });
+    for (const frame of frames) {
+      if (!types.includes(frame[0])) contents.push({ type: frame[0], url: filePlaceholder(frame[1]) });
+    }
     body = { contents: contents };
   }
   if (Object.keys(settings).length) body.settings = settings;
@@ -390,6 +408,12 @@ function kling4Entry(reply, taskId) {
 function isKling4Reply(reply) {
   const data = plainObject(reply).data;
   return Array.isArray(data) || Boolean(data && typeof data === "object" && data.id && !data.task_id);
+}
+
+// watermark_url is set only when options.watermark_info asked for the
+// watermarked copy.
+function kling4VideoURL(video) {
+  return trimmed(video && (video.watermark_url || video.url));
 }
 
 function kling4Videos(entry) {
@@ -607,7 +631,7 @@ function parseKling4Result(ctx, body) {
   if (!status) return { status: "UNKNOWN", reason: "unknown task status: " + String(entry.status || "") };
   const result = { code: body.code || 0, taskId: entry.id, status: status, reason: entry.message || "" };
   const videos = status === "SUCCESS" ? kling4Videos(entry) : [];
-  if (videos.length && videos[0].url) result.url = videos[0].url;
+  if (videos.length && kling4VideoURL(videos[0])) result.url = kling4VideoURL(videos[0]);
   const usage = kling4CompletedUnits(ctx, body);
   if (usage && usage.units > 0) {
     result.completionTokens = Math.ceil(usage.units);
@@ -642,7 +666,7 @@ function artifactData(ctx) {
 function artifactVideoURL(ctx) {
   if (isKling4Task(ctx)) {
     const videos = kling4Videos(kling4Entry(artifactData(ctx), ctx.taskId));
-    return videos.length ? String(videos[0].url || "").trim() : "";
+    return videos.length ? kling4VideoURL(videos[0]) : "";
   }
   const result = (artifactData(ctx).data || {}).task_result || {};
   const videos = Array.isArray(result.videos) ? result.videos : [];
