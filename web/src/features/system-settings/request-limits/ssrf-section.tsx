@@ -53,6 +53,33 @@ import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
+const parsePorts = (value: string) =>
+  value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+
+// Accepts "80" and "8000-9000", the formats parsePortRanges reads on the server.
+// It trims both sides of the hyphen, so "8000 - 9000" is valid too.
+// An invalid entry rejects the whole list there, so it has to be caught here.
+const isValidPortEntry = (entry: string) => {
+  const match = /^(\d{1,5})(?:[ \t]*-[ \t]*(\d{1,5}))?$/.exec(entry)
+  if (!match) return false
+
+  const start = Number(match[1])
+  const end = Number(match[2] ?? match[1])
+  return start >= 1 && start <= 65535 && end >= start && end <= 65535
+}
+
+// An empty field means "all ports", but a field of only separators would
+// otherwise save as [] and drop the restriction without any error.
+const isValidPortList = (value: string) => {
+  if (value.trim() === '') return true
+
+  const entries = parsePorts(value)
+  return entries.length > 0 && entries.every(isValidPortEntry)
+}
+
 const ssrfSchema = z.object({
   fetch_setting: z.object({
     enable_ssrf_protection: z.boolean(),
@@ -76,7 +103,7 @@ type NormalizedSSRFValues = {
   'fetch_setting.ip_filter_mode': boolean
   'fetch_setting.domain_list': string[]
   'fetch_setting.ip_list': string[]
-  'fetch_setting.allowed_ports': number[]
+  'fetch_setting.allowed_ports': string[]
   'fetch_setting.apply_ip_filter_for_domain': boolean
 }
 
@@ -88,7 +115,7 @@ type SSRFSectionProps = {
     'fetch_setting.ip_filter_mode': boolean
     'fetch_setting.domain_list': string[]
     'fetch_setting.ip_list': string[]
-    'fetch_setting.allowed_ports': number[]
+    'fetch_setting.allowed_ports': string[]
     'fetch_setting.apply_ip_filter_for_domain': boolean
   }
 }
@@ -98,12 +125,6 @@ const splitLines = (value: string) =>
     .split('\n')
     .map((entry) => entry.trim())
     .filter(Boolean)
-
-const parsePorts = (value: string) =>
-  value
-    .split(',')
-    .map((item) => Number.parseInt(item.trim(), 10))
-    .filter((port) => Number.isFinite(port))
 
 const buildFormDefaults = (
   defaults: SSRFSectionProps['defaultValues']
@@ -184,6 +205,20 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
     const updates = (
       Object.keys(normalized) as Array<keyof NormalizedSSRFValues>
     ).filter((key) => !isEqual(normalized[key], baselineRef.current[key]))
+
+    // Only the port list the user is actually changing is validated. A stored
+    // entry the server rejects would otherwise block every save on this page,
+    // including turning protection off to restore fetching.
+    if (
+      updates.includes('fetch_setting.allowed_ports') &&
+      !isValidPortList(data.fetch_setting.allowed_ports)
+    ) {
+      form.setError('fetch_setting.allowed_ports', {
+        type: 'validate',
+        message: t('Enter ports or ranges, for example 80,443,8000-9000'),
+      })
+      return
+    }
 
     if (updates.length === 0) {
       toast.info(t('No changes to save'))

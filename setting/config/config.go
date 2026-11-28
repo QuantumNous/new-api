@@ -161,6 +161,13 @@ func configToMap(config any) (map[string]string, error) {
 	return result, nil
 }
 
+// logUnmarshalError reports a stored option that could not be applied. Without
+// it a rejected value silently keeps the previous one while the UI shows it as
+// saved.
+func logUnmarshalError(key string, err error) {
+	common.SysError(common.LogText("failed to unmarshal config %s: %s", key, err.Error()))
+}
+
 // 辅助函数：从map更新配置对象
 func updateConfigFromMap(config any, configMap map[string]string) error {
 	val := reflect.ValueOf(config)
@@ -249,6 +256,7 @@ func updateConfigFromMap(config any, configMap map[string]string) error {
 				// 反序列化到指针指向的值
 				err := json.Unmarshal([]byte(strValue), field.Interface())
 				if err != nil {
+					logUnmarshalError(key, err)
 					continue
 				}
 			}
@@ -258,12 +266,14 @@ func updateConfigFromMap(config any, configMap map[string]string) error {
 			// are properly cleared.
 			fresh := reflect.New(field.Type())
 			if err := json.Unmarshal([]byte(strValue), fresh.Interface()); err != nil {
+				logUnmarshalError(key, err)
 				continue
 			}
 			field.Set(fresh.Elem())
 		case reflect.Slice, reflect.Struct:
 			err := json.Unmarshal([]byte(strValue), field.Addr().Interface())
 			if err != nil {
+				logUnmarshalError(key, err)
 				continue
 			}
 		}
