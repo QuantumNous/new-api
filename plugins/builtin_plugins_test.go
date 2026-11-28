@@ -13,7 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var expectedKeys = []string{"alibaba", "doubao", "google", "hailuo", "jimeng", "kling", "sora", "sunoapi", "vertex-ai", "vidu", "xai"}
+var builtInResponsesKeys = []string{"alibaba", "doubao", "google", "hailuo", "jimeng", "kling", "sora", "sunoapi", "vertex-ai", "vidu", "xai"}
+var expectedKeys = slices.Concat(builtInResponsesKeys, []string{"zhipu-video"})
 
 // The built-in request processing plugins and the stage hooks each exports.
 var requestPluginHooks = map[string][]string{
@@ -88,6 +89,10 @@ func TestBuiltInVendorPluginsDeclareNativeRoutesAndLegacyChannelTypes(t *testing
 		{"POST", "/v1" + vertexModel, "vertex-ai", jsplugin.RouteTypeDynamic, "", "operation", false, false},
 		{"POST", "/v1beta1" + vertexModel, "vertex-ai", jsplugin.RouteTypeDynamic, "", "operation", false, false},
 		{"POST", "/vertex-ai/v1beta1" + vertexModel, "vertex-ai", jsplugin.RouteTypeDynamic, "", "operation", true, false},
+		{"POST", "/api/paas/v4/videos/generations", "zhipu-video", jsplugin.RouteTypeSubmit, "", "taskCreated", false, false},
+		{"POST", "/zhipu-video/api/paas/v4/videos/generations", "zhipu-video", jsplugin.RouteTypeSubmit, "", "taskCreated", true, false},
+		{"GET", "/api/paas/v4/async-result/:id", "zhipu-video", jsplugin.RouteTypeQuery, "", "taskStatus", false, false},
+		{"GET", "/zhipu-video/api/paas/v4/async-result/:id", "zhipu-video", jsplugin.RouteTypeQuery, "", "taskStatus", true, false},
 	}
 	for _, expected := range routes {
 		t.Run(expected.method+" "+expected.path, func(t *testing.T) {
@@ -134,6 +139,7 @@ func TestBuiltInVendorPluginsDeclareNativeRoutesAndLegacyChannelTypes(t *testing
 		key   string
 	}{
 		{1, "sora"},
+		{26, "zhipu-video"},
 		{36, "sunoapi"},
 		{45, "doubao"},
 		{50, "kling"},
@@ -177,6 +183,28 @@ func TestBuiltInTaskPluginResponsesAndUsageContracts(t *testing.T) {
 			registry := jsplugin.NewRegistry()
 			plugin, registerErr := registry.RegisterFactory(source, jsplugin.Options{Key: key})
 			require.NoError(t, registerErr)
+
+			if key == "zhipu-video" {
+				assert.Equal(t, []string{"cogvideox-flash"}, plugin.Meta.Models)
+				require.Len(t, plugin.Meta.Protocols, 1)
+				assert.Equal(t, "openai_video", plugin.Meta.Protocols[0].Name)
+				binding, found := registry.Generation().LookupEndpoint("POST", "/v1/videos", "cogvideox-flash")
+				require.True(t, found)
+				assert.Same(t, plugin, binding.Plugin)
+				for _, unexpected := range []struct{ path, model string }{
+					{"/v1/videos", "cogvideox-2"},
+					{"/v1/videos", "cogvideox-3"},
+					{"/v1/responses", "cogvideox-flash"},
+					{"/v1/chat/completions", "glm-5.3"},
+					{"/v1/images/generations", "glm-image"},
+				} {
+					_, found := registry.Generation().LookupEndpoint("POST", unexpected.path, unexpected.model)
+					assert.False(t, found, unexpected.path+" "+unexpected.model)
+				}
+				assert.Empty(t, plugin.Meta.Relay)
+				assert.Empty(t, plugin.Meta.UsageSchema)
+				return
+			}
 
 			var responsesClaim jsplugin.ProtocolClaim
 			foundResponses := false
@@ -239,7 +267,7 @@ func TestBuiltInRequestPluginsExportTheirStageHooks(t *testing.T) {
 
 func TestBuiltInResponsesDecodersEchoChannelMappedAlias(t *testing.T) {
 	bodyOverrides := map[string]map[string]any{}
-	for _, key := range expectedKeys {
+	for _, key := range builtInResponsesKeys {
 		t.Run(key, func(t *testing.T) {
 			source, sourceErr := Source(key)
 			require.NoError(t, sourceErr)
