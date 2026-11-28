@@ -491,6 +491,29 @@ func TestTaskBillingOtherSeparatesPluginAndRootDiagnostics(t *testing.T) {
 	assert.NotContains(t, runtimeInfo, "author")
 }
 
+func TestTaskLogRequestHeadersSurviveSubmission(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest("POST", "/v1/images/generations", nil)
+	c.Request.Header.Set("User-Agent", "task-client/1.0")
+	c.Request.Header.Set("X-Forwarded-For", "203.0.113.10, 2001:db8::1")
+	execution := TaskExecutionSnapshotFromContext(c)
+	require.NotNil(t, execution)
+	// Polling must use the submission headers, not a later retrieval request.
+	c.Request.Header.Set("User-Agent", "retrieval-client/2.0")
+	encoded, err := common.Marshal(execution)
+	require.NoError(t, err)
+	var restored model.TaskExecutionSnapshot
+	require.NoError(t, common.Unmarshal(encoded, &restored))
+	task := &model.Task{PrivateData: model.TaskPrivateData{Execution: &restored}}
+	other := model.NewLogOther()
+	appendTaskLogInfo(task, other)
+	assert.Equal(t, "task-client/1.0", other.Snapshot()["user_agent"])
+	assert.Equal(t, "203.0.113.10, 2001:db8::1", other.Snapshot()["x_forwarded_for"])
+	other = model.NewLogOther()
+	appendTaskLogInfo(&model.Task{}, other)
+	assert.NotContains(t, other.Snapshot(), "user_agent", "historical tasks have no header snapshot")
+}
+
 func TestTaskBillingContextPriceDataFiltersMultiplier(t *testing.T) {
 	priceData := taskBillingContextPriceData(&model.TaskBillingContext{
 		OtherRatios: map[string]float64{
