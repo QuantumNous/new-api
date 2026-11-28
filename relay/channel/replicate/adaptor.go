@@ -121,6 +121,29 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		}
 	}
 
+	// Explicit aspect_ratio overrides the size-derived value; resolution is
+	// passed through verbatim for models that support it.
+	if ar := strings.TrimSpace(request.AspectRatio); ar != "" {
+		inputPayload["aspect_ratio"] = ar
+		// In custom mode Replicate requires explicit dimensions. When size
+		// maps to a standard ratio the mapper collapses it without w/h, so
+		// re-derive them from the raw WxH pair.
+		if ar == "custom" {
+			parts := strings.SplitN(strings.TrimSpace(request.Size), "x", 2)
+			if len(parts) == 2 {
+				w, e1 := strconv.Atoi(strings.TrimSpace(parts[0]))
+				h, e2 := strconv.Atoi(strings.TrimSpace(parts[1]))
+				if e1 == nil && e2 == nil && w > 0 && h > 0 {
+					inputPayload["width"] = normalizeFluxDimension(w)
+					inputPayload["height"] = normalizeFluxDimension(h)
+				}
+			}
+		}
+	}
+	if res := strings.TrimSpace(request.Resolution); res != "" {
+		inputPayload["resolution"] = res
+	}
+
 	if len(request.OutputFormat) > 0 {
 		var outputFormat string
 		if err := json.Unmarshal(request.OutputFormat, &outputFormat); err == nil && strings.TrimSpace(outputFormat) != "" {
