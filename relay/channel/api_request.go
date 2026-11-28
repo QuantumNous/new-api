@@ -488,6 +488,9 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 		fullRequestURL = targetURL.String()
 	}
 	dialer := *websocket.DefaultDialer
+	if info.RelayFormat == types.RelayFormatOpenAIResponses {
+		dialer.EnableCompression = true
+	}
 	if info.ChannelSetting.Proxy != "" {
 		proxyURL, _, proxyErr := common2.ParseProxyURLRuntime(info.ChannelSetting.Proxy)
 		if proxyErr != nil {

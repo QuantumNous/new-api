@@ -275,16 +275,17 @@ func TestResponsesWSRequestRunnerSharesRedisSuccessLimitWithHTTP(t *testing.T) {
 }
 
 type responsesWSBillingTest struct {
-	httpUpstream http.HandlerFunc
-	httpDone     chan struct{}
-	user         *model.User
-	token        *model.Token
-	channel      *model.Channel
-	client       *websocket.Conn
-	done         chan struct{}
-	upstreamDone chan struct{}
-	connections  atomic.Int32
-	gatewayURL   string
+	httpUpstream     http.HandlerFunc
+	httpDone         chan struct{}
+	user             *model.User
+	token            *model.Token
+	channel          *model.Channel
+	client           *websocket.Conn
+	clientExtensions string
+	done             chan struct{}
+	upstreamDone     chan struct{}
+	connections      atomic.Int32
+	gatewayURL       string
 }
 
 func (fixture *responsesWSBillingTest) closeAndWait(t *testing.T) {
@@ -328,6 +329,11 @@ func waitPerfCounters(t *testing.T, wantRequests int64) (requests, successes int
 }
 
 func newResponsesWSBillingTest(t *testing.T, expression string, handle func(*websocket.Conn, *http.Request), httpEvents ...string) *responsesWSBillingTest {
+	t.Helper()
+	return newResponsesWSBillingTestWithCompression(t, expression, false, false, handle, httpEvents...)
+}
+
+func newResponsesWSBillingTestWithCompression(t *testing.T, expression string, clientCompression, upstreamCompression bool, handle func(*websocket.Conn, *http.Request), httpEvents ...string) *responsesWSBillingTest {
 	t.Helper()
 	user, token := setupResponsesWSRequestTest(t)
 	previousTimeout := constant.StreamingTimeout
@@ -379,7 +385,7 @@ func newResponsesWSBillingTest(t *testing.T, expression string, handle func(*web
 			_, _ = fmt.Fprint(w, "data: [DONE]\n\n")
 			return
 		}
-		ws, err := (&websocket.Upgrader{}).Upgrade(w, r, nil)
+		ws, err := (&websocket.Upgrader{EnableCompression: upstreamCompression}).Upgrade(w, r, nil)
 		if !assert.NoError(t, err) {
 			return
 		}
@@ -417,11 +423,114 @@ func newResponsesWSBillingTest(t *testing.T, expression string, handle func(*web
 	gateway := httptest.NewServer(engine)
 	fixture.gatewayURL = gateway.URL
 	t.Cleanup(gateway.Close)
-	client, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(gateway.URL, "http")+"/v1/responses", http.Header{"Authorization": []string{"Bearer sk-" + token.Key}})
+	dialer := *websocket.DefaultDialer
+	dialer.EnableCompression = clientCompression
+	client, response, err := dialer.Dial("ws"+strings.TrimPrefix(gateway.URL, "http")+"/v1/responses", http.Header{"Authorization": []string{"Bearer sk-" + token.Key}})
 	require.NoError(t, err)
 	fixture.client = client
+	fixture.clientExtensions = response.Header.Get("Sec-WebSocket-Extensions")
 	t.Cleanup(func() { fixture.closeAndWait(t) })
 	return fixture
+}
+
+func TestResponsesWebSocketCompressionNegotiatesEachHop(t *testing.T) {
+	payload := strings.Repeat("compressible message ", 1024)
+	for _, tc := range []struct {
+		name     string
+		client   bool
+		upstream bool
+	}{
+		{name: "both", client: true, upstream: true},
+		{name: "client only", client: true},
+		{name: "upstream only", upstream: true},
+		{name: "neither"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fixture := newResponsesWSBillingTestWithCompression(t, `tier("request", fixed(0))`, tc.client, tc.upstream, func(ws *websocket.Conn, r *http.Request) {
+				assert.Contains(t, r.Header.Get("Sec-WebSocket-Extensions"), "permessage-deflate")
+				for index := range 2 {
+					_, data, err := ws.ReadMessage()
+					if !assert.NoError(t, err) {
+						return
+					}
+					var event struct {
+						Input              string `json:"input"`
+						PreviousResponseID string `json:"previous_response_id"`
+					}
+					if !assert.NoError(t, common.Unmarshal(data, &event)) {
+						return
+					}
+					assert.Equal(t, payload, event.Input)
+					if index == 1 {
+						assert.Equal(t, "resp_0", event.PreviousResponseID)
+					}
+					delta := fmt.Sprintf(`{"type":"response.output_text.delta","delta":%q}`, payload)
+					terminal := fmt.Sprintf(`{"type":"response.completed","response":{"id":"resp_%d","status":"completed","output":[],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}`, index)
+					if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(delta))) ||
+						!assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(terminal))) {
+						return
+					}
+				}
+				_, _, _ = ws.ReadMessage()
+			})
+			assert.Equal(t, tc.client, strings.Contains(fixture.clientExtensions, "permessage-deflate"))
+			for _, previous := range []string{"", "resp_0"} {
+				request := fmt.Sprintf(`{"type":"response.create","model":"ws-billing","input":%q,"previous_response_id":%q}`, payload, previous)
+				require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(request)))
+				delta := readResponsesWSTestEvent(t, fixture.client)
+				assert.Equal(t, payload, delta["delta"])
+				assert.Equal(t, "response.completed", readResponsesWSTestEvent(t, fixture.client)["type"])
+			}
+			assert.Equal(t, int32(1), fixture.connections.Load())
+		})
+	}
+}
+
+func TestResponsesWebSocketCompressionPreservesMessageLimits(t *testing.T) {
+	for _, oversizedUpstream := range []bool{false, true} {
+		name := "client"
+		if oversizedUpstream {
+			name = "upstream"
+		}
+		t.Run(name, func(t *testing.T) {
+			previousRequestLimit, previousStreamLimit := constant.MaxRequestBodyMB, constant.StreamScannerMaxBufferMB
+			constant.MaxRequestBodyMB, constant.StreamScannerMaxBufferMB = 1, 1
+			t.Cleanup(func() {
+				constant.MaxRequestBodyMB, constant.StreamScannerMaxBufferMB = previousRequestLimit, previousStreamLimit
+			})
+			oversized := strings.Repeat("x", 1<<20+1)
+			upstreamClose := make(chan error, 1)
+			fixture := newResponsesWSBillingTestWithCompression(t, `tier("request", fixed(0))`, true, true, func(ws *websocket.Conn, _ *http.Request) {
+				_, _, err := ws.ReadMessage()
+				if !assert.NoError(t, err) || !assert.True(t, oversizedUpstream) {
+					return
+				}
+				if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(oversized))) {
+					return
+				}
+				_, _, err = ws.ReadMessage()
+				upstreamClose <- err
+			})
+			request := oversized
+			if oversizedUpstream {
+				request = `{"type":"response.create","model":"ws-billing","input":"hello"}`
+			}
+			require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(request)))
+			require.NoError(t, fixture.client.SetReadDeadline(time.Now().Add(3*time.Second)))
+			if oversizedUpstream {
+				select {
+				case err := <-upstreamClose:
+					assert.True(t, websocket.IsCloseError(err, websocket.CloseMessageTooBig), "%v", err)
+				case <-time.After(3 * time.Second):
+					t.Fatal("upstream did not receive a close frame")
+				}
+			} else {
+				_, _, err := fixture.client.ReadMessage()
+				assert.True(t, websocket.IsCloseError(err, websocket.CloseMessageTooBig), "%v", err)
+				assert.Zero(t, fixture.connections.Load())
+			}
+		})
+	}
 }
 
 func TestResponsesInterruptedStreamHealth(t *testing.T) {

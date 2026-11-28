@@ -114,7 +114,9 @@ func newResponsesWSRequestRunner(c *gin.Context) relay.ResponsesWSRequestRunner 
 func ResponsesWebSocket(c *gin.Context) {
 	requestID := c.GetString(common.RequestIdKey)
 	runner := newResponsesWSRequestRunner(c)
-	ws, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	responsesUpgrader := upgrader
+	responsesUpgrader.EnableCompression = true
+	ws, err := responsesUpgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		return
 	}
