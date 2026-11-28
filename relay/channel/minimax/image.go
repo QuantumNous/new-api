@@ -211,3 +211,43 @@ func miniMaxImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 
 	return &dto.Usage{}, nil
 }
+
+func isLegacyMiniMaxImageModel(model string) bool {
+	return model == "" || model == "image-01" || model == "image-01-live"
+}
+
+func relayImageModel(info *relaycommon.RelayInfo) string {
+	if info.ChannelMeta != nil && info.UpstreamModelName != "" {
+		return info.UpstreamModelName
+	}
+	return info.OriginModelName
+}
+
+func imageModelName(info *relaycommon.RelayInfo, request dto.ImageRequest) string {
+	if request.Model != "" {
+		return request.Model
+	}
+	return relayImageModel(info)
+}
+
+// mergeImageExtra forwards Extra (aspect_ratio, area); ImageRequest.MarshalJSON omits it.
+func mergeImageExtra(request dto.ImageRequest) (any, error) {
+	if len(request.Extra) == 0 {
+		return request, nil
+	}
+	body, err := common.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+	var payload map[string]any
+	if err := common.Unmarshal(body, &payload); err != nil {
+		return nil, err
+	}
+	for k, raw := range request.Extra {
+		var v any
+		if err := common.Unmarshal(raw, &v); err == nil {
+			payload[k] = v
+		}
+	}
+	return payload, nil
+}
