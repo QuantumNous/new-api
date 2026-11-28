@@ -1021,6 +1021,18 @@ func CreateUser(c *gin.Context) {
 		common.ApiErrorT(c, "Cannot create users with permission level equal to or higher than yourself")
 		return
 	}
+	// Check before consuming an admin-creation proof, so a taken name does not
+	// burn the verification. The unique index still guards concurrent creates.
+	exist, err := model.CheckUserExistOrDeleted(user.Username, "")
+	if err != nil {
+		common.ApiErrorT(c, "Database error, please contact the administrator")
+		common.SysLog(common.LogText("CheckUserExistOrDeleted error: %v", err))
+		return
+	}
+	if exist {
+		common.ApiErrorT(c, "Username already exists or has been deleted")
+		return
+	}
 	auditParams := map[string]any{"role": user.Role}
 	// Creating an administrator grants privilege just like promoting one.
 	if user.Role >= common.RoleAdminUser {
