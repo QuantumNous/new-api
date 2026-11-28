@@ -322,6 +322,7 @@ func is64BitIntegerType(dbType common.DatabaseType, dataType string) bool {
 	}
 }
 
+// migrateDB reconciles the primary database schema and its compatibility migrations.
 func migrateDB() error {
 	if err := migrateTokenKeyUniqueness(DB); err != nil {
 		return err
@@ -380,6 +381,9 @@ func migrateDB() error {
 	if err != nil {
 		return err
 	}
+	if err := migrateLogTimeIndex(DB); err != nil {
+		return err
+	}
 	if err := InitializeUserAuthVersions(); err != nil {
 		return err
 	}
@@ -401,6 +405,7 @@ func migrateDB() error {
 	return nil
 }
 
+// migrateLOGDB reconciles audit and usage-log schemas in a separate log database.
 func migrateLOGDB() error {
 	if err := MigrateAuditLogs(); err != nil {
 		return err
@@ -408,7 +413,10 @@ func migrateLOGDB() error {
 	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
 		return migrateClickHouseLogDB()
 	}
-	return LOG_DB.AutoMigrate(&Log{})
+	if err := LOG_DB.AutoMigrate(&Log{}); err != nil {
+		return err
+	}
+	return migrateLogTimeIndex(LOG_DB)
 }
 
 func migrateClickHouseLogDB() error {
