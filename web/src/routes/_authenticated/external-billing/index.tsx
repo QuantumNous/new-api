@@ -1,5 +1,5 @@
 /* External billing page: per-account external (third-party) channel usage. */
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactElement } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, useSearch } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
@@ -63,7 +63,7 @@ function nowTs(): number {
   return Math.floor(Date.now() / 1000)
 }
 
-export function ExternalBillingPage() {
+export function ExternalBillingPage(): ReactElement {
   const { t } = useTranslation()
   const isAdmin = useIsAdmin()
   // The sidebar exposes an admin-wide entry and a personal entry; the personal
