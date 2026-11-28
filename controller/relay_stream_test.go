@@ -22,11 +22,77 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// TestAliTTSInvalidOptionsReturnHTTP400 exercises the public error envelope and
+// ensures unsupported speech options never reach the billed upstream endpoint.
+func TestAliTTSInvalidOptionsReturnHTTP400(t *testing.T) {
+	previousPrices := ratio_setting.ModelPrice2JSONString()
+	previousRatios := ratio_setting.ModelRatio2JSONString()
+	previousCount, previousErrorLog := constant.CountToken, constant.ErrorLogEnabled
+	quotaSettings := operation_setting.GetQuotaSetting()
+	previousFreePreConsume := quotaSettings.EnableFreeModelPreConsume
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(previousPrices))
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(previousRatios))
+		constant.CountToken, constant.ErrorLogEnabled = previousCount, previousErrorLog
+		quotaSettings.EnableFreeModelPreConsume = previousFreePreConsume
+	})
+	constant.CountToken, constant.ErrorLogEnabled = false, false
+	quotaSettings.EnableFreeModelPreConsume = false
+	const modelName = "qwen-tts-http-validation-fixture"
+	prices := ratio_setting.GetModelPriceCopy()
+	prices[modelName] = 0
+	delete(prices, "o1")
+	encodedPrices, err := common.Marshal(prices)
+	require.NoError(t, err)
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(string(encodedPrices)))
+	ratios := ratio_setting.GetModelRatioCopy()
+	ratios["o1"] = 0
+	encodedRatios, err := common.Marshal(ratios)
+	require.NoError(t, err)
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(string(encodedRatios)))
+	var upstreamCalls atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamCalls.Add(1)
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	t.Cleanup(upstream.Close)
+	for _, tc := range []struct{ name, model, options, message string }{
+		{"unsupported speed", modelName, `,"response_format":"wav","speed":1.2`, "speed"},
+		{"implicit mp3", modelName, "", "response_format"},
+		{"explicit mp3", modelName, `,"response_format":"mp3"`, "response_format"},
+		{"non-GPT token alias", "o1@thinking:off", `,"response_format":"wav"`, "token-priced model alias"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			body := `{"model":"` + tc.model + `","input":"hello","voice":"Cherry"` + tc.options + `}`
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/audio/speech", strings.NewReader(body))
+			c.Request.Header.Set("Content-Type", "application/json")
+			common.SetContextKey(c, constant.ContextKeyOriginalModel, tc.model)
+			common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeAli)
+			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, upstream.URL)
+			common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
+			common.SetContextKey(c, constant.ContextKeyUserGroup, "default")
+			c.Set("model_mapping", `{"`+tc.model+`":"qwen3-tts-flash"}`)
+			Relay(c, types.RelayFormatOpenAIAudio)
+			assert.Equal(t, http.StatusBadRequest, recorder.Code)
+			assert.Contains(t, recorder.Header().Get("Content-Type"), "application/json")
+			var response struct {
+				Error struct{ Message string } `json:"error"`
+			}
+			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+			assert.Contains(t, response.Error.Message, tc.message)
+			assert.Zero(t, upstreamCalls.Load())
+		})
+	}
+}
 
 func TestRelayKeepAliveDuringImagePreparation(t *testing.T) {
 	settings := operation_setting.GetGeneralSetting()

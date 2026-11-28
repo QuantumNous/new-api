@@ -156,56 +156,155 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	return quota, nil
 }
 
+// RecordRealtimeResponseBilling evaluates one response with the frozen pricing
+// expression. Callers deduplicate response IDs and normalize vendor usage first.
+// Completed charges remain available if a later response cannot be evaluated.
+func RecordRealtimeResponseBilling(info *relaycommon.RelayInfo, responseID string, usage dto.RealtimeUsage) error {
+	if info.TieredBillingSnapshot == nil {
+		return nil
+	}
+	if info.RealtimeBilling == nil {
+		info.RealtimeBilling = &relaycommon.RealtimeBillingState{}
+	}
+	if info.RealtimeBilling.ResponseBilling == nil {
+		info.RealtimeBilling.ResponseBilling = &relaycommon.RealtimeResponseBilling{}
+	}
+	responses := info.RealtimeBilling.ResponseBilling
+	canonical := &dto.Usage{PromptTokens: usage.InputTokens, CompletionTokens: usage.OutputTokens, TotalTokens: usage.TotalTokens,
+		PromptTokensDetails: usage.InputTokenDetails, CompletionTokenDetails: usage.OutputTokenDetails}
+	snap := info.TieredBillingSnapshot
+	params := BuildTieredTokenParams(canonical, false, billingexpr.UsedVarsByHash(snap.ExprString, snap.ExprHash))
+	request := billingexpr.RequestInput{}
+	if info.BillingRequestInput != nil {
+		request = *info.BillingRequestInput
+	}
+	result, err := billingexpr.ComputeTieredQuotaWithRequest(snap, params, request)
+	if err != nil {
+		responses.Failed = true
+		return fmt.Errorf("failed to evaluate realtime response billing: %w", err)
+	}
+	noteQuotaClamp(info, result.Clamp)
+	quota, clamp := common.QuotaFromDecimalChecked(decimal.NewFromInt(int64(responses.Quota)).Add(decimal.NewFromInt(int64(result.ActualQuotaAfterGroup))))
+	noteQuotaClamp(info, clamp)
+	responses.Quota = quota
+	responses.Turns = append(responses.Turns, relaycommon.RealtimeTurnCharge{ResponseID: responseID, Usage: usage, Pricing: result})
+	return nil
+}
+
+// ReserveRealtimeQuota raises the existing billing reservation to the cost of
+// the entire session so far. It never charges each response a second time at
+// final settlement, and checks available funds even for trusted wallets.
+func ReserveRealtimeQuota(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.RealtimeUsage) error {
+	quota, result, _ := calculateRealtimeQuota(ctx, info, usage)
+	if info.QuotaClamp != nil {
+		return info.QuotaClamp
+	}
+	responses := info.RealtimeBilling.ResponseBilling
+	if responses != nil && responses.Failed {
+		return errors.New("failed to evaluate realtime billing expression")
+	}
+	if info.TieredBillingSnapshot != nil && result == nil && responses == nil {
+		return errors.New("failed to evaluate realtime billing expression")
+	}
+	if quota == 0 {
+		return nil
+	}
+	if info.Billing == nil {
+		if apiErr := PreConsumeBilling(ctx, quota, info); apiErr != nil {
+			return apiErr
+		}
+	}
+	if err := info.Billing.ReserveBeforeSubmit(quota); err != nil {
+		return err
+	}
+	info.FinalPreConsumedQuota = info.Billing.GetPreConsumedQuota()
+	info.RealtimeBilling.ReservedToolQuota = info.RealtimeBilling.ToolQuota
+	return nil
+}
+
+// Reservation and settlement must use the same captured rates, audio/text
+// categories and vendor-reported tool charges, including mapped model names.
+func calculateRealtimeQuota(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.RealtimeUsage) (int, *billingexpr.TieredResult, []ToolSurchargeItem) {
+	if info.RealtimeBilling == nil {
+		info.RealtimeBilling = &relaycommon.RealtimeBillingState{ToolPrices: make(map[string]float64)}
+	}
+	if info.RealtimeBilling.ToolPrices == nil {
+		info.RealtimeBilling.ToolPrices = make(map[string]float64)
+	}
+	// Keep the provider's raw usage for logs; normalize its nonbillable audio
+	// transcript only for pricing, including mixed audio/text-only turns.
+	billable := *usage
+	companion := min(info.RealtimeBilling.AudioCompanionTextTokens, usage.OutputTokenDetails.TextTokens)
+	billable.OutputTokenDetails.TextTokens -= companion
+	billable.OutputTokens -= companion
+	billable.TotalTokens -= companion
+	usage = &billable
+	price := info.PriceData
+	amount := decimal.NewFromInt(int64(usage.InputTokenDetails.TextTokens))
+	amount = amount.Add(decimal.NewFromInt(int64(usage.OutputTokenDetails.TextTokens)).Mul(decimal.NewFromFloat(price.CompletionRatio)))
+	amount = amount.Add(decimal.NewFromInt(int64(usage.InputTokenDetails.AudioTokens)).Mul(decimal.NewFromFloat(price.AudioRatio)))
+	amount = amount.Add(decimal.NewFromInt(int64(usage.OutputTokenDetails.AudioTokens)).Mul(decimal.NewFromFloat(price.AudioRatio)).Mul(decimal.NewFromFloat(price.AudioCompletionRatio)))
+	amount = amount.Mul(decimal.NewFromFloat(price.ModelRatio)).Mul(decimal.NewFromFloat(price.GroupRatioInfo.GroupRatio))
+	if price.UsePrice {
+		amount = decimal.NewFromFloat(price.ModelPrice).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).Mul(decimal.NewFromFloat(price.GroupRatioInfo.GroupRatio))
+	}
+	amount = price.ApplyOtherRatiosToDecimal(amount)
+	if usage.TotalTokens == 0 {
+		amount = decimal.Zero
+	}
+	quota, clamp := common.QuotaFromDecimalChecked(amount)
+	noteQuotaClamp(info, clamp)
+	if amount.IsPositive() && quota == 0 {
+		quota = 1
+	}
+
+	var result *billingexpr.TieredResult
+	fallback := false
+	if responses := info.RealtimeBilling.ResponseBilling; responses != nil {
+		quota = responses.Quota
+	} else if snap := info.TieredBillingSnapshot; snap != nil {
+		canonical := &dto.Usage{
+			PromptTokens: usage.InputTokens, CompletionTokens: usage.OutputTokens, TotalTokens: usage.TotalTokens,
+			PromptTokensDetails: usage.InputTokenDetails, CompletionTokenDetails: usage.OutputTokenDetails,
+		}
+		params := BuildTieredTokenParams(canonical, false, billingexpr.UsedVarsByHash(snap.ExprString, snap.ExprHash))
+		if ok, tieredQuota, tieredResult := TryTieredSettle(info, params); ok {
+			quota, result = tieredQuota, tieredResult
+			fallback = tieredResult == nil
+		}
+	}
+	summary := textQuotaSummary{ModelName: info.GetBillingModelName(), GroupRatio: price.GroupRatioInfo.GroupRatio}
+	summary.ToolCallSurchargeQuota = calculateTextToolCallSurcharge(ctx, info, &summary)
+	info.RealtimeBilling.ToolQuota = summary.ToolCallSurchargeQuota
+	if fallback {
+		// The fallback is the complete reservation, including its search fees.
+		// Only searches not covered by that reservation may be added again.
+		summary.ToolCallSurchargeQuota = decimal.Max(decimal.Zero,
+			summary.ToolCallSurchargeQuota.Sub(info.RealtimeBilling.ReservedToolQuota))
+	}
+	quota = composeTieredTextQuota(info, summary, quota, result)
+	if info.RealtimeBilling.UsageIncomplete || info.RealtimeBilling.ResponseBilling != nil && info.RealtimeBilling.ResponseBilling.Failed {
+		quota = max(quota, info.FinalPreConsumedQuota)
+	}
+	return quota, result, summary.ToolSurchargeItems
+}
+
+// PostWssConsumeQuota settles a complete realtime session once and records its
+// audio/text split, frozen tool charges and any incomplete upstream usage.
 func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, modelName string,
 	usage *dto.RealtimeUsage, extraContent []*common.Message) {
 
-	var tieredResult *billingexpr.TieredResult
-	tieredOk, tieredQuota, tieredRes := TryTieredSettle(relayInfo, billingexpr.TokenParams{
-		P:   float64(usage.InputTokens),
-		C:   float64(usage.OutputTokens),
-		Len: float64(usage.InputTokens),
-	})
-	if tieredOk {
-		tieredResult = tieredRes
-	}
-
-	useTimeSeconds := time.Now().Unix() - relayInfo.StartTime.Unix()
-	textInputTokens := usage.InputTokenDetails.TextTokens
-	textOutTokens := usage.OutputTokenDetails.TextTokens
-
-	audioInputTokens := usage.InputTokenDetails.AudioTokens
-	audioOutTokens := usage.OutputTokenDetails.AudioTokens
-
+	quota, tieredResult, toolItems := calculateRealtimeQuota(ctx, relayInfo, usage)
+	modelName = relayInfo.GetBillingModelName()
 	tokenName := ctx.GetString("token_name")
-	completionRatio := decimal.NewFromFloat(ratio_setting.GetCompletionRatio(modelName))
-	audioRatio := decimal.NewFromFloat(ratio_setting.GetAudioRatio(relayInfo.OriginModelName))
-	audioCompletionRatio := decimal.NewFromFloat(ratio_setting.GetAudioCompletionRatio(modelName))
-
+	useTimeSeconds := time.Now().Unix() - relayInfo.StartTime.Unix()
+	completionRatio := decimal.NewFromFloat(relayInfo.PriceData.CompletionRatio)
+	audioRatio := decimal.NewFromFloat(relayInfo.PriceData.AudioRatio)
+	audioCompletionRatio := decimal.NewFromFloat(relayInfo.PriceData.AudioCompletionRatio)
 	modelRatio := relayInfo.PriceData.ModelRatio
 	groupRatio := relayInfo.PriceData.GroupRatioInfo.GroupRatio
 	modelPrice := relayInfo.PriceData.ModelPrice
 	usePrice := relayInfo.PriceData.UsePrice
-
-	quotaInfo := QuotaInfo{
-		InputDetails: TokenDetails{
-			TextTokens:  textInputTokens,
-			AudioTokens: audioInputTokens,
-		},
-		OutputDetails: TokenDetails{
-			TextTokens:  textOutTokens,
-			AudioTokens: audioOutTokens,
-		},
-		ModelName:  modelName,
-		UsePrice:   usePrice,
-		ModelRatio: modelRatio,
-		GroupRatio: groupRatio,
-	}
-
-	quota, clamp := calculateAudioQuota(quotaInfo)
-	noteQuotaClamp(relayInfo, clamp)
-	if tieredOk {
-		quota = tieredQuota
-	}
 
 	totalTokens := usage.TotalTokens
 	var logContent []*common.Message
@@ -225,7 +324,8 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	}
 
 	// record all the consume log even if quota is 0
-	if totalTokens == 0 {
+	failedResponseBilling := relayInfo.RealtimeBilling.ResponseBilling != nil && relayInfo.RealtimeBilling.ResponseBilling.Failed
+	if totalTokens == 0 && len(toolItems) == 0 && !relayInfo.RealtimeBilling.UsageIncomplete && !failedResponseBilling {
 		// in this case, must be some error happened
 		// we cannot just return, because we may have to return the pre-consumed quota
 		quota = 0
@@ -247,6 +347,18 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 		completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), modelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
 	if tieredResult != nil {
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
+	}
+	if responses := relayInfo.RealtimeBilling.ResponseBilling; responses != nil {
+		// Each turn records its own unit and tier; the aggregate may mix them.
+		InjectTieredBillingInfo(other, relayInfo, &billingexpr.TieredResult{MatchedTier: "per_response"})
+		other.SetPublic("realtime_responses", responses.Turns)
+		if responses.Failed {
+			other.SetAdmin("realtime_billing_incomplete", true)
+		}
+	}
+	appendToolSurchargeLogInfo(other, toolItems)
+	if relayInfo.RealtimeBilling.UsageIncomplete {
+		other.SetAdmin("realtime_usage_incomplete", true)
 	}
 	attachQuotaSaturation(ctx, relayInfo, other)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{

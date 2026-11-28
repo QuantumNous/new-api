@@ -18,6 +18,56 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestQwenRealtimeBuiltinPrices verifies published regional prices, separate
+// audio/text categories and the precedence of explicit administrator settings.
+func TestQwenRealtimeBuiltinPrices(t *testing.T) {
+	settings := config.GlobalConfig.Get("billing_setting").(*billing_setting.BillingSetting)
+	saved := *settings
+	savedRatios, savedPrices := ratio_setting.ModelRatio2JSONString(), ratio_setting.ModelPrice2JSONString()
+	t.Cleanup(func() {
+		*settings = saved
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedRatios))
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(savedPrices))
+	})
+	for _, tc := range []struct {
+		name  string
+		quota int
+	}{
+		{"qwen-audio-3.0-realtime-plus", 55353},
+		{"qwen-audio-3.0-realtime-flash", 5300},
+		{"qwen-audio-3.1-realtime-plus", 56886},
+		{"qwen-audio-3.1-realtime-flash", 5300},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			*settings = billing_setting.BillingSetting{BillingMode: map[string]string{}, BillingExpr: map[string]string{}}
+			require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{}`))
+			require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+			assert.Equal(t, billing_setting.BillingModeTieredExpr, billing_setting.GetBillingMode(tc.name))
+			expression, ok := billing_setting.GetBillingExpr(tc.name)
+			require.True(t, ok)
+			usage := &dto.Usage{PromptTokens: 3000, CompletionTokens: 7000,
+				PromptTokensDetails:    dto.InputTokenDetails{TextTokens: 1000, AudioTokens: 2000},
+				CompletionTokenDetails: dto.OutputTokenDetails{TextTokens: 3000, AudioTokens: 4000}}
+			result, err := billingexpr.ComputeTieredQuota(&billingexpr.BillingSnapshot{ExprString: expression, ExprHash: billingexpr.ExprHashString(expression), GroupRatio: 1, QuotaPerUnit: 500000},
+				service.BuildTieredTokenParams(usage, false, billingexpr.UsedVars(expression)))
+			require.NoError(t, err)
+			assert.Equal(t, tc.quota, result.ActualQuotaAfterGroup)
+			for _, update := range []func(string) error{ratio_setting.UpdateModelRatioByJSONString, ratio_setting.UpdateModelPriceByJSONString} {
+				encoded, err := common.Marshal(map[string]float64{tc.name: 0})
+				require.NoError(t, err)
+				require.NoError(t, update(string(encoded)))
+				assert.Equal(t, "ratio", billing_setting.GetBillingMode(tc.name))
+				require.NoError(t, update(`{}`))
+			}
+			settings.BillingMode[tc.name] = "tiered_expr"
+			settings.BillingExpr[tc.name] = `tier("custom", p * 7)`
+			actual, ok := billing_setting.GetBillingExpr(tc.name)
+			require.True(t, ok)
+			assert.Equal(t, settings.BillingExpr[tc.name], actual)
+		})
+	}
+}
+
 func TestGPT6AstraBuiltinBilling(t *testing.T) {
 	settings := config.GlobalConfig.Get("billing_setting").(*billing_setting.BillingSetting)
 	saved := *settings
