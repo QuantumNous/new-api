@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -125,6 +126,10 @@ func GetChannel(
 			return nil, err
 		}
 		abilities = filterAbilitiesByConstraints(abilities, model, filters)
+	}
+	abilities, err = filterAbilitiesByAvailability(abilities, time.Now())
+	if err != nil {
+		return nil, err
 	}
 	if len(abilities) > 0 {
 		priorities := make([]int64, 0)

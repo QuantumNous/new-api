@@ -39,6 +39,20 @@ type ChannelSettings struct {
 	// RequestPlugins lists the request plugin instances the channel binds,
 	// by instance id, in run order.
 	RequestPlugins []string `json:"request_plugins,omitempty"`
+	// AvailabilityWindows restricts when the channel can be selected. An empty
+	// list means the channel is always available.
+	AvailabilityWindows []ChannelAvailabilityWindow `json:"availability_windows,omitempty"`
+}
+
+// ChannelAvailabilityWindow is one recurring window in which a channel is
+// available. Start and End are "HH:MM" in Timezone; an End earlier than Start
+// crosses midnight. Weekdays holds 0 for Sunday through 6 for Saturday, and an
+// empty list means every day. An empty Timezone means UTC.
+type ChannelAvailabilityWindow struct {
+	Timezone string `json:"timezone,omitempty"`
+	Weekdays []int  `json:"weekdays,omitempty"`
+	Start    string `json:"start"`
+	End      string `json:"end"`
 }
 
 // BindsTaskPlugin reports whether the channel is bound to the task plugin,

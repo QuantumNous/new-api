@@ -636,6 +636,9 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 	if channel.Type != constant.ChannelTypeNewAPI && len(setting.TaskExtendPluginKeys) > 0 {
 		return fmt.Errorf("task_extend_plugin_keys is only supported on New API channels")
 	}
+	if err := model.ValidateAvailabilitySetting(channel.Setting); err != nil {
+		return common.NewMessage("Invalid channel settings format: {{error}}", map[string]any{"error": err.Error()})
+	}
 	if channel.Type == constant.ChannelTypeNewAPI {
 		if len(setting.TaskExtendPluginKeys) > maxTaskExtendPluginKeys {
 			return fmt.Errorf("task_extend_plugin_keys must not exceed %d plugins", maxTaskExtendPluginKeys)

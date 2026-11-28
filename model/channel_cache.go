@@ -22,6 +22,11 @@ var channelsIDM map[int]*Channel                     // all channels include dis
 // channel2advancedCustomConfig caches parsed Advanced Custom (type 58) configs so
 // path-aware selection avoids re-parsing JSON per request. Refreshed on full sync.
 var channel2advancedCustomConfig map[int]*kitdto.AdvancedCustomConfig
+
+// channel2availability caches parsed availability windows so selection compares
+// minutes instead of unmarshalling each channel's setting. Refreshed on sync and
+// on channel update.
+var channel2availability map[int][]channelAvailabilityWindow
 var channelSyncLock sync.RWMutex
 
 // channelCacheReloadLock runs one channel cache reload at a time, so a reload
@@ -38,6 +43,7 @@ func InitChannelCache() {
 	}
 	newChannelId2channel := make(map[int]*Channel)
 	newChannel2advancedCustomConfig := make(map[int]*kitdto.AdvancedCustomConfig)
+	newChannel2availability := make(map[int][]channelAvailabilityWindow)
 	var channels []*Channel
 	DB.Find(&channels)
 	for _, channel := range channels {
@@ -46,6 +52,9 @@ func InitChannelCache() {
 			if config := channel.GetOtherSettings().AdvancedCustom; config != nil {
 				newChannel2advancedCustomConfig[channel.Id] = config
 			}
+		}
+		if windows := channel.GetAvailabilityWindows(); len(windows) > 0 {
+			newChannel2availability[channel.Id] = windows
 		}
 	}
 	var abilities []*Ability
@@ -102,6 +111,7 @@ func InitChannelCache() {
 	}
 	channelsIDM = newChannelId2channel
 	channel2advancedCustomConfig = newChannel2advancedCustomConfig
+	channel2availability = newChannel2availability
 	channelSyncLock.Unlock()
 	// Lock ordering: InvalidatePricingCache acquires updatePricingLock, and
 	// GetPricing (holding updatePricingLock) nests channelSyncLock.RLock via
@@ -142,6 +152,8 @@ func GetRandomSatisfiedChannel(
 		normalizedModel := ratio_setting.RoutingMatchModelName(model)
 		channels, _ = filterCandidateIDs(group2model2channels[group][normalizedModel], model, filters)
 	}
+
+	channels = filterUnavailableChannelIDs(channels, time.Now())
 
 	if len(channels) == 0 {
 		return nil, nil
@@ -304,6 +316,14 @@ func CacheUpdateChannel(channel *Channel) {
 		if config := channel.GetOtherSettings().AdvancedCustom; config != nil {
 			channel2advancedCustomConfig[channel.Id] = config
 		}
+	}
+	if channel2availability == nil {
+		channel2availability = make(map[int][]channelAvailabilityWindow)
+	}
+	if windows := channel.GetAvailabilityWindows(); len(windows) > 0 {
+		channel2availability[channel.Id] = windows
+	} else {
+		delete(channel2availability, channel.Id)
 	}
 	logger.LogDebug(nil, "CacheUpdateChannel after: id=%d, name=%s, status=%d, polling_index=%d", channel.Id, channel.Name, channel.Status, channel.ChannelInfo.MultiKeyPollingIndex)
 	// Lock ordering: do NOT hold channelSyncLock while calling
