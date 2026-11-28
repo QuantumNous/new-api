@@ -1,11 +1,18 @@
 package model
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -204,4 +211,100 @@ func TestChannelAvailabilitySelectsOnlyAvailableChannels(t *testing.T) {
 		}
 		assert.True(t, seen[deepSeek.Id] || seen[volcengine.Id])
 	})
+}
+
+// openAvailabilityTestDB points the package DB at a fresh schema for one
+// dialect. mysql and postgres need their DSN environment variables.
+func openAvailabilityTestDB(t *testing.T, dialect string) *gorm.DB {
+	t.Helper()
+	var driver gorm.Dialector
+	switch dialect {
+	case "sqlite":
+		driver = sqlite.Open(filepath.Join(t.TempDir(), "channel-availability.db"))
+	case "mysql":
+		dsn := os.Getenv("TEST_MYSQL_DSN")
+		if dsn == "" {
+			t.Skip("TEST_MYSQL_DSN is not configured")
+		}
+		driver = mysql.Open(dsn)
+	case "postgres":
+		dsn := os.Getenv("TEST_POSTGRES_DSN")
+		if dsn == "" {
+			t.Skip("TEST_POSTGRES_DSN is not configured")
+		}
+		driver = postgres.Open(dsn)
+	}
+	db, err := gorm.Open(driver, &gorm.Config{NamingStrategy: schema.NamingStrategy{TablePrefix: "channel_availability_test_"}})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(2)
+
+	previousDB, previousType := DB, common.MainDatabaseType()
+	DB = db
+	common.SetMainDatabaseType(common.DatabaseType(dialect))
+	initCol()
+	t.Cleanup(func() {
+		DB = previousDB
+		common.SetMainDatabaseType(previousType)
+		initCol()
+		assert.NoError(t, db.Migrator().DropTable(&Ability{}, &Channel{}))
+		assert.NoError(t, sqlDB.Close())
+	})
+	require.NoError(t, db.AutoMigrate(&Channel{}, &Ability{}))
+	return db
+}
+
+// outsideTodayWindows excludes the current weekday, so the channel is never
+// available whenever the test runs.
+func outsideTodayWindows(t *testing.T) *string {
+	t.Helper()
+	weekdays := make([]int, 0, 6)
+	for weekday := range 7 {
+		if weekday != int(time.Now().Weekday()) {
+			weekdays = append(weekdays, weekday)
+		}
+	}
+	return availabilitySetting(t, dto.ChannelAvailabilityWindow{
+		Timezone: "UTC",
+		Weekdays: weekdays,
+		Start:    "00:00",
+		End:      "23:59",
+	})
+}
+
+func TestGetChannelSkipsChannelsOutsideAvailabilityWindows(t *testing.T) {
+	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
+		t.Run(dialect, func(t *testing.T) {
+			db := openAvailabilityTestDB(t, dialect)
+			previousCache := common.MemoryCacheEnabled
+			common.MemoryCacheEnabled = false
+			t.Cleanup(func() { common.MemoryCacheEnabled = previousCache })
+
+			winning := int64(10)
+			daytime := &Channel{Name: "daytime", Status: common.ChannelStatusEnabled, Models: "deepseek-flash", Group: "default", Priority: &winning, Setting: outsideTodayWindows(t)}
+			nighttime := &Channel{Name: "nighttime", Status: common.ChannelStatusEnabled, Models: "deepseek-flash", Group: "default"}
+			for _, channel := range []*Channel{daytime, nighttime} {
+				require.NoError(t, db.Create(channel).Error)
+				require.NoError(t, channel.AddAbilities(db))
+			}
+
+			// The higher priority channel is outside its window, so the lower
+			// priority one serves the request instead.
+			for range 5 {
+				channel, err := GetChannel("default", "deepseek-flash", 0, nil)
+				require.NoError(t, err)
+				require.NotNil(t, channel)
+				assert.Equal(t, nighttime.Id, channel.Id)
+			}
+
+			// When every candidate is outside its window the database path
+			// reports no channel instead of returning one that cannot serve.
+			nighttime.Setting = outsideTodayWindows(t)
+			require.NoError(t, db.Model(nighttime).Update("setting", *nighttime.Setting).Error)
+			channel, err := GetChannel("default", "deepseek-flash", 0, nil)
+			require.NoError(t, err)
+			assert.Nil(t, channel)
+		})
+	}
 }
