@@ -167,3 +167,61 @@ func TestModelMappedHelper_ToolModelCycleError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "model_mapping_contains_cycle")
 }
+
+func TestModelMappedHelper_GeneralOpenAITools(t *testing.T) {
+	rawReq := `{
+		"model": "ce/gpt-5",
+		"messages": [{"role": "user", "content": "hi"}],
+		"tools": [
+			{
+				"type": "function",
+				"function": {
+					"name": "get_weather",
+					"parameters": {"type": "object"}
+				}
+			},
+			{
+				"type": "image_generation",
+				"model": "ce/gpt-image-1",
+				"quality": "high"
+			}
+		]
+	}`
+
+	var req dto.GeneralOpenAIRequest
+	require.NoError(t, json.Unmarshal([]byte(rawReq), &req))
+	require.Len(t, req.Tools, 2)
+	assert.Empty(t, req.Tools[0].Native, "standard function tool must not populate Native")
+	assert.NotEmpty(t, req.Tools[1].Native, "non-function tool with model must preserve raw JSON in Native")
+
+	c := newModelMappingContext(`{
+		"ce/gpt-5": "gpt-5",
+		"ce/gpt-image-1": "gpt-image-1"
+	}`)
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "ce/gpt-5",
+		ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: "ce/gpt-5"},
+	}
+
+	require.NoError(t, ModelMappedHelper(c, info, &req))
+	assert.Equal(t, "gpt-5", req.Model)
+
+	upstreamBytes, err := json.Marshal(&req)
+	require.NoError(t, err)
+
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(upstreamBytes, &decoded))
+	tools, ok := decoded["tools"].([]any)
+	require.True(t, ok)
+	require.Len(t, tools, 2)
+
+	fnTool := tools[0].(map[string]any)
+	_, hasModelOnFn := fnTool["model"]
+	assert.False(t, hasModelOnFn, "function tool must not emit a model field")
+
+	imgTool := tools[1].(map[string]any)
+	assert.Equal(t, "gpt-image-1", imgTool["model"])
+	assert.Equal(t, "high", imgTool["quality"], "non-function tool fields must be preserved")
+	_, hasEmptyFn := imgTool["function"]
+	assert.False(t, hasEmptyFn, "non-function tool must not emit an empty function object")
+}
