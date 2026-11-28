@@ -16,10 +16,27 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { Home } from '@/features/home'
+import { getFreshModuleAccess } from '@/lib/nav-modules'
+import { useAuthStore } from '@/stores/auth-store'
 
 export const Route = createFileRoute('/')({
+  beforeLoad: async ({ location }) => {
+    const access = await getFreshModuleAccess('home')
+    if (!access.enabled) {
+      throw redirect({ to: '/dashboard' })
+    }
+    if (access.requireAuth) {
+      const { auth } = useAuthStore.getState()
+      if (!auth.user) {
+        throw redirect({
+          to: '/sign-in',
+          search: { redirect: location.href },
+        })
+      }
+    }
+  },
   component: Home,
 })
