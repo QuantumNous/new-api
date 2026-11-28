@@ -1,0 +1,50 @@
+@import 'tailwindcss';
+
+:root {
+  --color-blue: oklch(45% 50% 264deg);
+  --color-red: oklch(50% 55% 31deg);
+
+  --color-gray-50: oklch(98.42% 0.0034 247.86deg);
+  --color-gray-100: oklch(12% 9.5% 264deg / 5%);
+  --color-gray-200: oklch(12% 9% 264deg / 8%);
+  --color-gray-300: oklch(12% 8.5% 264deg / 17%);
+  --color-gray-400: oklch(12% 8% 264deg / 38%);
+  --color-gray-500: oklch(12% 7.5% 264deg / 50%);
+  --color-gray-600: oklch(12% 7% 264deg / 67%);
+  --color-gray-700: oklch(12% 6% 264deg / 77%);
+  --color-gray-800: oklch(12% 5% 264deg / 85%);
+  --color-gray-900: oklch(12% 5% 264deg / 90%);
+  --color-gray-950: oklch(12% 5% 264deg / 95%);
+
+  @media (prefers-color-scheme: dark) {
+    --color-blue: oklch(69% 50% 264deg);
+    --color-red: oklch(80% 55% 31deg);
+
+    --color-gray-50: oklch(17% 1% 264deg);
+    --color-gray-100: oklch(28% 3% 264deg / 65%);
+    --color-gray-200: oklch(31% 3% 264deg / 80%);
+    --color-gray-300: oklch(35% 3% 264deg / 80%);
+    --color-gray-400: oklch(47% 3.5% 264deg / 80%);
+    --color-gray-500: oklch(64% 4% 264deg / 80%);
+    --color-gray-600: oklch(82% 4% 264deg / 80%);
+    --color-gray-700: oklch(92% 4.5% 264deg / 80%);
+    --color-gray-800: oklch(93% 3.5% 264deg / 85%);
+    --color-gray-900: oklch(95% 2% 264deg / 90%);
+    --color-gray-950: oklch(94% 1.5% 264deg / 95%);
+  }
+}
+
+html {
+  margin: 0;
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--color-gray-50);
+  color: var(--color-gray-900);
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Display', 'Helvetica Neue', Arial,
+    sans-serif;
+}

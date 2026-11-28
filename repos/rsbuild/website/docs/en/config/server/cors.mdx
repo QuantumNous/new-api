@@ -1,0 +1,185 @@
+---
+description: 'Configure CORS options for the dev server or preview server, based on the cors middleware.'
+---
+
+# server.cors
+
+- **Type:** `boolean | import('cors').CorsOptions`
+- **Default:**
+
+```ts
+const defaultAllowedOrigins =
+  /^https?:\/\/(?:(?:[^:]+\.)?localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/;
+
+const defaultOptions = {
+  // Default allowed:
+  // - localhost
+  // - 127.0.0.1
+  // - [::1]
+  origin: defaultAllowedOrigins,
+};
+```
+
+- **Version:** `>= 1.1.11`
+
+Configure [CORS](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS) options for the dev server or preview server, based on the [cors](https://github.com/expressjs/cors) middleware.
+
+- `object`：Enable CORS with the specified options.
+- `true`：Enable CORS with default options (allow all origins, not recommended).
+- `false`：Disable CORS.
+
+:::warning
+Using `cors: true` or `cors.origin: '*'` exposes your dev server to all origins and can compromise your source code security. We recommend using the [origin](#origin) option to specify an allowlist of trusted origins instead.
+:::
+
+## Example
+
+- Enable CORS for a specific origin:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    cors: {
+      // Configures the `Access-Control-Allow-Origin` CORS response header
+      origin: 'https://example.com',
+    },
+  },
+};
+```
+
+- Keep the default origin config of Rsbuild and add additional origins:
+
+```ts title="rsbuild.config.ts"
+// `defaultAllowedOrigins` is the default origin value of Rsbuild
+import { defaultAllowedOrigins } from '@rsbuild/core';
+
+export default {
+  server: {
+    cors: {
+      origin: [defaultAllowedOrigins, 'https://example.com'],
+    },
+  },
+};
+```
+
+- Only enable CORS for the dev server:
+
+```ts title="rsbuild.config.ts"
+const isDev = process.env.NODE_ENV === 'development';
+
+export default {
+  server: {
+    cors: isDev ? { origin: 'https://example.com' } : false,
+  },
+};
+```
+
+- Disable CORS:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    cors: false,
+  },
+};
+```
+
+- Enable CORS for all origins (not recommended):
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    // Equivalent to `{ origin: '*' }`
+    cors: true,
+  },
+};
+```
+
+## Options
+
+The `cors` option can be an object, which is the same as the [cors](https://github.com/expressjs/cors) middleware options.
+
+The default configuration is the equivalent of:
+
+```js
+const defaultOptions = {
+  origin: '*',
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  preflightContinue: false,
+  optionsSuccessStatus: 204,
+};
+```
+
+### origin
+
+- **Type:**
+
+```ts
+type StaticOrigin = boolean | string | RegExp | Array<boolean | string | RegExp>;
+
+type CustomOrigin = (
+  requestOrigin: string | undefined,
+  callback: (err: Error | null, origin?: StaticOrigin) => void,
+) => void;
+
+type Origin = StaticOrigin | CustomOrigin;
+```
+
+The `origin` option is used to configure the `Access-Control-Allow-Origin` header:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    cors: {
+      origin: 'https://example.com',
+    },
+  },
+};
+```
+
+Specify multiple allowed origins using an array:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    cors: {
+      origin: [
+        /^https?:\/\/(?:(?:[^:]+\.)?localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/,
+        'https://example.com',
+      ],
+    },
+  },
+};
+```
+
+Use a regular expression to allow all matching origins:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    cors: {
+      origin: /\.example\.com$/,
+    },
+  },
+};
+```
+
+Setting `origin` to a function allows you to dynamically determine the allowed origin, the function receives two parameters:
+
+- `origin`：The origin of the incoming request, `undefined` if no origin is present.
+- `callback`：A function to set the allowed origin.
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    cors: {
+      origin: (origin, callback) => {
+        // loadMyOrigins is an example call to load a list of origins
+        loadMyOrigins((error, origins) => {
+          callback(error, origins);
+        });
+      },
+    },
+  },
+};
+```

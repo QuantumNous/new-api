@@ -1,0 +1,28 @@
+{
+  "name": "tanstack-react-start-e2e-basic-tsr-config",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --port 3000",
+    "dev:e2e": "vite dev",
+    "build": "rimraf ./count.txt && vite build && tsc --noEmit",
+    "start": "pnpx srvx --prod -s ../client dist/server/server.js",
+    "test:e2e": "rm -rf port*.txt; playwright test --project=chromium"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "workspace:^",
+    "@tanstack/react-start": "workspace:^",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@tanstack/router-e2e-utils": "workspace:^",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "srvx": "^0.11.9",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14"
+  }
+}

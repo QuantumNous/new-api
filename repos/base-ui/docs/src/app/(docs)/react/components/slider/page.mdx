@@ -1,0 +1,207 @@
+# Slider
+
+<Subtitle>An easily stylable range input.</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled React slider component that works like a range input and is easy to style."
+/>
+
+import { DemoSliderHero } from './demos/hero';
+
+<DemoSliderHero />
+
+## Usage guidelines
+
+- **Form controls must have an accessible name**: Prefer `<Slider.Label>`, or provide an `aria-label` on each `<Slider.Thumb>` when no visible label is rendered. See [Labeling a slider](#labeling-a-slider) and the [forms guide](/react/handbook/forms).
+
+## Anatomy
+
+Import the component and assemble its parts:
+
+```jsx title="Anatomy"
+import { Slider } from '@base-ui/react/slider';
+
+<Slider.Root>
+  <Slider.Label />
+  <Slider.Value />
+  <Slider.Control>
+    <Slider.Track>
+      <Slider.Indicator />
+      <Slider.Thumb />
+    </Slider.Track>
+  </Slider.Control>
+</Slider.Root>;
+```
+
+## Examples
+
+### Range slider
+
+To create a range slider:
+
+1. Pass an array of values and place a `<Slider.Thumb>` for each value in the array
+2. Additionally for server-side rendering, specify a numeric `index` for each thumb that corresponds to the index of its value in the value array
+
+Thumbs can be configured to behave differently when they collide during pointer interactions using the `thumbCollisionBehavior` prop on `<Slider.Root>`.
+
+import { DemoSliderRangeSlider } from './demos/range-slider';
+
+<DemoSliderRangeSlider />
+
+### Thumb alignment
+
+Set `thumbAlignment="edge"` to inset the thumb such that its edge aligns with the edge of the control when the value is at `min` or `max`, without overflowing the control like the default `"center"` alignment.
+
+A client-only alternative `thumbAlignment="edge-client-only"` can be used to reduce bundle size but only renders after React hydration.
+
+import { DemoSliderEdgeAlignment } from './demos/edge-alignment';
+
+<DemoSliderEdgeAlignment />
+
+### Labeling a slider
+
+A single-thumb slider without a visible label (such as a volume control) can be labeled using `aria-label` on `<Slider.Thumb>`:
+
+```tsx title="Slider with invisible label"
+<Slider.Root>
+  <Slider.Control>
+    <Slider.Track>
+      <Slider.Indicator />
+      {/* @highlight */}
+      <Slider.Thumb aria-label="Volume" />
+    </Slider.Track>
+  </Slider.Control>
+</Slider.Root>
+```
+
+A visible label can be created using `<Slider.Label>`:
+
+```tsx title="Slider with visible label"
+<Slider.Root>
+  {/* @highlight */}
+  <Slider.Label>Volume</Slider.Label>
+  <Slider.Control>
+    <Slider.Track>
+      <Slider.Indicator />
+      <Slider.Thumb />
+    </Slider.Track>
+  </Slider.Control>
+</Slider.Root>
+```
+
+For a multi-thumb range slider with a visible label, add `aria-label` on each `<Slider.Thumb>` to distinguish them:
+
+```tsx title="Labeling multi-thumb range sliders"
+<Slider.Root defaultValue={[25, 75]}>
+  <Slider.Label>Price range</Slider.Label>
+  <Slider.Control>
+    <Slider.Track>
+      <Slider.Indicator />
+      {/* @highlight-start */}
+      <Slider.Thumb index={0} aria-label="Minimum price" />
+      <Slider.Thumb index={1} aria-label="Maximum price" />
+      {/* @highlight-end */}
+    </Slider.Track>
+  </Slider.Control>
+</Slider.Root>
+```
+
+### Vertical
+
+Set `orientation="vertical"` on `<Slider.Root>` to build a vertical slider.
+
+import { DemoSliderVertical } from './demos/vertical';
+
+<DemoSliderVertical />
+
+### Form integration
+
+To use a slider in a form, pass the slider `name` to `<Slider.Root>`:
+
+```tsx title="Using Slider in a form"
+<Form>
+  {/* @highlight */}
+  <Slider.Root name="volume">
+    <Slider.Label>Volume</Slider.Label>
+    <Slider.Control>
+      <Slider.Track>
+        <Slider.Indicator />
+        <Slider.Thumb />
+      </Slider.Track>
+    </Slider.Control>
+  </Slider.Root>
+</Form>
+```
+
+For grouped multi-thumb range sliders in forms, [Fieldset](/react/components/fieldset) can provide the shared visible label while each thumb keeps its own `aria-label`:
+
+```tsx title="Using Fieldset with a multi-thumb slider"
+<Field.Root>
+  {/* @highlight-start */}
+  <Fieldset.Root render={<Slider.Root defaultValue={[25, 75]} />}>
+    <Fieldset.Legend>Price range</Fieldset.Legend>
+    {/* @highlight-end */}
+    <Slider.Control>
+      <Slider.Track>
+        <Slider.Indicator />
+        {/* @highlight-start */}
+        <Slider.Thumb index={0} aria-label="Minimum price" />
+        <Slider.Thumb index={1} aria-label="Maximum price" />
+        {/* @highlight-end */}
+      </Slider.Track>
+    </Slider.Control>
+  </Fieldset.Root>
+</Field.Root>
+```
+
+## API reference
+
+import { TypesSlider } from './types';
+
+### Root
+
+<TypesSlider.Root />
+
+### Label
+
+<TypesSlider.Label />
+
+### Value
+
+<TypesSlider.Value />
+
+### Control
+
+<TypesSlider.Control />
+
+### Track
+
+<TypesSlider.Track />
+
+### Indicator
+
+<TypesSlider.Indicator />
+
+### Thumb
+
+<TypesSlider.Thumb />
+
+export const metadata = {
+  keywords: [
+    'React Slider',
+    'Range Slider Component',
+    'Range Input',
+    'Range Control',
+    'Track Control',
+    'Value Selector',
+    'Keyboard Slider Control',
+    'Dual Slider',
+    'Double Slider',
+    'Two-Handle Slider',
+    'Multi Thumb Slider',
+    'Thumb Alignment Edge',
+    'Accessible Slider',
+    'Headless React Components',
+    'Base UI',
+  ],
+};

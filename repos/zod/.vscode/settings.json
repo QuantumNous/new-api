@@ -1,0 +1,21 @@
+{
+  "typescript.tsdk": "./node_modules/typescript/lib",
+  "typescript.validate.enable": true,
+  "typescript.tsserver.experimental.enableProjectDiagnostics": true,
+  "editor.defaultFormatter": "biomejs.biome",
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports.biome": "explicit",
+    "source.fixAll.biome": "always"
+  },
+  "files.exclude": {
+    "./scratch": false,
+    "**/.tshy-build": true,
+    "**/*.{js,cjs,mjs}": true,
+    "**/*.d.{ts,cts,mts}": true,
+    "**/dist": true,
+    "**/lib": true
+  },
+  "search.useIgnoreFiles": false,
+  "editor.guides.indentation": false
+}

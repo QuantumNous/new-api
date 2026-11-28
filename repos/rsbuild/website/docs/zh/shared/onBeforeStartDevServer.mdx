@@ -1,0 +1,22 @@
+在启动开发服务器前调用。
+
+通过 `server` 参数可以获取到开发服务器实例，参考 [Server API](/api/javascript-api/server-api) 了解更多。
+
+- **类型：**
+
+```ts
+type MaybePromise<T> = T | Promise<T>;
+
+type OnBeforeStartDevServerFn = (params: {
+  /**
+   * The dev server instance, the same as the return value of `createDevServer`.
+   */
+  server: RsbuildDevServer;
+  /**
+   * Context information for all environments.
+   */
+  environments: Record<string, EnvironmentContext>;
+}) => MaybePromise<(() => MaybePromise<void>) | void>;
+
+function OnBeforeStartDevServer(callback: OnBeforeStartDevServerFn): void;
+```

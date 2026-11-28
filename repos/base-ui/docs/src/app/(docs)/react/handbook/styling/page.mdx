@@ -1,0 +1,176 @@
+# Styling
+
+<Subtitle>A guide to styling Base UI components with your preferred styling engine.</Subtitle>
+<Meta
+  name="description"
+  content="Learn how to style Base UI components with your preferred styling engine."
+/>
+
+Base UI components are unstyled, don't bundle CSS, and are compatible with Tailwind, CSS Modules, CSS-in-JS, or any other styling solution you prefer.
+You retain total control of your styling layer.
+
+## Style hooks
+
+### CSS classes
+
+Components that render an HTML element accept a `className` prop to style the element with CSS classes.
+
+```tsx title="switch.tsx"
+<Switch.Thumb className="SwitchThumb" />
+```
+
+The prop can also be passed a function that takes the component's state as an argument.
+
+```tsx title="switch.tsx"
+<Switch.Thumb className={(state) => (state.checked ? 'checked' : 'unchecked')} />
+```
+
+### Data attributes
+
+Components provide data attributes designed for styling their states. For example, [Switch](/react/components/switch) can be styled using its `[data-checked]` and `[data-unchecked]` attributes, among others.
+
+```css title="switch.css"
+.SwitchThumb[data-checked] {
+  background-color: green;
+}
+```
+
+### CSS variables
+
+Components expose CSS variables to aid in styling, often containing dynamic numeric values to be used in sizing or transform calculations. For example, [Popover](/react/components/popover) exposes CSS variables on its `Popup` component like `--available-height` and `--anchor-width`.
+
+```css title="popover.css"
+.Popup {
+  max-height: var(--available-height);
+}
+```
+
+Check out each component's API reference for a complete list of available data attributes and CSS variables.
+
+### Style prop
+
+Components that render an HTML element accept a `style` prop to style the element with a CSS object.
+
+```tsx title="switch.tsx"
+<Switch.Thumb style={{ height: '100px' }} />
+```
+
+The prop also accepts a function that takes the component's state as an argument.
+
+```tsx title="switch.tsx"
+<Switch.Thumb style={(state) => ({ color: state.checked ? 'red' : 'blue' })} />
+```
+
+## Tailwind CSS
+
+Apply Tailwind CSS classes to each part via the `className` prop.
+
+```tsx title="menu.tsx"
+import { Menu } from '@base-ui/react/menu';
+
+export default function ExampleMenu() {
+  return (
+    <Menu.Root>
+      <Menu.Trigger className="flex h-8 items-center justify-center rounded-md border border-neutral-950 bg-white px-3 text-sm text-neutral-950 select-none hover:bg-neutral-100 active:bg-neutral-200 data-popup-open:bg-neutral-100 focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-neutral-950 dark:border-white dark:bg-neutral-950 dark:text-white dark:hover:bg-neutral-800 dark:active:bg-neutral-700 dark:data-popup-open:bg-neutral-800 dark:focus-visible:outline-white">
+        Song
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Positioner className="outline-hidden" sideOffset={8}>
+          <Menu.Popup className="origin-(--transform-origin) border border-neutral-950 bg-white py-1 text-neutral-950 outline-hidden transition data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0 dark:border-white dark:bg-neutral-950 dark:text-white">
+            <Menu.Item className="flex cursor-default py-2 pr-8 pl-4 text-sm leading-4 outline-hidden select-none data-highlighted:bg-neutral-950 data-highlighted:text-white dark:data-highlighted:bg-white dark:data-highlighted:text-neutral-950">
+              Add to Library
+            </Menu.Item>
+            <Menu.Item className="flex cursor-default py-2 pr-8 pl-4 text-sm leading-4 outline-hidden select-none data-highlighted:bg-neutral-950 data-highlighted:text-white dark:data-highlighted:bg-white dark:data-highlighted:text-neutral-950">
+              Add to Playlist
+            </Menu.Item>
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
+  );
+}
+```
+
+## CSS Modules
+
+Apply custom CSS classes to each part via the `className` prop.
+Then style those classes in a CSS Modules file.
+
+```tsx title="menu.tsx"
+import { Menu } from '@base-ui/react/menu';
+import styles from './menu.module.css';
+
+export default function ExampleMenu() {
+  return (
+    <Menu.Root>
+      <Menu.Trigger className={styles.Button}>Song</Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Positioner className={styles.Positioner} sideOffset={8}>
+          <Menu.Popup className={styles.Popup}>
+            <Menu.Item className={styles.Item}>Add to Library</Menu.Item>
+            <Menu.Item className={styles.Item}>Add to Playlist</Menu.Item>
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
+  );
+}
+```
+
+## CSS-in-JS
+
+Wrap each component part and apply styles, then assemble your styled components.
+
+```tsx title="menu.tsx"
+import { Menu } from '@base-ui/react/menu';
+import styled from '@emotion/styled';
+
+const StyledMenuTrigger = styled(Menu.Trigger)`
+  // Button styles
+`;
+
+const StyledMenuPositioner = styled(Menu.Positioner)`
+  // Positioner styles
+`;
+
+const StyledMenuPopup = styled(Menu.Popup)`
+  // Popup styles
+`;
+
+const StyledMenuItem = styled(Menu.Item)`
+  // Menu item styles
+`;
+
+const MenuExample = () => (
+  <Menu.Root>
+    <StyledMenuTrigger>Song</StyledMenuTrigger>
+    <Menu.Portal>
+      <StyledMenuPositioner>
+        <StyledMenuPopup>
+          <StyledMenuItem>Add to Library</StyledMenuItem>
+          <StyledMenuItem>Add to Playlist</StyledMenuItem>
+        </StyledMenuPopup>
+      </StyledMenuPositioner>
+    </Menu.Portal>
+  </Menu.Root>
+);
+
+export default MenuExample;
+```
+
+export const metadata = {
+  keywords: [
+    'Base UI Styling',
+    'Tailwind Base UI',
+    'CSS Modules Base UI',
+    'CSS-in-JS Base UI',
+    'Style Hooks Data Attributes',
+    'Unstyled React Components',
+    'Handbook Styling',
+    'Headless UI Styling',
+    'Theming',
+    'Custom Styles',
+    'Utility First CSS',
+    'Headless Components Styling',
+  ],
+};

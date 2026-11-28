@@ -1,0 +1,140 @@
+# v1.0.0-beta.4
+
+<Subtitle>Oct 1, 2025</Subtitle>
+<Meta name="description" content="v1.0.0-beta.4 release notes. Oct 1, 2025." />
+
+## General changes
+
+- **Breaking change:** Generic event details.
+  The main exported type is now `BaseUIChangeEventDetails` (with a paired `BaseUIGenericEventDetails`), not `BaseUIEventDetails`.
+  ([#2796](https://github.com/mui/base-ui/pull/2796))
+- Update `disabled` prop of buttons when ref changes ([#2756](https://github.com/mui/base-ui/pull/2756))
+- Refine event details ([#2698](https://github.com/mui/base-ui/pull/2698))
+
+## Accordion
+
+- **Breaking change:** Use `useId` instead of composite index as fallback value.
+  Accordion items must have an explicit `value` set in order to be initially open. Inferring the value by their DOM index is no longer supported.
+  ([#2664](https://github.com/mui/base-ui/pull/2664))
+- **Breaking change:** Rename `openMultiple` prop to `multiple`
+  ([#2764](https://github.com/mui/base-ui/pull/2764))
+
+## Autocomplete
+
+- **Breaking change**: `onItemHighlighted` now has a `reason` property instead of `type` to be consistent with the `eventDetails` API. ([#2796](https://github.com/mui/base-ui/pull/2796))
+- **Breaking change:** Rename `cols` to `grid` prop.
+  Specify `grid={true}` instead of `cols={number}` - the columns are automatically inferred from `<Autocomplete.Row>`
+  ([#2683](https://github.com/mui/base-ui/pull/2683))
+- Fix duplicate `onOpenChange` calls and pass correct DOM `event`.
+  ([#2682](https://github.com/mui/base-ui/pull/2682))
+- Fix controlled input value updates ([#2707](https://github.com/mui/base-ui/pull/2707))
+- Fix input focus on close when clicking trigger. Fixes a jump to the bottom of the page in Safari ([#2723](https://github.com/mui/base-ui/pull/2723))
+- Add `alwaysSubmitOnEnter` prop and allow form submission on <kbd>Enter</kbd> if no item is highlighted by default ([#2700](https://github.com/mui/base-ui/pull/2700))
+- Use `ReadonlyArray` type for `items` ([#2819](https://github.com/mui/base-ui/pull/2819))
+
+## Collapsible
+
+- Fix `CollapsiblePanel` type to use its own state ([#2697](https://github.com/mui/base-ui/pull/2697))
+- Respect user's CSS `display` property on panel ([#2772](https://github.com/mui/base-ui/pull/2772))
+
+## Combobox
+
+- **Breaking change**: `onItemHighlighted` now has a `reason` property instead of `type` to be consistent with the `eventDetails` API. ([#2796](https://github.com/mui/base-ui/pull/2796))
+- **Breaking change:** Rename `cols` to `grid` prop.
+  Specify `grid={true}` instead of `cols={number}` - the columns are automatically inferred from `<Combobox.Row>`.
+  ([#2683](https://github.com/mui/base-ui/pull/2683))
+- Fix duplicate `onOpenChange` calls and pass correct DOM `event`.
+  ([#2682](https://github.com/mui/base-ui/pull/2682))
+- Fix initial closed typeahead ([#2665](https://github.com/mui/base-ui/pull/2665))
+- Support `autoHighlight` prop ([#2668](https://github.com/mui/base-ui/pull/2668))
+- Set default input value based on `value` prop ([#2680](https://github.com/mui/base-ui/pull/2680))
+- Fix controlled input value updates ([#2707](https://github.com/mui/base-ui/pull/2707))
+- Fix input focus on close when clicking trigger. Fixes a jump to the bottom of the page in Safari ([#2723](https://github.com/mui/base-ui/pull/2723))
+- Fix unexpected close with multiple selection and input inside popup ([#2771](https://github.com/mui/base-ui/pull/2771))
+- Allow form submission on <kbd>Enter</kbd> if no item is highlighted by default ([#2700](https://github.com/mui/base-ui/pull/2700))
+- Avoid refiltering with ending transition in multiple selection mode ([#2681](https://github.com/mui/base-ui/pull/2681))
+- Support object values with `isItemEqualToValue` prop ([#2704](https://github.com/mui/base-ui/pull/2704))
+- Use `ReadonlyArray` type for `items` ([#2819](https://github.com/mui/base-ui/pull/2819))
+- Fix misleading `item-press` reason in `onInputValueChange` ([#2830](https://github.com/mui/base-ui/pull/2830))
+- Clear single-select value on input clear ([#2860](https://github.com/mui/base-ui/pull/2860))
+- Fix `focusout` of input not closing popup under certain conditions ([#2864](https://github.com/mui/base-ui/pull/2864))
+
+## Context Menu
+
+- Ensure submenus close when parents close ([#2768](https://github.com/mui/base-ui/pull/2768))
+- Fix `onClick` firing twice on first click of item ([#2849](https://github.com/mui/base-ui/pull/2849))
+
+## Menu
+
+- Ensure submenus close when parents close ([#2768](https://github.com/mui/base-ui/pull/2768))
+- Allow non-nested portals across differing popup trees ([#2818](https://github.com/mui/base-ui/pull/2818))
+
+## Menubar
+
+- Fix Menubar not disabling child Menus ([#2736](https://github.com/mui/base-ui/pull/2736))
+- Ensure submenus close when parents close ([#2768](https://github.com/mui/base-ui/pull/2768))
+- Fix `<CompositeList>` not updating item order on reordering ([#2675](https://github.com/mui/base-ui/pull/2675))
+
+## Navigation Menu
+
+- Make link close on click configurable ([#2740](https://github.com/mui/base-ui/pull/2740))
+- Fix focus returning to trigger without animations ([#2779](https://github.com/mui/base-ui/pull/2779))
+
+## Number Field
+
+- Fix stuck virtual cursor after mouse tap ([#2720](https://github.com/mui/base-ui/pull/2720))
+- Improve parsing logic ([#2725](https://github.com/mui/base-ui/pull/2725))
+- Align value changes with `Slider`. An `onValueCommitted` callback has been added. ([#2726](https://github.com/mui/base-ui/pull/2726))
+
+## Popover
+
+- Allow non-nested portals across differing popup trees ([#2818](https://github.com/mui/base-ui/pull/2818))
+
+## Scroll Area
+
+- Add overflow presence state attributes and CSS variables ([#2478](https://github.com/mui/base-ui/pull/2478))
+- Fix RTL horizontal scrollbar on Safari ([#2776](https://github.com/mui/base-ui/pull/2776))
+- Fix thumb size flicker ([#2778](https://github.com/mui/base-ui/pull/2778))
+
+## Select
+
+- **Breaking change:** Add `<Select.List>` component. It is now possible for `<Select.ScrollArrow>` to show when in fallback (`alignItemWithTrigger` deactivated). As a result, if you want the scroll arrows to be hidden in this mode like before, change the styles to default to `display: none` on `.ScrollArrow`, and `display: block` when `[data-side="none"]`. ([#2596](https://github.com/mui/base-ui/pull/2596))
+- Block opening the popup when provided `readOnly` ([#2717](https://github.com/mui/base-ui/pull/2717))
+- Add `open` state for `<Select.Icon>` and fix `ref` type ([#2714](https://github.com/mui/base-ui/pull/2714))
+- Support object values with `isItemEqualToValue` prop ([#2704](https://github.com/mui/base-ui/pull/2704))
+- Use `ReadonlyArray` type for `items` ([#2819](https://github.com/mui/base-ui/pull/2819))
+
+## Slider
+
+- **Breaking change:** `onValueChange` has `activeThumbIndex` as part of the `eventDetails` object as a second parameter, not third. ([#2796](https://github.com/mui/base-ui/pull/2796))
+- **Breaking change:** Remove redundant hidden inputs.
+  The `inputRef` prop is moved from `<Slider.Root>` to `<Slider.Thumb>`.
+  ([#2631](https://github.com/mui/base-ui/pull/2631))
+- Fix pointer tracking bugs ([#2688](https://github.com/mui/base-ui/pull/2688))
+- Fix input attributes ([#2728](https://github.com/mui/base-ui/pull/2728))
+- Add `thumbAlignment` prop ([#2540](https://github.com/mui/base-ui/pull/2540))
+
+## Switch
+
+- Fix duplicate `name` attribute ([#2763](https://github.com/mui/base-ui/pull/2763))
+
+## Toast
+
+- **Breaking change:** Support variable height stacking.
+  Toasts that have varying heights no longer force a `data-expanded` expanded state on the viewport. CSS should be amended to ensure larger toasts don't overflow a small toast stacked at the front. See this [diff](https://github.com/mui/base-ui/pull/2742/files#diff-e378460dafb74fe0c90ef960ad0ef1c38d68d74b63815520bb437f9041361917) for new styles, along with general improvements to stacking styles.
+  ([#2742](https://github.com/mui/base-ui/pull/2742))
+- Reduce stickiness of expanded state ([#2770](https://github.com/mui/base-ui/pull/2770))
+- Ensure toast is frozen at its current visual transform while swiping ([#2769](https://github.com/mui/base-ui/pull/2769))
+
+## Toggle Group
+
+- **Breaking change:** Rename `toggleMultiple` prop to `multiple`.
+  ([#2764](https://github.com/mui/base-ui/pull/2764))
+
+## Toolbar
+
+- Fix `<CompositeList>` not updating item order on reordering ([#2675](https://github.com/mui/base-ui/pull/2675))
+
+## useRender
+
+- Add div as a `defaultTagName` ([#2692](https://github.com/mui/base-ui/pull/2692))

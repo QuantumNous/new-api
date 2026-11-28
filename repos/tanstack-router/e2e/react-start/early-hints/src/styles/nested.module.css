@@ -1,0 +1,13 @@
+/* Nested route CSS module */
+.container {
+  background-color: #e0e7ff;
+  padding: 12px;
+  border-radius: 6px;
+  border: 2px solid #6366f1;
+  margin-top: 10px;
+}
+
+.title {
+  color: #3730a3;
+  font-weight: 500;
+}

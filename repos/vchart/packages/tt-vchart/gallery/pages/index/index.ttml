@@ -1,0 +1,22 @@
+<view class="panel">
+    <view class="readme">
+      <text>TT VChart</text>
+      <text>VChart，不只是开箱即用的多端图表库，更是生动灵活的数据故事讲述者。\n \n</text>
+      <text>VChart 是 VisActor 可视化体系中的图表组件库，基于可视化语法库 VGrammar 进行图表逻辑封装，基于可视化渲染引擎 VRender 进行组件封装。</text>
+    </view>
+
+    <view
+      tt:for="{{ charts }}"
+      tt:for-item="chart"
+      tt:key="id"
+      class="chart-with-img"
+    >
+      <image
+        src="../../img/{{ chart.id }}.png"
+        mode="aspectFit"
+        bindtap="open"
+        data-chart="{{ chart }}"
+      ></image>
+      {{ chart.name }}
+    </view>
+  </view>

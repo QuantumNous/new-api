@@ -1,0 +1,95 @@
+---
+description: '当设置为 true 时，Rsbuild 的客户端脚本会监听浏览器中的 window.error 事件，以及未捕获的 Promise 拒绝事件，并将这些错误信息发送到开发服务器。开发服务器会在终端中打印这些日志，前缀为 [browser]，同时带有改进的格式和上下文信息。'
+---
+
+# dev.browserLogs
+
+- **类型：**
+
+```ts
+type BrowserLogs =
+  | boolean
+  | {
+      stackTrace?: 'summary' | 'full' | 'none';
+    };
+```
+
+- **默认值：** `{ stackTrace: 'summary' }`
+
+控制是否将浏览器运行时错误转发到终端。
+
+当设置为 `true` 时，Rsbuild 的客户端脚本会监听浏览器中的 `window.error` 事件，以及未捕获的 Promise 拒绝事件，并将这些错误信息发送到开发服务器。开发服务器会在终端中打印这些日志，前缀为 `[browser]`，同时带有改进的格式和上下文信息。
+
+对于只能读取终端输出的 AI coding agents，这一特性有助于它们更好地理解运行时错误并协助排查问题。
+
+## 示例
+
+例如，如果你的应用中有以下代码：
+
+```jsx title="src/App.jsx"
+const App = () => {
+  const item = undefined;
+  return <div>{item.name}</div>;
+};
+```
+
+浏览器会抛出错误，Rsbuild 会将此错误转发到终端：
+
+```bash
+error   [browser] Uncaught TypeError: Cannot read properties of undefined (reading 'name')
+ at handleClick (src/App.jsx:3:0)
+```
+
+## 选项
+
+### stackTrace
+
+- **类型：** `'summary' | 'full' | 'none'`
+- **默认值：** `'summary'`
+
+控制在将浏览器错误转发到终端时，错误堆栈的显示方式。
+
+- `'summary'` —— 仅显示首个堆栈帧（例如 `(src/App.jsx:3:0)`）。
+- `'full'` —— 显示完整的堆栈信息，包含所有堆栈帧。
+- `'none'` —— 不显示任何堆栈信息。
+
+例如，将 `stackTrace` 设置为 `'full'`:
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    browserLogs: {
+      stackTrace: 'full',
+    },
+  },
+};
+```
+
+完整的错误堆栈如下：
+
+```bash
+error   [browser] Uncaught TypeError: Cannot read properties of undefined (reading 'name')
+    at handleClick (src/App.jsx:6:0)
+    at someFunction (src/App.jsx:12:0)
+    at App (src/App.jsx:6:0)
+    ...
+```
+
+## 禁用
+
+将 `dev.browserLogs` 设置为 `false` 可以禁用此行为。
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    browserLogs: false,
+  },
+};
+```
+
+## 版本历史
+
+| 版本    | 变更内容               |
+| ------- | ---------------------- |
+| v1.5.13 | 新增该选项             |
+| v1.6.0  | 新增 `stackTrace` 选项 |

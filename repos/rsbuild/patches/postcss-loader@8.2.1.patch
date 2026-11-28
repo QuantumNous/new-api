@@ -1,0 +1,46 @@
+# postcss-loader and css-loader use `semver` to compare PostCSS ast version,
+# Rsbuild uses the same PostCSS version and do not need the comparison.
+diff --git a/dist/index.js b/dist/index.js
+index b69663d2ef81e83d18163f76c38cfbb04abd18f8..ee609ebe7e4578c3046b880c6517613b3031e13a 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -5,8 +5,6 @@ Object.defineProperty(exports, "__esModule", {
+ });
+ exports.default = loader;
+ var _nodePath = _interopRequireDefault(require("node:path"));
+-var _package = _interopRequireDefault(require("postcss/package.json"));
+-var _options = _interopRequireDefault(require("./options.json"));
+ var _utils = require("./utils");
+ function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
+ let hasExplicitDependencyOnPostCSS = false;
+@@ -25,7 +23,7 @@ let hasExplicitDependencyOnPostCSS = false;
+  * @return {callback} callback Result
+  */
+ async function loader(content, sourceMap, meta) {
+-  const options = this.getOptions(_options.default);
++  const options = this.getOptions();
+   const callback = this.async();
+   const configOption = typeof options.postcssOptions === "undefined" || typeof options.postcssOptions.config === "undefined" ? true : options.postcssOptions.config;
+   let implementation;
+@@ -66,7 +64,7 @@ async function loader(content, sourceMap, meta) {
+   let root;
+ 
+   // Reuse PostCSS AST from other loaders
+-  if (meta && meta.ast && meta.ast.type === "postcss" && require("semver").satisfies(meta.ast.version, `^${_package.default.version}`)) {
++  if (meta && meta.ast && meta.ast.type === "postcss") {
+     ({
+       root
+     } = meta.ast);
+diff --git a/dist/utils.js b/dist/utils.js
+index 74a4fd455b8d83c4e7dc19bbe91265f2c4e8e7af..01a4751085ce0db7776b5419a526331abe8d86d6 100644
+--- a/dist/utils.js
++++ b/dist/utils.js
+@@ -15,7 +15,7 @@ exports.warningFactory = warningFactory;
+ var _nodeModule = _interopRequireDefault(require("node:module"));
+ var _nodePath = _interopRequireDefault(require("node:path"));
+ var _nodeUrl = _interopRequireDefault(require("node:url"));
+-var _cosmiconfig = require("cosmiconfig");
++var _cosmiconfig = {};
+ function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
+ const parentModule = module;
+ const stat = (inputFileSystem, filePath) => new Promise((resolve, reject) => {

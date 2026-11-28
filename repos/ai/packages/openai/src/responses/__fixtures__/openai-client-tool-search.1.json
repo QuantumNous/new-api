@@ -1,0 +1,132 @@
+{
+  "id": "resp_01166e06cf473fc80169ab66e9ce7c8196aa77df57a31b8230",
+  "object": "response",
+  "created_at": 1772840681,
+  "status": "completed",
+  "background": false,
+  "billing": {
+    "payer": "developer"
+  },
+  "completed_at": 1772840682,
+  "error": null,
+  "frequency_penalty": 0,
+  "incomplete_details": null,
+  "instructions": null,
+  "max_output_tokens": null,
+  "max_tool_calls": null,
+  "model": "gpt-5.4-2026-03-05",
+  "output": [
+    {
+      "id": "tsc_01166e06cf473fc80169ab66ea404881968795bb327c429d35",
+      "type": "tool_search_call",
+      "status": "completed",
+      "arguments": {
+        "goal": "Find a tool to get current weather for San Francisco"
+      },
+      "call_id": "call_AEvXZ1rvYpxHh8QZb7wGlTGH",
+      "execution": "client"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "presence_penalty": 0,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "prompt_cache_retention": null,
+  "reasoning": {
+    "effort": "none",
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": false,
+  "temperature": 1,
+  "text": {
+    "format": {
+      "type": "text"
+    },
+    "verbosity": "medium"
+  },
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "function",
+      "defer_loading": true,
+      "description": "Get the current weather at a specific location",
+      "name": "get_weather",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "type": "string",
+            "description": "The city and state, e.g. San Francisco, CA"
+          },
+          "unit": {
+            "type": "string",
+            "enum": ["celsius", "fahrenheit"],
+            "description": "Temperature unit"
+          }
+        },
+        "required": ["location", "unit"],
+        "additionalProperties": false
+      },
+      "strict": true
+    },
+    {
+      "type": "function",
+      "defer_loading": true,
+      "description": "Search through files in the workspace",
+      "name": "search_files",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The search query"
+          },
+          "file_types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Filter by file types"
+          }
+        },
+        "required": ["query", "file_types"],
+        "additionalProperties": false
+      },
+      "strict": true
+    },
+    {
+      "type": "tool_search",
+      "description": "Search for available tools based on what the user needs.",
+      "execution": "client",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "goal": {
+            "type": "string",
+            "description": "What the user is trying to accomplish"
+          }
+        },
+        "required": ["goal"],
+        "additionalProperties": false
+      }
+    }
+  ],
+  "top_logprobs": 0,
+  "top_p": 0.98,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 65,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 28,
+    "output_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "total_tokens": 93
+  },
+  "user": null,
+  "metadata": {}
+}

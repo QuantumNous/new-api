@@ -1,0 +1,125 @@
+---
+description: '当启用时，Rspack 会在缓存目录中存储构建快照。在后续的构建中，如果命中缓存，Rspack 可以重用缓存的结果，而不是从头开始重新构建，这可以显著减少构建时间。'
+---
+
+# performance.buildCache
+
+- **类型：**
+
+```ts
+type BuildCacheConfig =
+  | boolean
+  | {
+      cacheDirectory?: string;
+      cacheDigest?: Array<string | undefined>;
+      buildDependencies?: string[];
+    };
+```
+
+- **默认值：** `false`
+- **版本：** `>= 1.2.5`
+
+用于启用或配置持久化构建缓存。
+
+当启用时，Rspack 会在缓存目录中存储构建快照。在后续的构建中，如果命中缓存，Rspack 可以重用缓存的结果，而不是从头开始重新构建，这可以显著减少构建时间。
+
+## 启用缓存
+
+设置 `performance.buildCache` 为 `true` 将启用持久化构建缓存：
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    buildCache: true,
+  },
+};
+```
+
+或者仅在开发模式下启用缓存：
+
+```ts title="rsbuild.config.ts"
+const isDev = process.env.NODE_ENV === 'development';
+
+export default defineConfig({
+  performance: {
+    buildCache: isDev,
+  },
+});
+```
+
+## 选项
+
+### cacheDirectory
+
+- **类型：** `string`
+- **默认值：** `node_modules/.cache`
+
+用于设置缓存文件的输出目录。
+
+```ts title="rsbuild.config.ts"
+import path from 'node:path';
+
+export default {
+  performance: {
+    buildCache: {
+      cacheDirectory: path.resolve(__dirname, 'node_modules/.my-cache'),
+    },
+  },
+};
+```
+
+### cacheDigest
+
+- **类型：** `Array<string | undefined>`
+- **默认值：** `undefined`
+
+添加额外的缓存摘要，当数组中的任何值发生变化时，之前的构建缓存就会失效。
+
+`cacheDigest` 可以用于添加一些会对构建结果产生影响的变量，例如 `process.env.SOME_ENV`。
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    buildCache: {
+      cacheDigest: [process.env.SOME_ENV],
+    },
+  },
+};
+```
+
+### buildDependencies
+
+- **类型：** `string[]`
+
+`buildDependencies` 是一个包含构建依赖的文件数组，Rspack 将使用其中每个文件的哈希值来判断持久化缓存是否失效。
+
+等价于 Rspack 的 [cache.buildDependencies](https://rspack.rs/zh/config/cache#cachebuilddependencies) 选项。
+
+#### 默认值
+
+Rsbuild 会将以下配置文件作为默认的构建依赖：
+
+- `package.json`
+- `tsconfig.json`
+- `.env`, `.env.*`
+- `.browserslistrc`
+- `tailwindcss.config.*`
+
+此外：
+
+- 在使用 Rsbuild CLI 时，它会自动将 Rsbuild 配置文件（`rsbuild.config.*`）添加到构建依赖中。
+- 在使用 Rsbuild 的 [loadConfig](/api/javascript-api/core#loadconfig) JS API 时，它会将配置文件的路径添加到构建依赖中。
+
+#### 示例
+
+当你添加其他构建依赖时，Rsbuild 会将这些自定义依赖与默认依赖合并，并传递给 Rspack。
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    buildCache: {
+      buildDependencies: [__filename],
+    },
+  },
+};
+```

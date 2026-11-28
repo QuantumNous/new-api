@@ -1,0 +1,59 @@
+{
+  "name": "@rsbuild/plugin-svgr",
+  "version": "2.0.5",
+  "description": "SVGR plugin for Rsbuild",
+  "homepage": "https://rsbuild.rs",
+  "bugs": {
+    "url": "https://github.com/web-infra-dev/rsbuild/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/web-infra-dev/rsbuild",
+    "directory": "packages/plugin-svgr"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "build": "rslib",
+    "dev": "rslib -w"
+  },
+  "dependencies": {
+    "@rsbuild/plugin-react": "workspace:^2.0.0",
+    "@svgr/core": "catalog:",
+    "@svgr/plugin-jsx": "catalog:",
+    "@svgr/plugin-svgo": "catalog:",
+    "deepmerge": "catalog:",
+    "loader-utils": "catalog:"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "workspace:*",
+    "@rsbuild/core-v1": "catalog:",
+    "@rslib/core": "catalog:",
+    "@scripts/test-helper": "workspace:*",
+    "@types/node": "catalog:",
+    "svgo": "catalog:",
+    "typescript": "catalog:"
+  },
+  "peerDependencies": {
+    "@rsbuild/core": "^2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@rsbuild/core": {
+      "optional": true
+    }
+  }
+}

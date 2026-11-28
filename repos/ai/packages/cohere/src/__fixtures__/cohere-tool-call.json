@@ -1,0 +1,37 @@
+{
+  "id": "f201af17-e24a-4396-8f6a-98e8bf9c3432",
+  "message": {
+    "role": "assistant",
+    "tool_plan": "I will use the weather tool to find out the weather in San Francisco. I will also use the cityAttractions tool to find out what attractions are in San Francisco.",
+    "tool_calls": [
+      {
+        "id": "weather_dqgshstja6p9",
+        "type": "function",
+        "function": {
+          "name": "weather",
+          "arguments": "{\"location\":\"San Francisco\"}"
+        }
+      },
+      {
+        "id": "cityAttractions_dcxfx4myvx68",
+        "type": "function",
+        "function": {
+          "name": "cityAttractions",
+          "arguments": "{\"city\":\"San Francisco\"}"
+        }
+      }
+    ]
+  },
+  "finish_reason": "TOOL_CALL",
+  "usage": {
+    "billed_units": {
+      "input_tokens": 119,
+      "output_tokens": 52
+    },
+    "tokens": {
+      "input_tokens": 1549,
+      "output_tokens": 103
+    },
+    "cached_tokens": 992
+  }
+}

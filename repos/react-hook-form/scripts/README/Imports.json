@@ -1,0 +1,12 @@
+{
+    "imports" : {
+        "YAML" : "https://deno.land/std@0.148.0/encoding/yaml.ts" ,
+        "Time" : "https://deno.land/std@0.148.0/datetime/mod.ts" ,
+        "Path" : "https://deno.land/std@0.148.0/path/mod.ts" ,
+        
+        "Previews" : "./Previews/mod.ts" ,
+        "Files" : "./Files.js" ,
+        "Link" : "./Link.js" ,
+        "Data" : "./Data.js"
+    }
+}

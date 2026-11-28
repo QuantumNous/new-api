@@ -1,0 +1,22 @@
+在启动预览服务器前调用。
+
+可以通过 `server` 参数访问预览服务器并注册自定义的中间件。
+
+- **类型：**
+
+```ts
+type MaybePromise<T> = T | Promise<T>;
+
+type OnBeforeStartPreviewServerFn = (params: {
+  /**
+   * 预览服务器实例
+   */
+  server: RsbuildPreviewServer;
+  /**
+   * 所有 environments 的上下文信息
+   */
+  environments: Record<string, EnvironmentContext>;
+}) => MaybePromise<void>;
+
+function OnBeforeStartPreviewServer(callback: OnBeforeStartPreviewServerFn): void;
+```

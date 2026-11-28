@@ -1,0 +1,194 @@
+{
+  "indicator": {
+    "key": "indicator",
+    "oneDesc": "饼图指标卡"
+  },
+  "padding": {
+    "key": "padding",
+    "oneDesc": "布局 padding的配置"
+  },
+  "percent": {
+    "key": "percent",
+    "oneDesc": "是否对数据进行百分比处理"
+  },
+  "name": {
+    "key": "name",
+    "oneDesc": "系列名称"
+  },
+  "id": {
+    "key": "id",
+    "oneDesc": "用户自定义的 series id"
+  },
+  "animation": {
+    "key": "animation",
+    "oneDesc": "是否开启系列动画"
+  },
+  "innerRadius": {
+    "key": "innerRadius",
+    "oneDesc": "饼图扇区内半径"
+  },
+  "outerRadius": {
+    "key": "outerRadius",
+    "oneDesc": "饼图扇区外半径"
+  },
+  "startAngle": {
+    "key": "startAngle",
+    "oneDesc": "饼图的起始角度（0 ~ 360）"
+  },
+  "endAngle": {
+    "key": "endAngle",
+    "oneDesc": "饼图的结束角度（0 ~ 360）"
+  },
+  "cornerRadius": {
+    "key": "cornerRadius",
+    "oneDesc": "饼图扇区圆角半径"
+  },
+  "padAngle": {
+    "key": "padAngle",
+    "oneDesc": "扇区之间的间隔角度"
+  },
+  "radius": {
+    "key": "radius",
+    "oneDesc": "饼图扇区半径"
+  },
+  "stack": {
+    "key": "stack",
+    "oneDesc": "是否对数据进行堆叠处理"
+  },
+  "animationEnter": {
+    "key": "animationEnter",
+    "oneDesc": "数据更新 - 新增数据动画"
+  },
+  "animationUpdate": {
+    "key": "animationUpdate",
+    "oneDesc": "数据更新 - 数据更新动画"
+  },
+  "animationExit": {
+    "key": "animationExit",
+    "oneDesc": "数据更新 - 数据删除动画"
+  },
+  "dataIndex": {
+    "key": "dataIndex",
+    "oneDesc": "系列关联的数据索引"
+  },
+  "valueField": {
+    "key": "valueField",
+    "oneDesc": "数值字段"
+  },
+  "animationState": {
+    "key": "animationState",
+    "oneDesc": "状态切换动画"
+  },
+  "support3d": {
+    "key": "support3d",
+    "oneDesc": "是否支持3d视角"
+  },
+  "regionIndex": {
+    "key": "regionIndex",
+    "oneDesc": "系列关联的region索引"
+  },
+  "regionId": {
+    "key": "regionId",
+    "oneDesc": "系列关联的region id"
+  },
+  "centerOffset": {
+    "key": "centerOffset",
+    "oneDesc": "饼图扇区中心偏移"
+  },
+  "totalLabel": {
+    "key": "totalLabel",
+    "oneDesc": "堆叠汇总标签"
+  },
+  "animationAppear": {
+    "key": "animationAppear",
+    "oneDesc": "图表入场动画\n支持配置图表内置不同动画效果"
+  },
+  "animationDisappear": {
+    "key": "animationDisappear",
+    "oneDesc": "图表退场动画"
+  },
+  "animationNormal": {
+    "key": "animationNormal",
+    "oneDesc": "循环动画"
+  },
+  "categoryField": {
+    "key": "categoryField",
+    "oneDesc": "饼图每个扇区为独立的系列"
+  },
+  "label": {
+    "key": "label",
+    "oneDesc": "标签配置"
+  },
+  "pie": {
+    "key": "pie",
+    "oneDesc": "扇区样式"
+  },
+  "sortDataByAxis": {
+    "key": "sortDataByAxis",
+    "oneDesc": "是否将数据按照数轴排序"
+  },
+  "dataId": {
+    "key": "dataId",
+    "oneDesc": "系列关联的数据id"
+  },
+  "dataKey": {
+    "key": "dataKey",
+    "oneDesc": "dataKey用于绑定数据与Mark的关系, 该配置在动画中非常重要."
+  },
+  "seriesField": {
+    "key": "seriesField",
+    "oneDesc": "分组字段"
+  },
+  "stackOffsetSilhouette": {
+    "key": "stackOffsetSilhouette",
+    "oneDesc": "是否围绕中心轴偏移轮廓"
+  },
+  "invalidType": {
+    "key": "invalidType",
+    "oneDesc": "null，undefined等非法数据点连接方式。"
+  },
+  "extensionMark": {
+    "key": "extensionMark",
+    "oneDesc": "扩展mark"
+  },
+  "interactions": {
+    "key": "interactions",
+    "oneDesc": "其他需要按需注册的类型交互"
+  },
+  "centerX": {
+    "key": "centerX",
+    "oneDesc": "饼图中心点 x 坐标"
+  },
+  "centerY": {
+    "key": "centerY",
+    "oneDesc": "饼图中心点 y 坐标"
+  },
+  "minAngle": {
+    "key": "minAngle",
+    "oneDesc": "最小的扇区角度（0 ~ 360），用于防止某个值过小导致扇区太小影响交互。"
+  },
+  "layoutRadius": {
+    "key": "layoutRadius"
+  },
+  "emptyPlaceholder": {
+    "key": "emptyPlaceholder",
+    "oneDesc": "数据为空时显示的占位图形"
+  },
+  "showAllZero": {
+    "key": "showAllZero",
+    "oneDesc": "是否在数据均为0时显示均分扇区。"
+  },
+  "supportNegative": {
+    "key": "supportNegative",
+    "oneDesc": "是否将负数按照绝对值进行处理。"
+  },
+  "radiusField": {
+    "key": "radiusField"
+  },
+  "angleField": {
+    "key": "angleField"
+  },
+  "angle3d": {
+    "key": "angle3d"
+  }
+}

@@ -1,0 +1,81 @@
+---
+version: "2"
+linters:
+  enable:
+    - asciicheck
+    - forbidigo
+    - goconst
+    - gocritic
+    - gocyclo
+    - godot
+    - gosec
+    - misspell
+    - nolintlint
+    - prealloc
+    - revive
+    - unconvert
+    - unparam
+    - whitespace
+    - wsl_v5
+  settings:
+    forbidigo:
+      forbid:
+        - pattern: ^print.*$
+          msg: Do not commit print statements.
+        - pattern: ^fmt\.Print.*$
+          pkg: ^fmt$
+          msg: Do not commit print statements.
+      analyze-types: true
+    goconst:
+      min-len: 2
+      min-occurrences: 2
+    gocyclo:
+      min-complexity: 15
+    godot:
+      scope: all
+    revive:
+      confidence: 0.8
+  exclusions:
+    generated: lax
+    rules:
+      - path: (.+)\.go$
+        text: Error return value of .((os\.)?std(out|err)\..*|.*Close|.*Flush|os\.Remove(All)?|.*printf?|os\.(Un)?Setenv). is not checked  # yamllint disable-line rule:line-length
+      - path: (.+)\.go$
+        text: func name will be used as test\.Test.* by other packages, and that stutters; consider calling this
+      - path: (.+)\.go$
+        text: (possible misuse of unsafe.Pointer|should have signature)
+      - path: (.+)\.go$
+        text: ineffective break statement. Did you mean to break out of the outer loop
+      - path: (.+)\.go$
+        text: Use of unsafe calls should be audited
+      - path: (.+)\.go$
+        text: Subprocess launch(ed with variable|ing should be audited)
+      - path: (.+)\.go$
+        text: (G104|G307)
+      - path: (.+)\.go$
+        text: (Expect directory permissions to be 0750 or less|Expect file permissions to be 0600 or less)
+      - path: (.+)\.go$
+        text: Potential file inclusion via variable
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/go-webauthn/webauthn
+        - github.com/go-webauthn/x
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+...

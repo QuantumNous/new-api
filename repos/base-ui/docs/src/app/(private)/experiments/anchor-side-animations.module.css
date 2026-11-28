@@ -1,0 +1,46 @@
+@keyframes translate-down {
+  to {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+}
+
+@keyframes translate-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+}
+
+.Popup {
+  background-color: black;
+  width: 200px;
+  height: 200px;
+
+  &[data-type='transition'] {
+    transition:
+      opacity 0.5s,
+      transform 0.5s;
+
+    &[data-starting-style],
+    &[data-ending-style] {
+      opacity: 0;
+
+      &[data-side='bottom'] {
+        transform: translateY(20px);
+      }
+    }
+  }
+
+  &[data-type='animation'] {
+    &[data-side='bottom'] {
+      animation: translate-up 0.5s;
+    }
+
+    &[data-ending-style] {
+      &[data-side='bottom'] {
+        animation: translate-down 0.5s;
+      }
+    }
+  }
+}

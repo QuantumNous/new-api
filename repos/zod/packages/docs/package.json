@@ -1,0 +1,39 @@
+{
+  "name": "@zod/docs",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev",
+    "start": "next start",
+    "postinstall": "fumadocs-mdx"
+  },
+  "dependencies": {
+    "@inkeep/cxkit-react": "^0.5.117",
+    "@radix-ui/react-accordion": "^1.2.4",
+    "@vercel/analytics": "^1.5.0",
+    "@vercel/og": "^0.6.8",
+    "fumadocs-core": "15.1.0",
+    "fumadocs-mdx": "11.5.6",
+    "fumadocs-ui": "15.1.0",
+    "gray-matter": "^4.0.3",
+    "lucide-react": "^0.483.0",
+    "next": "15.5.15",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "remark": "^15.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-mdx": "^3.1.0",
+    "remark-stringify": "^11.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.4",
+    "@types/mdx": "^2.0.13",
+    "@types/node": "22.13.10",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "postcss": "^8.5.12",
+    "tailwindcss": "^4.2.4",
+    "typescript": "^5.8.2"
+  }
+}

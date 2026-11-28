@@ -1,0 +1,45 @@
+---
+description: '指定用于匹配包 exports 字段 入口点的 condition names（条件名称）。'
+---
+
+# resolve.conditionNames
+
+- **类型：** `string[]`
+- **默认值：** 与 Rspack 的 [resolve.conditionNames](https://rspack.rs/zh/config/resolve#resolveconditionnames) 一致
+- **版本：** `>= 1.5.7`
+
+指定用于匹配包 [`exports` 字段](https://nodejs.org/api/packages.html#packages_exports) 入口点的 condition names（条件名称）。
+
+## 示例
+
+`resolve.conditionNames` 配置的值会覆盖 Rsbuild 的默认值：
+
+```js title="rsbuild.config.ts"
+export default {
+  resolve: {
+    conditionNames: ['require', 'node'],
+  },
+};
+```
+
+## Rspack 配置
+
+`resolve.conditionNames` 是 Rspack 提供的配置，参考 [Rspack - resolve.conditionNames](https://rspack.rs/zh/config/resolve#resolveconditionnames)。
+
+事实上，你也可以使用 [tools.rspack](/config/tools/rspack) 来配置它：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: {
+      resolve: {
+        conditionNames: ['custom'],
+      },
+    },
+  },
+};
+```
+
+这两种用法的区别在于配置合并的方式。
+
+`tools.rspack` 基于 [rspack-merge](https://github.com/rstackjs/rspack-merge) 来合并配置中的数组，这意味着 `tools.rspack.resolve.conditionNames` 会与 Rsbuild 的默认值合并，而不是覆盖它。

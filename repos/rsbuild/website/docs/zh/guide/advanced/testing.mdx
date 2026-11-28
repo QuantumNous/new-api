@@ -1,0 +1,96 @@
+---
+description: 'Rsbuild 本身不内置测试框架，它可以与各种流行的测试工具配合使用。'
+---
+
+# 测试
+
+Rsbuild 本身不内置测试框架，它可以与各种流行的测试工具配合使用。
+
+本指南将介绍如何在 Rsbuild 应用中添加 [单元测试](#unit-testing) 和 [端到端测试](#end-to-end-testing)。
+
+## 单元测试 \{#unit-testing}
+
+单元测试用于测试独立的组件和函数。Rsbuild 可以与 [Rstest](https://rstest.rs)、[Vitest](https://vitest.dev/)、[Jest](https://jestjs.io/) 等测试框架配合使用。
+
+下面以 Rstest 为例，介绍如何在 Rsbuild 应用中添加单元测试。
+
+### Rstest
+
+[Rstest](https://rstest.rs/) 基于 Rsbuild 实现的测试框架，为 Rsbuild 应用提供了一流的支持。它提供与 Jest 兼容的 API，同时原生支持 TypeScript、ESM 等现代特性。
+
+#### 安装
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add @rstest/core @rstest/adapter-rsbuild -D" />
+
+#### 配置脚本
+
+在 `package.json` 中添加测试脚本：
+
+```json
+{
+  "scripts": {
+    "test": "rstest",
+    "test:watch": "rstest -w"
+  }
+}
+```
+
+#### 编写测试
+
+创建测试文件，例如：
+
+```ts title="src/utils.ts"
+export function add(a: number, b: number) {
+  return a + b;
+}
+```
+
+```ts title="src/utils.test.ts"
+import { expect, test } from '@rstest/core';
+import { add } from './utils';
+
+test('should add two numbers correctly', () => {
+  expect(add(1, 2)).toBe(3);
+  expect(add(-1, 1)).toBe(0);
+});
+```
+
+#### 运行测试
+
+```bash
+# 运行测试
+npm run test
+
+# 运行并监听
+npm run test:watch
+```
+
+#### 配置 Rstest
+
+在项目根目录创建 `rstest.config.ts` 文件，并使用 [@rstest/adapter-rsbuild](https://rstest.rs/zh/guide/integration/rsbuild#%E5%A4%8D%E7%94%A8-rsbuild-%E9%85%8D%E7%BD%AE) 复用已有的 Rsbuild 配置：
+
+```ts title="rstest.config.ts"
+import { defineConfig } from '@rstest/core';
+import { withRsbuildConfig } from '@rstest/adapter-rsbuild';
+
+export default defineConfig({
+  extends: withRsbuildConfig(),
+  // 额外的 rstest 特定配置
+});
+```
+
+你可以在同一个配置文件中添加 Rstest 特定的配置，例如测试文件匹配规则、setup 文件和代码覆盖率。
+
+以上就是使用 Rstest 的基本步骤，查看 [Rstest 文档](https://rstest.rs/zh/guide/start/) 了解更多用法。
+
+### 示例
+
+[rstack-examples](https://github.com/rstackjs/rstack-examples/tree/main/rstest) 仓库收集了一些 Rstest 使用示例，可用于了解常见用法和实践。
+
+## 端到端测试 \{#end-to-end-testing}
+
+端到端测试用于测试完整的用户流程，确保应用在真实浏览器环境中正常工作。
+
+你可以使用 Playwright 进行 E2E 测试，它是一个现代的端到端测试框架，详见 [Playwright 文档](https://playwright.dev/docs/intro)。

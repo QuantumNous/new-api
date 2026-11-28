@@ -1,0 +1,222 @@
+.Positioner {
+  height: var(--positioner-height);
+  width: var(--positioner-width);
+  max-width: var(--available-width);
+}
+
+.Popup {
+  box-sizing: border-box;
+  position: relative;
+  width: var(--popup-width, auto);
+  height: var(--popup-height, auto);
+  border: 1px solid oklch(14.5% 0 0deg);
+  background-color: white;
+  color: oklch(14.5% 0 0deg);
+  box-shadow: 0.25rem 0.25rem 0 rgb(0 0 0 / 12%);
+  transform-origin: var(--transform-origin);
+  transition:
+    transform 100ms ease-out,
+    opacity 100ms ease-out;
+
+  @media (prefers-color-scheme: dark) {
+    border: 1px solid white;
+    background-color: oklch(14.5% 0 0deg);
+    color: white;
+    box-shadow: none;
+  }
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+.Arrow {
+  display: block;
+  position: relative;
+  width: 12px;
+  height: 6px;
+  overflow: clip;
+
+  &[data-side='top'] {
+    bottom: -6px;
+    rotate: 180deg;
+  }
+
+  &[data-side='bottom'] {
+    top: -6px;
+    rotate: 0deg;
+  }
+
+  &[data-side='left'] {
+    right: -9px;
+    rotate: 90deg;
+  }
+
+  &[data-side='right'] {
+    left: -9px;
+    rotate: -90deg;
+  }
+
+  &::before {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    box-sizing: border-box;
+    width: calc(6px * sqrt(2));
+    height: calc(6px * sqrt(2));
+    border: 1px solid oklch(14.5% 0 0deg);
+    background-color: white;
+    transform: translate(-50%, 50%) rotate(45deg);
+
+    @media (prefers-color-scheme: dark) {
+      border: 1px solid white;
+      background-color: oklch(14.5% 0 0deg);
+    }
+  }
+}
+
+.PopupContent {
+  width: min-content;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  box-sizing: border-box;
+}
+
+.Image {
+  display: block;
+  max-width: none;
+}
+
+.Summary {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  text-wrap: pretty;
+}
+
+.Container {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+}
+
+.Paragraph {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  color: oklch(14.5% 0 0deg);
+  text-wrap: balance;
+
+  @media (prefers-color-scheme: dark) {
+    color: white;
+  }
+}
+
+.Link {
+  outline: 0;
+  color: oklch(14.5% 0 0deg);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in oklab, oklch(14.5% 0 0deg), transparent 40%);
+  text-underline-offset: 2px;
+
+  @media (prefers-color-scheme: dark) {
+    color: white;
+    text-decoration-color: color-mix(in oklab, white, transparent 40%);
+  }
+
+  @media (hover: hover) {
+    &:hover {
+      text-decoration-color: oklch(14.5% 0 0deg);
+
+      @media (prefers-color-scheme: dark) {
+        text-decoration-color: white;
+      }
+    }
+  }
+
+  &[data-popup-open] {
+    text-decoration-color: oklch(14.5% 0 0deg);
+
+    @media (prefers-color-scheme: dark) {
+      text-decoration-color: white;
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid oklch(14.5% 0 0deg);
+    text-decoration-line: none;
+
+    @media (prefers-color-scheme: dark) {
+      outline-color: white;
+    }
+  }
+}
+
+.LinkGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: baseline;
+}
+
+.Button {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 2rem;
+  padding: 0 0.75rem;
+  margin: 0;
+  border: 1px solid oklch(14.5% 0 0deg);
+  background-color: white;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1;
+  white-space: nowrap;
+  color: oklch(14.5% 0 0deg);
+  -webkit-user-select: none;
+  user-select: none;
+
+  @media (prefers-color-scheme: dark) {
+    border: 1px solid white;
+    background-color: oklch(14.5% 0 0deg);
+    color: white;
+  }
+
+  @media (hover: hover) {
+    &:hover {
+      background-color: oklch(97% 0 0deg);
+
+      @media (prefers-color-scheme: dark) {
+        background-color: oklch(26.9% 0 0deg);
+      }
+    }
+  }
+
+  &:active {
+    background-color: oklch(92.2% 0 0deg);
+
+    @media (prefers-color-scheme: dark) {
+      background-color: oklch(37.1% 0 0deg);
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid oklch(14.5% 0 0deg);
+    outline-offset: -1px;
+
+    @media (prefers-color-scheme: dark) {
+      outline-color: white;
+    }
+  }
+}

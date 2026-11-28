@@ -1,0 +1,110 @@
+---
+description: 'Rsbuild 1.0 正式发布，围绕更快构建、更易配置和插件生态展开，并介绍性能表现、社区采用与后续规划。'
+date: 2024-09-10 18:00:00
+sidebar: false
+authors:
+  - name: Jiahan Chen
+    avatar: 'https://github.com/chenjiahan.png'
+    github: 'chenjiahan'
+  - name: 9aoy
+    avatar: 'https://github.com/9aoy.png'
+    github: '9aoy'
+---
+
+import { BlogAuthors } from '@rstack-dev/doc-ui/blog-authors';
+
+# Rsbuild 1.0 发布
+
+_2024 年 9 月 10 日_
+
+<BlogAuthors />
+
+![](https://assets.rspack.rs/rsbuild/assets/rsbuild-1-0-banner.png)
+
+我们很高兴地宣布 Rsbuild 1.0 已经正式发布！
+
+## 为什么是 Rsbuild
+
+长期以来，使用 webpack 的开发者饱受两个问题的困扰：**构建慢和配置复杂**。
+
+我们使用 Rust 将 webpack 重写为 [Rspack](https://github.com/web-infra-dev/rspack)，解决了构建慢的问题。但为了兼容 webpack 生态，Rspack 保留了 webpack 的配置和 API，这意味着它依然存在一定的复杂度和学习成本。
+
+### 生态的发展
+
+在早期，webpack 生态中出现了一些优秀的工具，比如 Create React App（简称 CRA）和 Vue CLI，它们为 React 或 Vue 应用提供最佳实践，隐藏了复杂的 webpack 配置。因此，许多 React 和 Vue 用户使用这些工具来创建应用，不需要从零开始配置 webpack。
+
+随着生态的发展，Next.js、Nuxt 和 Remix 等全栈 web 框架变得流行；Vite 推出后，作为一个轻量化的构建工具，也受到了众多开发者的青睐。而 CRA、Vue CLI 则是逐渐停止了维护。
+
+当我们查看 webpack、CRA 和 Vue CLI 的 npm 下载量时，会发现仍然有大量项目在使用这些工具。例如，webpack 有约 2500 万的周下载量，CRA 有近 300 万的周下载量。这些项目有很多是 CSR 应用，不需要使用全栈框架的 SSR 等特性；Vite 看起来是一个不错的选择，但我们在字节跳动的项目中实践后发现，从 webpack 迁移到 Vite 存在很高的成本，并且迁移带来了一些新问题，例如开发环境与生产环境的构建产物不一致、大型应用在开发过程中页面刷新缓慢等问题。
+
+对于 webpack 生态，我们发现了一个让人遗憾的事实：**webpack 生态缺少一个易于使用且维护良好的构建工具**，它既要像 CRA 和 Vue CLI 一样对用户友好，能够很好地满足 CSR 应用开发的需求，又需要像 Vite 一样具备快速启动、插件化等特性。
+
+### Rsbuild 的诞生
+
+在开发 Rspack 的过程中，我们意识到了上述问题，并决定在 Rspack 的基础上开发一个现代的构建工具 —— **Rsbuild**。
+
+![](https://assets.rspack.rs/rsbuild/assets/rsbuild-1-0-build-tools.png)
+
+Rsbuild 是以 Rspack 为核心实现的，我们为 Rsbuild 设计了易于使用、TypeScript 友好的 API，并内置一套精心设计的构建配置，使它既能充分发挥出 Rspack 的性能优势，也能解决配置复杂、上手成本高的问题。
+
+在实现 Rsbuild 的过程中，我们向社区中优秀的工具学习最佳实践，并聚焦于两个使用场景来设计 Rsbuild：
+
+- 作为一个轻量的构建工具：帮助开发者快速搭建 Web 应用，为 CSR 应用提供开箱即用的支持。
+- 作为一个共享的基础设施：为上层工具和框架提供 [JavaScript API](/api/start/) 和 [插件 API](/plugins/dev/)，允许开发者基于 Rsbuild 来开发属于自己的工具或框架，轻松实现 SSR、SSG 等特性。
+
+## 性能
+
+**Rsbuild 是目前 webpack 和 Rspack 生态中最快的构建工具**，下面是 Rsbuild 与 Create React App、Vite、Rspack CLI 的对比：
+
+| 指标                          | Create React App | Vite (with SWC) | Rspack CLI | Rsbuild | Rsbuild vs CRA |
+| ----------------------------- | ---------------- | --------------- | ---------- | ------- | -------------- |
+| dev 启动时间（1000 个模块）   | 5.47s            | 1.29s           | 0.66s      | 0.39s   | **快 14 倍**   |
+| build 构建时间（1000 个模块） | 5.69s            | 1.39s           | 0.51s      | 0.27s   | **快 20 倍**   |
+| npm 依赖数量                  | 1241             | 15              | 283        | 14      | **减少 99%**   |
+| npm 安装体积                  | 146.6MB          | 56.3MB          | 75.1MB     | 59.1MB  | **减少 60%**   |
+
+与 [Rspack CLI](https://npmjs.com/package/@rspack/cli) 相比，Rsbuild 内置了更丰富的功能，同时具备更好的性能表现。
+
+这是因为 Rspack CLI 需要保持对 [webpack-cli](https://npmjs.com/package/webpack-cli) 的兼容性，它依赖了 `webpack-dev-server`，并提供与 webpack 一致的默认行为，因此性能受到了一定限制。而 Rsbuild 是面向现代 web 开发设计的，我们为 Rsbuild 重新实现了更轻量的 CLI、开发服务器和构建流程，使其具备更快的启动速度和更少的 npm 依赖。
+
+> 参考 [Rsbuild 介绍](/zh/guide/start/index) 了解 Rsbuild 与 webpack、Vue CLI、Vite 的对比。
+
+## 谁在使用
+
+在 [Rspack 1.0 发布公告](https://rspack.rs/zh/blog/announcing-1-0) 中，我们介绍了 Rspack 正在取得快速增长，这其中约有一半的 Rspack 用户已经在使用 Rsbuild，并给予我们很多正向的反馈。
+
+在字节跳动，我们将 Rsbuild 作为内部研发框架的基石，支持了数千个 web 项目，这些项目涵盖了不同的使用场景，包括 desktop Web 应用、mobile Web 应用、跨平台 Web 应用、文档站等。
+
+在社区中，我们开源了基于 Rsbuild 的高性能工具链，包括静态站点生成器 [Rspress](https://github.com/web-infra-dev/rspress)，library 开发工具 [Rslib](https://github.com/web-infra-dev/rslib)，React 全栈框架 [Modern.js](https://github.com/web-infra-dev/modern.js)，[Storybook Rsbuild](https://github.com/rstackjs/storybook-rsbuild)。得益于 Rsbuild 的可扩展性，这些工具能够灵活地集成 Rsbuild，并与它共享插件生态。
+
+在 Rsbuild 1.0 发布后，我们也计划与 [Remix](https://github.com/remix-run/remix) 等优秀的团队一起探索，使 Rsbuild 能够与更多 web 框架集成。
+
+## 插件生态
+
+Rsbuild 的插件生态正在不断发展，目前社区中已经有超过 50 个 [Rsbuild 插件](https://github.com/rstackjs/awesome-rstack#rsbuild-plugins)。我们通过插件提供了一些高级特性，以支持生产级应用的开发，例如 [类型检查](https://github.com/rstackjs/rsbuild-plugin-type-check)、[产物语法检查](https://github.com/rstackjs/rsbuild-plugin-check-syntax)、[静态资源重试](https://github.com/rstackjs/rsbuild-plugin-assets-retry)。此外，受益于 Rspack 对 webpack 的兼容性，Rsbuild 也支持使用大部分 webpack 插件。
+
+与 webpack 或 Rspack 相比，Rsbuild 的插件 API 更加简洁和容易上手，使开发者能够轻松地开发插件来满足自己的需求。
+
+例如，我们来实现一个插件，它的功能是输出一个文件到产物目录，在 Rspack 和 Rsbuild 中的实现对比如下：
+
+![](https://assets.rspack.rs/rsbuild/assets/rsbuild-1-0-plugin-compare.png)
+
+可以看到，Rsbuild 插件的 API 风格与 esbuild 类似，可以通过一个函数来定义。插件的 hooks 经过简化，避免了冗长的 API，使插件的编写更符合直觉。
+
+## 如何使用 1.0
+
+- 如果你还未使用过 Rsbuild，可以通过 [CodeSandbox 示例](https://codesandbox.io/p/github/rstackjs/rsbuild-codesandbox-example) 来体验，也可以参考 [快速上手](/zh/guide/start/quick-start) 来接入 Rsbuild。
+- 如果你正在使用 Rsbuild 0.7 或更早的版本，请留意 1.0 版本包含一些不兼容更新，可参考 [从 Rsbuild 0.x 迁移](/zh/guide/upgrade/v0-to-v1) 文档进行升级。
+- Rsbuild 也提供了 webpack、CRA、Vue CLI 等项目的迁移指南，详见 [从现有项目迁移](/zh/guide/start/quick-start#migrate-from-existing-projects)。
+
+> 欢迎为 [Rsbuild GitHub 仓库](https://github.com/web-infra-dev/rsbuild) 点亮一颗 Star 🌟。
+
+## 下一步
+
+Rsbuild 1.0 为企业级应用和上层工具开发提供了一些高级特性，例如 [多环境构建 API](/zh/guide/advanced/environments)、[服务端渲染 API](/zh/guide/advanced/ssr)、[插件 API](/plugins/dev/)、[模块联邦支持](/zh/guide/advanced/module-federation) 和 [Library 构建（Rslib）](https://github.com/web-infra-dev/rslib)，我们计划继续完善这些特性，更好地支持 Rsbuild 生态发展。
+
+在接下来的 12～18 个月里，Rsbuild 将与 Rspack 共同演进，在第一时间应用 Rspack 的新特性，例如持久化缓存、更快的 HMR、基于 TypeScript 的优化等。请参考 [Rspack - 下一步](https://rspack.rs/zh/blog/announcing-1-0#%E4%B8%8B%E4%B8%80%E6%AD%A5) 了解更多。
+
+最后，感谢所有为 Rsbuild 贡献过的开发者 ❤️：
+
+![](https://assets.rspack.rs/rsbuild/assets/rsbuild-1-0-contributors.png)

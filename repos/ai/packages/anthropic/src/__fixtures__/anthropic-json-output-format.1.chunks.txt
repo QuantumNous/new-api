@@ -1,0 +1,120 @@
+{"type":"message_start","message":{"model":"claude-sonnet-4-5-20250929","id":"msg_01KbeodbKEyjf2fLb2Jnkr5s","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":313,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":1,"service_tier":"standard"}}}
+{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"{\""}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"characters\""}}
+{"type":"ping"}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":":[{\"name\":\"Th"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"eron"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" Iron"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"heart\",\"class\":\"warrior\",\"description"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\":\"A battle"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"-scar"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"red veteran"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" with"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" steel"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"-"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"gray hair and a"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" prominent"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" scar across his left eye."}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" Wiel"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ding a massive two"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"-handed sword passe"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"d down through his family for"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" generations,"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" Theron fights"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" with discipl"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ined precision h"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"oned through decades"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" of combat. Despite"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" his gruff exterior, he harb"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ors a deep sense of honor and prot"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ects the weak"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" without"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" hesitation."}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\"},{\"name\":\"Lyra"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" Star"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"weaver\",\"class\":\"mage\",\""}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"description\":\"A young"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" pro"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"digy in"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" the"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" arcane arts with"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" flowing"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" silver ro"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"bes ador"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ned with celest"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ial patterns"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":". Her"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" eyes"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" g"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"low f"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"aintly blue"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" when"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" chann"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"eling powerful"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" sp"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ells."}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" Lyra special"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"izes in ele"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"mental magic an"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"d ast"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ral div"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ination, having"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" studie"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"d at"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" the Gran"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"d Academy since"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" childhoo"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"d. She is"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" curious"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" and ide"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"alistic, often getting"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" into"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" trouble"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" while"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" pursuing"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" forbidden"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" knowledge.\"},{\"name\":\"R"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ook"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" Shadow"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"st"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ep"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\",\"class\":\"thief\",\"description\":\""}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"A nim"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ble and cun"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ning r"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ogue who"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" moves through"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" shadows"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" like"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" a whis"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"per in"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" the night. With"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" jet"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"-black hair,"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" leather"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" armor,"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" and an array of lock"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"picks an"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"d daggers hidden on"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" his person, Rook makes his"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" living liber"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ating treas"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ures from those"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" he"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" deems unworthy of"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" them"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":". Behin"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"d his coc"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ky smile"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" lies a trouble"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"d past and a strict"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" personal"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" code about"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" who"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" deserves to be"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" rob"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"bed.\"}]}"}}
+{"type":"content_block_stop","index":0}
+{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"input_tokens":313,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":305}}
+{"type":"message_stop"}

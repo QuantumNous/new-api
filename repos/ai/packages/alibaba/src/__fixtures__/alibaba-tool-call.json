@@ -1,0 +1,37 @@
+{
+  "choices": [
+    {
+      "message": {
+        "content": "",
+        "role": "assistant",
+        "tool_calls": [
+          {
+            "function": {
+              "arguments": "{\"location\": \"San Francisco\"}",
+              "name": "weather"
+            },
+            "id": "call_962bfd2ab8f54b89a1161356",
+            "index": 0,
+            "type": "function"
+          }
+        ]
+      },
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "logprobs": null
+    }
+  ],
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 295,
+    "completion_tokens": 22,
+    "total_tokens": 317,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    }
+  },
+  "created": 1770764857,
+  "system_fingerprint": null,
+  "model": "qwen3-max",
+  "id": "chatcmpl-bc7fc58d-c03f-9c9f-af73-91bea326c99f"
+}

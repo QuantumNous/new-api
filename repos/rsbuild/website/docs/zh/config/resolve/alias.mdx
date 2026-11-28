@@ -1,0 +1,217 @@
+---
+description: '设置模块路径的别名，用于简化导入路径或重定向模块引用。'
+---
+
+# resolve.alias
+
+- **类型：**
+
+```ts
+type Alias = Record<string, string | false | (string | false)[]> | Function;
+```
+
+- **默认值：**
+
+```ts
+const defaultAlias = {
+  '@swc/helpers': path.dirname(require.resolve('@swc/helpers/package.json')),
+};
+```
+
+- **版本：** `>=1.1.7`
+
+设置模块路径的别名，用于简化导入路径或重定向模块引用。
+
+对于 TypeScript 项目，你只需要在 `tsconfig.json` 中配置 [compilerOptions.paths](https://typescriptlang.org/tsconfig#paths) 即可，Rsbuild 会自动识别它，不需要额外配置 `resolve.alias` 字段，详见 [「路径别名」](/guide/advanced/alias)。
+
+## 基本用法
+
+`resolve.alias` 的值可以传入一个对象，对象的 `key` 是源代码中需要被替换的模块路径，`value` 是模块实际映射到的目标路径。
+
+```ts title="rsbuild.config.ts"
+export default {
+  resolve: {
+    alias: {
+      '@common': './src/common',
+    },
+  },
+};
+```
+
+添加以上配置后，当你在代码中引用 `@common/Foo.tsx` 时，会映射到 `<project-root>/src/common/Foo.tsx` 路径上。
+
+## Function 用法
+
+`resolve.alias` 的值定义为函数时，可以接受预设的 alias 对象，并对其进行修改。
+
+```ts title="rsbuild.config.ts"
+export default {
+  resolve: {
+    alias: (alias) => {
+      alias['@common'] = './src/common';
+    },
+  },
+};
+```
+
+如果你需要移除 Rsbuild 内置的 `@swc/helpers` 别名，可以在函数中删除它：
+
+```ts title="rsbuild.config.ts"
+export default {
+  resolve: {
+    alias: (alias) => {
+      delete alias['@swc/helpers'];
+    },
+  },
+};
+```
+
+你也可以在函数中返回一个新对象作为最终结果，新对象会覆盖预设的 alias 对象。
+
+```ts title="rsbuild.config.ts"
+export default {
+  resolve: {
+    alias: (alias) => {
+      return {
+        '@common': './src/common',
+      };
+    },
+  },
+};
+```
+
+## 与 Rspack 配置的差异
+
+Rsbuild 的 `resolve.alias` 与 Rspack 的 [resolve.alias](https://rspack.rs/zh/config/resolve#resolvealias) 配置的用法基本一致，它们的差异是：
+
+- 如果 `resolve.alias` 的值是一个相对路径，Rsbuild 会自动将其转换为绝对路径，以保证路径是相对于项目根目录的。
+
+```ts title="rsbuild.config.ts"
+export default {
+  resolve: {
+    alias: {
+      // 将被转换为 `<project-root>/src/common`
+      '@common': './src/common',
+    },
+  },
+};
+```
+
+- Rsbuild 额外支持了函数类型的用法。
+
+## 基于 environment 设置
+
+当你面向多个 [environments](/config/environments) 构建时，可以为每个 environment 设置不同的 alias：
+
+比如为 `web` 和 `node` 环境设置不同的 alias：
+
+```ts title="rsbuild.config.ts"
+export default {
+  environments: {
+    web: {
+      resolve: {
+        alias: {
+          '@common': './src/web/common',
+        },
+      },
+      output: {
+        target: 'web',
+      },
+    },
+    node: {
+      resolve: {
+        alias: {
+          '@common': './src/node/common',
+        },
+      },
+      output: {
+        target: 'node',
+      },
+    },
+  },
+};
+```
+
+## 精确匹配
+
+默认情况，`resolve.alias` 会自动匹配子路径，比如以下配置：
+
+```ts title="rsbuild.config.ts"
+import path from 'node:path';
+
+export default {
+  resolve: {
+    alias: {
+      '@common': './src/common',
+    },
+  },
+};
+```
+
+它的匹配结果如下：
+
+```ts
+import a from '@common'; // 解析为 `./src/common`
+import b from '@common/util'; // 解析为 `./src/common/util`
+```
+
+你可以添加 `$` 符号来开启精确匹配，开启后将不会自动匹配子路径。
+
+```ts title="rsbuild.config.ts"
+import path from 'node:path';
+
+export default {
+  resolve: {
+    alias: {
+      '@common$': './src/common',
+    },
+  },
+};
+```
+
+它的匹配结果如下：
+
+```ts
+import a from '@common'; // 解析为 `./src/common`
+import b from '@common/util'; // 保持 `@common/util` 不变
+```
+
+## 处理 npm 包
+
+你可以使用 `alias` 将某个 npm 包指向统一的目录。
+
+比如项目中安装了多份 `react`，你可以将 `react` 统一指向根目录的 `node_modules` 中安装的版本，避免出现打包多份 React 代码的问题。
+
+```ts title="rsbuild.config.ts"
+import path from 'node:path';
+
+export default {
+  resolve: {
+    alias: {
+      react: path.resolve(__dirname, './node_modules/react'),
+    },
+  },
+};
+```
+
+当你在使用 alias 处理 npm 包时，请留意项目中是否使用了这个包不同的 major 版本。
+
+比如你的项目中某个模块或 npm 依赖使用了 React 19 的 API，如果你将 React alias 到 17 版本，就会导致该模块无法引用到 React 19 的 API，导致代码异常。
+
+## 处理 Loader
+
+`resolve.alias` 不支持为 loader 设置别名。如果你需要为 loader 设置别名，可以使用 Rspack 的 [resolveLoader](https://rspack.rs/zh/config/resolve-loader) 配置项。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: {
+      resolveLoader: {
+        alias: {
+          'amazing-loader': require.resolve('path-to-your-amazing-loader'),
+        },
+      },
+    },
+  },
+};
+```

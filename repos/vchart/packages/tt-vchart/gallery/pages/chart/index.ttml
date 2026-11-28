@@ -1,0 +1,10 @@
+<view tt:if="{{ spec }}">
+  <chart 
+  canvasId="{{ canvasId }}" 
+  spec="{{ spec }}" 
+  styles="{{ styles }}" 
+  events="{{ events }}"
+  options="{{ options }}" 
+  onChartInit="{{ onChartInit }}"
+  onChartReady="{{ onChartReady }}" />
+</view>

@@ -1,0 +1,1104 @@
+---
+description: 'Rsbuild JavaScript API 参考，涵盖 rsbuild.context、rsbuild.build 等核心接口和用法。'
+---
+
+# Rsbuild instance
+
+本章节介绍了 Rsbuild 实例对象上所有的属性和方法。
+
+## rsbuild.context
+
+`context` 是一个只读对象，提供一些上下文信息，能够通过两种方式访问：
+
+1. 通过 Rsbuild 实例的 `context` 属性访问：
+
+```ts
+import { createRsbuild } from '@rsbuild/core';
+
+const rsbuild = createRsbuild({
+  // ...
+});
+
+console.log(rsbuild.context);
+```
+
+2. 通过 Rsbuild 插件的 [api.context](/plugins/dev/core#apicontext) 访问：
+
+```ts
+export const myPlugin = {
+  name: 'my-plugin',
+  setup(api) {
+    console.log(api.context);
+  },
+};
+```
+
+### context.version
+
+当前使用的 `@rsbuild/core` 版本。
+
+- **类型：**
+
+```ts
+type Version = string;
+```
+
+### context.rootPath
+
+当前执行构建的根路径，对应调用 [createRsbuild](/api/javascript-api/core#creatersbuild) 时传入的 `cwd` 选项。
+
+- **类型：**
+
+```ts
+type RootPath = string;
+```
+
+### context.distPath
+
+构建产物输出目录的绝对路径，对应 `RsbuildConfig` 中的 [output.distPath.root](/config/output/dist-path) 配置项。
+
+当有多个环境时，Rsbuild 会尝试获取所有环境的父 distPath 作为 `context.distPath`。
+
+如果要获取指定环境的输出目录的绝对路径，建议使用 [environment.distPath](/api/javascript-api/environment-api#distpath)。
+
+- **类型：**
+
+```ts
+type DistPath = string;
+```
+
+### context.cachePath
+
+构建过程中生成的缓存文件所在的绝对路径。
+
+- **类型：**
+
+```ts
+type CachePath = string;
+```
+
+### context.callerName
+
+当前调用 Rsbuild 的框架或工具的名称，与 [createRsbuild](/api/javascript-api/core#creatersbuild) 方法中的 [callerName](/api/javascript-api/core#specify-caller-name) 选项相同。
+
+- **类型：** `string`
+- **默认值：** `'rsbuild'`
+- **示例：**
+
+```ts title="myPlugin.ts"
+export const myPlugin = {
+  name: 'my-plugin',
+  setup(api) {
+    const { callerName } = api.context;
+
+    if (callerName === 'rslib') {
+      // ...
+    } else if (callerName === 'rsbuild') {
+      // ...
+    }
+  },
+};
+```
+
+一些基于 Rsbuild 的工具已经设置了 `callerName` 的值：
+
+| 名称                                                | callerName  |
+| --------------------------------------------------- | ----------- |
+| [Rslib](https://github.com/web-infra-dev/rslib)     | `'rslib'`   |
+| [Rstest](https://github.com/web-infra-dev/rstest)   | `'rstest'`  |
+| [Rspress](https://github.com/web-infra-dev/rspress) | `'rspress'` |
+| [Rspeedy](https://lynxjs.org/rspeedy)               | `'rspeedy'` |
+
+### context.devServer
+
+在开发模式下运行时的 dev server 信息。仅在 dev server 创建后可访问。
+
+- **类型：**
+
+```ts
+type DevServer = {
+  /** 服务器运行时使用的 hostname */
+  hostname: string;
+  /** 服务器实际监听的端口号 */
+  port: number;
+  /** 是否使用 HTTPS 协议 */
+  https: boolean;
+};
+```
+
+- **示例：**
+
+```ts
+import { createRsbuild } from '@rsbuild/core';
+
+async function main() {
+  const rsbuild = createRsbuild({
+    // ...
+  });
+  await rsbuild.startDevServer();
+
+  // { hostname: 'localhost', port: 3000, https: false }
+  console.log(rsbuild.context.devServer);
+}
+```
+
+### context.action
+
+当前的动作类型。
+
+- **类型：**
+
+```ts
+type Action = 'dev' | 'build' | 'preview' | undefined;
+```
+
+`context.action` 在运行 CLI 命令或调用 Rsbuild 实例方法时设置：
+
+- `dev`: 当运行 [rsbuild dev](/guide/basic/cli#rsbuild) 或 [rsbuild.startDevServer()](/api/javascript-api/instance#rsbuildstartdevserver) 时设置。
+- `build`: 当运行 [rsbuild build](/guide/basic/cli#rsbuild-build) 或 [rsbuild.build()](/api/javascript-api/instance#rsbuildbuild) 时设置。
+- `preview`: 当运行 [rsbuild preview](/guide/basic/cli#rsbuild-preview) 或 [rsbuild.preview()](/api/javascript-api/instance#rsbuildpreview) 时设置。
+
+示例：
+
+```ts
+if (rsbuild.context.action === 'dev') {
+  // do something
+}
+```
+
+## rsbuild.logger
+
+`rsbuild.logger` 表示当前 Rsbuild 实例所关联的 logger，详见 [日志](/guide/advanced/logging)。
+
+- **类型：** [Logger](/api/javascript-api/core#logger)
+
+- **示例：**
+
+```ts
+const rsbuild = await createRsbuild();
+
+rsbuild.logger.info('build started');
+```
+
+## rsbuild.build
+
+执行生产模式构建。该方法会生成优化后的生产构建产物，并输出到输出目录。
+
+- **类型：**
+
+```ts
+type BuildOptions = {
+  /**
+   * 是否监听文件变化并重新构建
+   *
+   * @default false
+   */
+  watch?: boolean;
+};
+
+function Build(options?: BuildOptions): Promise<{
+  /**
+   * Rspack 的 [stats](https://rspack.rs/zh/api/javascript-api/stats) 对象。
+   */
+  stats?: Rspack.Stats | Rspack.MultiStats;
+  /**
+   * 关闭构建并调用 `onCloseBuild` 钩子。
+   * 在监听模式下，此方法将停止监听。
+   */
+  close: () => Promise<void>;
+}>;
+```
+
+- **示例：**
+
+```ts
+import { logger } from '@rsbuild/core';
+
+// Example 1: run build
+await rsbuild.build();
+
+// Example 2: build and handle the error
+try {
+  await rsbuild.build();
+} catch (err) {
+  logger.error('Failed to build.');
+  logger.error(err);
+  process.exit(1);
+}
+
+// Example 3: build and get all assets
+const { stats } = await rsbuild.build();
+
+if (stats) {
+  const { assets } = stats.toJson({
+    // 排除不需要的字段以提高性能
+    all: false,
+    assets: true,
+  });
+  console.log(assets);
+}
+```
+
+### 监听文件变化
+
+如果需要自动监听文件变化并重新执行构建，可以将 `watch` 参数设置为 `true`。
+
+```ts
+await rsbuild.build({
+  watch: true,
+});
+```
+
+### 结束构建 \{#close-build}
+
+`rsbuild.build()` 返回一个 `close()` 方法，用于结束本次构建。
+
+在 watch 模式下，调用 `close()` 方法将会结束监听：
+
+```ts
+const buildResult = await rsbuild.build({
+  watch: true,
+});
+await buildResult.close();
+```
+
+在非 watch 模式下，你也应该调用 `close()` 方法来结束构建，这会触发 [onCloseBuild](/plugins/dev/hooks#onclosebuild) 钩子，执行清理操作。
+
+```ts
+const buildResult = await rsbuild.build();
+await buildResult.close();
+```
+
+### Stats 对象 \{#stats-object}
+
+在非 watch 模式下，`rsbuild.build()` 会返回一个 Rspack 的 [stats](https://rspack.rs/zh/api/javascript-api/stats) 对象。
+
+例如，使用 `stats.toJson()` 方法获取所有 assets 信息：
+
+```ts
+const result = await rsbuild.build();
+const { stats } = result;
+
+if (stats) {
+  const { assets } = stats.toJson({
+    // 排除不需要的字段以提高性能
+    all: false,
+    assets: true,
+  });
+  console.log(assets);
+}
+```
+
+## rsbuild.startDevServer
+
+启动本地 dev server。该方法会：
+
+1. 启动一个开发服务器，用于运行你的应用
+2. 自动监听文件变化并触发重新编译
+
+- **类型：**
+
+```ts
+type StartDevServerOptions = {
+  /**
+   * 是否在启动时静默获取端口号，不输出任何日志
+   * @default false
+   */
+  getPortSilently?: boolean;
+};
+
+type StartDevServerResult = {
+  /**
+   * 服务器监听的 URLs
+   */
+  urls: string[];
+  /**
+   * 服务器实际使用的端口号
+   */
+  port: number;
+  server: RsbuildDevServer;
+};
+
+function StartDevServer(options?: StartDevServerOptions): Promise<StartDevServerResult>;
+```
+
+- **示例：**
+
+启动 dev server：
+
+```ts
+import { logger } from '@rsbuild/core';
+
+// Start dev server
+await rsbuild.startDevServer();
+
+// Start dev server and handle the error
+try {
+  await rsbuild.startDevServer();
+} catch (err) {
+  logger.error('Failed to start dev server.');
+  logger.error(err);
+  process.exit(1);
+}
+```
+
+成功启动 dev server 后，可以看到以下日志信息：
+
+```
+  ➜  Local:    http://localhost:3000
+  ➜  Network:  use --host to expose
+```
+
+`startDevServer` 会返回以下参数：
+
+- `urls`：访问 dev server 的 URLs
+- `port` 实际监听的端口号
+- `server`：Server 实例对象，详见 [Server API](/api/javascript-api/server-api)
+
+```ts
+const { urls, port } = await rsbuild.startDevServer();
+console.log(urls); // ['http://localhost:3000', 'http://192.168.0.1:3000']
+console.log(port); // 3000
+```
+
+### 关闭 server \{#close-server}
+
+调用 `server.close()` 方法会关闭开发服务器，触发 [onCloseDevServer](/plugins/dev/hooks#onclosedevserver) 钩子，并执行必要的清理操作。
+
+```ts
+const { server } = await rsbuild.startDevServer();
+await server.close();
+```
+
+### 静默获取端口号
+
+某些情况下，默认启动的端口号已经被占用，此时 Rsbuild 会自动递增端口号，直至找到一个可用端口。这个过程会输出提示日志，如果你不希望这段日志，可以将 `getPortSilently` 设置为 `true`。
+
+```ts
+await rsbuild.startDevServer({
+  getPortSilently: true,
+});
+```
+
+## rsbuild.createDevServer
+
+- **类型：**
+
+```ts
+type CreateDevServerOptions = {
+  /**
+   * 是否在启动时静默获取端口号，不输出任何日志
+   * @default false
+   */
+  getPortSilently?: boolean;
+  /**
+   * 是否触发 Rsbuild 编译
+   * @default true
+   */
+  runCompile?: boolean;
+};
+
+function createDevServer(options?: CreateDevServerOptions): Promise<RsbuildDevServer>;
+```
+
+Rsbuild 配备了一个内置的开发服务器，当你执行 `rsbuild dev` 时，将启动 Rsbuild dev server，并提供页面预览、路由、模块热更新等功能。
+
+- 如果你需要将 Rsbuild dev server 集成到自定义的 server 中，可以通过 `createDevServer` 方法创建一个 dev server 实例，请参考 [Server API](/api/javascript-api/server-api) 了解所有可用的 API。
+- 如果你需要直接使用 Rsbuild dev server 启动项目，可以直接使用 [rsbuild.startDevServer](#rsbuildstartdevserver) 方法。 `rsbuild.startDevServer` 实际上是以下代码的语法糖：
+
+```ts
+const server = await rsbuild.createDevServer();
+await server.listen();
+```
+
+## rsbuild.preview
+
+在本地启动 server 来预览生产模式构建的产物，需要在 [rsbuild.build](#rsbuildbuild) 方法之后执行。
+
+- **类型：**
+
+```ts
+type PreviewOptions = {
+  /**
+   * 是否在启动时静默获取端口号，不输出任何日志
+   * @default false
+   */
+  getPortSilently?: boolean;
+  /**
+   * 是否检查 dist 目录存在且不为空
+   * @default true
+   */
+  checkDistDir?: boolean;
+};
+
+type StartPreviewServerResult = {
+  /**
+   * 服务器监听的 URLs
+   */
+  urls: string[];
+  /**
+   * 服务器实际使用的端口号
+   */
+  port: number;
+  server: RsbuildPreviewServer;
+};
+
+function preview(options?: PreviewOptions): Promise<StartPreviewServerResult>;
+```
+
+- **示例：**
+
+启动 Server：
+
+```ts
+import { logger } from '@rsbuild/core';
+
+// Start preview server
+await rsbuild.preview();
+
+// Start preview server and handle the error
+try {
+  await rsbuild.preview();
+} catch (err) {
+  logger.error('Failed to start preview server.');
+  logger.error(err);
+  process.exit(1);
+}
+```
+
+`preview` 会返回以下参数：
+
+- `urls`：访问 Server 的 URLs
+- `port` 实际监听的端口号
+- `server`：Server 实例对象，详见 [Server API](/api/javascript-api/server-api)
+
+```ts
+const { urls, port } = await rsbuild.preview();
+console.log(urls); // ['http://localhost:3000', 'http://192.168.0.1:3000']
+console.log(port); // 3000
+```
+
+### 关闭 server
+
+调用 `close()` 方法会关闭预览服务器。
+
+```ts
+const { server } = await rsbuild.preview();
+await server.close();
+```
+
+## rsbuild.createCompiler
+
+创建一个 Rspack [Compiler](https://rspack.rs/zh/api/javascript-api/compiler) 实例；如果本次构建存在多个 [environments](/config/environments)，则返回值为 [MultiCompiler](https://rspack.rs/zh/api/javascript-api/compiler#multicompiler)。
+
+- **类型：**
+
+```ts
+function CreateCompiler(): Promise<Compiler | MultiCompiler>;
+```
+
+- **示例：**
+
+```ts
+const compiler = await rsbuild.createCompiler();
+```
+
+> 大部分场景下，你不需要使用该 API，除非需要进行自定义 dev server 等高级操作。
+
+## rsbuild.addPlugins
+
+注册一个或多个 Rsbuild 插件，可以被多次调用。
+
+该方法需要在开始编译前调用，如果在开始编译之后调用，则不会影响编译结果。
+
+- **类型：**
+
+```ts
+type AddPluginsOptions = { before?: string; environment?: string };
+
+function AddPlugins(plugins: Array<RsbuildPlugin | Falsy>, options?: AddPluginsOptions): void;
+```
+
+- **示例：**
+
+```ts
+rsbuild.addPlugins([pluginFoo(), pluginBar()]);
+
+// 在 bar 插件之前插入
+rsbuild.addPlugins([pluginFoo()], { before: 'bar' });
+
+// 为 node 环境添加插件
+rsbuild.addPlugins([pluginFoo()], { environment: 'node' });
+```
+
+## rsbuild.getPlugins
+
+获取当前 Rsbuild 实例中注册的所有 Rsbuild 插件。
+
+- **类型：**
+
+```ts
+function GetPlugins(options?: {
+  /**
+   * Get the plugins in the specified environment.
+   * If environment is not specified, get the global plugins.
+   */
+  environment: string;
+}): RsbuildPlugin[];
+```
+
+- **示例：**
+
+```ts
+// get all plugins
+console.log(rsbuild.getPlugins());
+
+// get plugins in `web` environment
+console.log(rsbuild.getPlugins({ environment: 'web' }));
+```
+
+## rsbuild.removePlugins
+
+移除一个或多个 Rsbuild 插件，可以被多次调用。
+
+该方法需要在开始编译前调用，如果在开始编译之后调用，则不会影响编译结果。
+
+- **类型：**
+
+```ts
+function RemovePlugins(
+  pluginNames: string[],
+  options?: {
+    /**
+     * 移除指定 environment 中的插件。
+     * 如果未指定 environment，则会从所有 environment 中移除。
+     */
+    environment?: string;
+  },
+): void;
+```
+
+- **示例：**
+
+```ts
+// 添加插件
+const foo = pluginFoo();
+rsbuild.addPlugins([foo]);
+
+// 移除插件
+rsbuild.removePlugins([foo.name]);
+```
+
+## rsbuild.isPluginExists
+
+import IsPluginExists from '@zh/shared/isPluginExists.mdx';
+
+<IsPluginExists />
+
+- **示例：**
+
+```ts
+const pluginFoo = {
+  name: 'plugin-foo',
+  setup(api) {
+    // ...
+  },
+};
+
+const rsbuild = createRsbuild({
+  config: {
+    plugins: [pluginFoo],
+  },
+});
+
+rsbuild.isPluginExists(pluginFoo.name); // true
+```
+
+或者检查指定环境中是否存在插件：
+
+```ts
+const rsbuild = createRsbuild({
+  config: {
+    environments: {
+      web: {
+        plugins: [pluginFoo],
+      },
+    },
+  },
+});
+
+rsbuild.isPluginExists(pluginFoo.name, {
+  environment: 'web',
+}); // true
+```
+
+## rsbuild.initConfigs
+
+初始化并返回 Rsbuild 内部使用的 Rspack 配置。该方法会处理所有插件和配置，生成最终的 Rspack 配置。
+
+> 通常你不需要直接调用该方法，因为调用 [rsbuild.build](#rsbuildbuild) 和 [rsbuild.startDevServer](#rsbuildstartdevserver) 等方法时会自动调用 `initConfigs`。
+
+- **类型：**
+
+```ts
+type InitConfigsOptions = {
+  /**
+   * 当前的动作类型。
+   * - dev: 当运行 `rsbuild dev` 或 `rsbuild.startDevServer()` 时设置。
+   * - build: 当运行 `rsbuild build` 或 `rsbuild.build()` 时设置。
+   * - preview: 当运行 `rsbuild preview` 或 `rsbuild.preview()` 时设置。
+   */
+  action?: 'dev' | 'build' | 'preview';
+};
+
+function InitConfigs(options?: InitConfigsOptions): Promise<{
+  rspackConfigs: Rspack.Configuration[];
+}>;
+```
+
+- **示例：**
+
+```ts
+const rspackConfigs = await rsbuild.initConfigs();
+
+console.log(rspackConfigs);
+
+const buildConfigs = await rsbuild.initConfigs({
+  action: 'build',
+});
+
+console.log(buildConfigs);
+```
+
+## rsbuild.inspectConfig
+
+检查和调试 Rsbuild 的内部配置。它允许你访问：
+
+- 解析后的 Rsbuild 配置
+- 特定 environment 的 Rsbuild 配置
+- 生成的 Rspack 配置
+
+该方法将这些配置序列化为字符串，并支持写入磁盘以进行检查。
+
+- **类型：**
+
+```ts
+type InspectConfigOptions = {
+  /**
+   * 检查指定 mode 下的配置
+   * 可选值：'development' 或 'production'
+   * @default 'development'
+   */
+  mode?: RsbuildMode;
+  /**
+   * 启用详细模式，显示配置中函数的完整内容
+   * @default false
+   */
+  verbose?: boolean;
+  /**
+   * 指定检查结果的输出路径
+   * @default 'output.distPath.root'
+   */
+  outputPath?: string;
+  /**
+   * 是否将检查结果写入磁盘
+   * @default false
+   */
+  writeToDisk?: boolean;
+  /**
+   * 需要额外输出的配置
+   * - key: 配置的名称
+   * - value: 配置对象
+   */
+  extraConfigs?: Record<string, unknown>;
+};
+
+async function InspectConfig(options?: InspectConfigOptions): Promise<{
+  rsbuildConfig: string;
+  bundlerConfigs: string[];
+  environmentConfigs: string[];
+  origin: {
+    rsbuildConfig: RsbuildConfig;
+    environmentConfigs: Record<string, EnvironmentConfig>;
+    bundlerConfigs: BundlerConfigs[];
+  };
+}>;
+```
+
+:::tip
+如果你需要在构建过程中查看 Rsbuild 和 Rspack 配置，可以使用 [调试模式](/guide/debug/debug-mode)，也可以通过 [onBeforeBuild](#rsbuildonbeforebuild)、[onBeforeCreateCompile](#rsbuildonbeforecreatecompiler) 等 hooks 来获取。
+:::
+
+### 示例
+
+拿到字符串格式的 configs 内容：
+
+```ts
+const { rsbuildConfig, bundlerConfigs } = await rsbuild.inspectConfig();
+
+console.log(rsbuildConfig, bundlerConfigs);
+```
+
+直接将配置内容写入到磁盘上：
+
+```ts
+await rsbuild.inspectConfig({
+  writeToDisk: true,
+});
+```
+
+### 输出路径
+
+你可以通过 `outputPath` 来设置输出目录，默认为 [output.distPath.root](/config/output/dist-path) 的值。
+
+当 `outputPath` 是一个相对路径时，会相对于 `output.distPath.root` 的值进行拼接。你也可以将 `outputPath` 设置为一个绝对路径，此时会直接将文件写入到该路径下。比如：
+
+```ts
+import path from 'node:path';
+
+await rsbuild.inspectConfig({
+  writeToDisk: true,
+  outputPath: path.join(__dirname, 'custom-dir'),
+});
+```
+
+## rsbuild.onBeforeCreateCompiler
+
+> 功能与 [onBeforeCreateCompiler](/plugins/dev/hooks#onbeforecreatecompiler) 插件 hook 一致。
+
+import OnBeforeCreateCompiler from '@zh/shared/onBeforeCreateCompiler.mdx';
+
+<OnBeforeCreateCompiler />
+
+- **示例：**
+
+```ts
+rsbuild.onBeforeCreateCompiler(({ bundlerConfigs }) => {
+  console.log('the Rspack config is ', bundlerConfigs);
+});
+```
+
+## rsbuild.onAfterCreateCompiler
+
+> 功能与 [onAfterCreateCompiler](/plugins/dev/hooks#onaftercreatecompiler) 插件 hook 一致。
+
+import OnAfterCreateCompiler from '@zh/shared/onAfterCreateCompiler.mdx';
+
+<OnAfterCreateCompiler />
+
+- **示例：**
+
+```ts
+rsbuild.onAfterCreateCompiler(({ compiler }) => {
+  console.log('the compiler is ', compiler);
+});
+```
+
+## rsbuild.onBeforeBuild
+
+> 功能与 [onBeforeBuild](/plugins/dev/hooks#onbeforebuild) 插件 hook 一致。
+
+import OnBeforeBuild from '@zh/shared/onBeforeBuild.mdx';
+
+<OnBeforeBuild />
+
+- **示例：**
+
+```ts
+rsbuild.onBeforeBuild(({ bundlerConfigs }) => {
+  console.log('the Rspack config is ', bundlerConfigs);
+});
+```
+
+## rsbuild.onAfterBuild
+
+> 功能与 [onAfterBuild](/plugins/dev/hooks#onafterbuild) 插件 hook 一致。
+
+import OnAfterBuild from '@zh/shared/onAfterBuild.mdx';
+
+<OnAfterBuild />
+
+- **示例：**
+
+```ts
+rsbuild.onAfterBuild(({ stats }) => {
+  console.log(stats?.toJson());
+});
+```
+
+## rsbuild.onCloseBuild
+
+> 功能与 [onCloseBuild](/plugins/dev/hooks#onclosebuild) 插件 hook 一致。
+
+import OnCloseBuild from '@zh/shared/onCloseBuild.mdx';
+
+<OnCloseBuild />
+
+- **示例：**
+
+```ts
+rsbuild.onCloseBuild(async () => {
+  console.log('close build!');
+});
+```
+
+## rsbuild.onBeforeStartDevServer
+
+> 功能与 [onBeforeStartDevServer](/plugins/dev/hooks#onbeforestartdevserver) 插件 hook 一致。
+
+import OnBeforeStartDevServer from '@zh/shared/onBeforeStartDevServer.mdx';
+
+<OnBeforeStartDevServer />
+
+- **示例：**
+
+```ts
+rsbuild.onBeforeStartDevServer(({ server, environments }) => {
+  console.log('before starting dev server.');
+  console.log('the server is ', server);
+  console.log('the environments contexts are: ', environments);
+});
+```
+
+> 查看 [Plugin hooks - onBeforeStartDevServer](/plugins/dev/hooks#onbeforestartdevserver) 了解更多用法。
+
+## rsbuild.onAfterStartDevServer
+
+> 功能与 [onAfterStartDevServer](/plugins/dev/hooks#onafterstartdevserver) 插件 hook 一致。
+
+import OnAfterStartDevServer from '@zh/shared/onAfterStartDevServer.mdx';
+
+<OnAfterStartDevServer />
+
+- **示例：**
+
+```ts
+rsbuild.onAfterStartDevServer(({ port, routes }) => {
+  console.log('this port is: ', port);
+  console.log('this routes is: ', routes);
+});
+```
+
+## rsbuild.onCloseDevServer
+
+> 功能与 [onCloseDevServer](/plugins/dev/hooks#onclosedevserver) 插件 hook 一致。
+
+import OnCloseDevServer from '@zh/shared/onCloseDevServer.mdx';
+
+<OnCloseDevServer />
+
+- **示例：**
+
+```ts
+rsbuild.onCloseDevServer(async () => {
+  console.log('close dev server!');
+});
+```
+
+## rsbuild.onBeforeStartPreviewServer
+
+> 功能与 [onBeforeStartPreviewServer](/plugins/dev/hooks#onbeforestartpreviewserver) 插件 hook 一致。
+
+import OnBeforeStartPreviewServer from '@zh/shared/onBeforeStartPreviewServer.mdx';
+
+<OnBeforeStartPreviewServer />
+
+- **示例：**
+
+```ts
+rsbuild.onBeforeStartPreviewServer(({ server, environments }) => {
+  console.log('before start!');
+  console.log('the server is ', server);
+  console.log('the environments contexts are: ', environments);
+});
+```
+
+## rsbuild.onAfterStartPreviewServer
+
+> 功能与 [onAfterStartPreviewServer](/plugins/dev/hooks#onafterstartpreviewserver) 插件 hook 一致。
+
+import OnAfterStartPreviewServer from '@zh/shared/onAfterStartPreviewServer.mdx';
+
+<OnAfterStartPreviewServer />
+
+- **示例：**
+
+```ts
+rsbuild.onAfterStartPreviewServer(({ port, routes }) => {
+  console.log('this port is: ', port);
+  console.log('this routes is: ', routes);
+});
+```
+
+## rsbuild.onBeforeDevCompile
+
+> 功能与 [onBeforeDevCompile](/plugins/dev/hooks#onbeforedevcompile) 插件 hook 一致。
+
+import OnBeforeDevCompile from '@zh/shared/onBeforeDevCompile.mdx';
+
+<OnBeforeDevCompile />
+
+- **示例：**
+
+```ts
+rsbuild.onBeforeDevCompile(({ bundlerConfigs }) => {
+  console.log('the Rspack configs are ', bundlerConfigs);
+});
+```
+
+## rsbuild.onAfterDevCompile
+
+> 功能与 [onAfterDevCompile](/plugins/dev/hooks#onafterdevcompile) 插件 hook 一致。
+
+import OnAfterDevCompile from '@zh/shared/onAfterDevCompile.mdx';
+
+<OnAfterDevCompile />
+
+- **示例：**
+
+```ts
+rsbuild.onAfterDevCompile(({ isFirstCompile }) => {
+  if (isFirstCompile) {
+    console.log('first compile!');
+  } else {
+    console.log('re-compile!');
+  }
+});
+```
+
+## rsbuild.onBeforeEnvironmentCompile
+
+> 功能与 [onBeforeEnvironmentCompile](/plugins/dev/hooks#onbeforeenvironmentcompile) 插件 hook 一致。
+
+- **版本：** 添加于 v1.5.7
+- **示例：**
+
+```ts
+rsbuild.onBeforeEnvironmentCompile(({ bundlerConfig, environment }) => {
+  console.log(`the bundler config for the ${environment.name} is `, bundlerConfig);
+});
+```
+
+## rsbuild.onAfterEnvironmentCompile
+
+> 功能与 [onAfterEnvironmentCompile](/plugins/dev/hooks#onafterenvironmentcompile) 插件 hook 一致。
+
+- **版本：** 添加于 v1.5.7
+- **示例：**
+
+```ts
+rsbuild.onAfterEnvironmentCompile(({ isFirstCompile, stats }) => {
+  console.log(stats?.toJson(), isFirstCompile);
+});
+```
+
+## rsbuild.onExit
+
+> 功能与 [onExit](/plugins/dev/hooks#onexit) 插件 hook 一致。
+
+import OnExit from '@zh/shared/onExit.mdx';
+
+<OnExit />
+
+- **示例：**
+
+```ts
+rsbuild.onExit(({ exitCode }) => {
+  console.log('exit: ', exitCode);
+});
+```
+
+## rsbuild.getRsbuildConfig
+
+> 功能与 [getRsbuildConfig](/plugins/dev/core#apigetrsbuildconfig) 插件 API 一致。
+
+import GetRsbuildConfig from '@zh/shared/getRsbuildConfig.mdx';
+
+<GetRsbuildConfig />
+
+- **示例：**
+
+```ts
+rsbuild.onBeforeBuild(() => {
+  const config = rsbuild.getRsbuildConfig();
+  console.log(config.html?.title);
+});
+```
+
+## rsbuild.getNormalizedConfig
+
+> 功能与 [getNormalizedConfig](/plugins/dev/core#apigetnormalizedconfig) 插件 API 一致。
+
+import GetNormalizedConfig from '@zh/shared/getNormalizedConfig.mdx';
+
+<GetNormalizedConfig />
+
+- **示例：**
+
+```ts
+rsbuild.onBeforeBuild(() => {
+  const config = rsbuild.getNormalizedConfig();
+  console.log(config.html.title);
+});
+```
+
+## rsbuild.expose
+
+> 功能与 [expose](/plugins/dev/core#apiexpose) 插件 API 一致。
+
+- **版本：** 添加于 v1.5.0
+- **示例：**
+
+```ts
+rsbuild.expose('my-id', {
+  value: 1,
+  double: (val: number) => val * 2,
+});
+```
+
+你也可以为指定 environment（对应 `config.environments` 的 key）暴露 API：
+
+```ts
+rsbuild.expose(
+  'my-id',
+  {
+    value: 1,
+    double: (val: number) => val * 2,
+  },
+  {
+    environment: 'web',
+  },
+);
+```
+
+当注册在同一 environment 中的插件调用 `api.useExposed` 时，Rsbuild 会优先解析 environment 级别的 API，如果不存在，则回退到全局 API。
+
+## rsbuild.modifyRsbuildConfig
+
+> 功能与 [modifyRsbuildConfig](/plugins/dev/hooks#modifyrsbuildconfig) 插件 API 一致。
+
+- **版本：** 添加于 v1.5.0
+- **示例：**
+
+```ts
+rsbuild.modifyRsbuildConfig((config) => {
+  config.html ||= {};
+  config.html.title = 'My Default Title';
+});
+```
+
+## rsbuild.modifyEnvironmentConfig
+
+> 功能与 [modifyEnvironmentConfig](/plugins/dev/hooks#modifyenvironmentconfig) 插件 API 一致。
+
+- **版本：** 添加于 v1.5.0
+- **示例：**
+
+```ts
+rsbuild.modifyEnvironmentConfig((config, { name }) => {
+  if (name !== 'web') {
+    return config;
+  }
+  config.html.title = 'My Default Title';
+});
+```

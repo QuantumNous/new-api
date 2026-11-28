@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2016",
+    "experimentalDecorators": true,
+    "strict": true,
+    "noImplicitAny": true,
+    "removeComments": true,
+    "preserveConstEnums": true,
+    "sourceMap": false,
+    "moduleResolution": "node",
+    "module": "esnext",
+    "esModuleInterop": true,
+    "importHelpers": false,
+    "isolatedModules": false,
+    "noImplicitReturns": true,
+    "noImplicitThis": true,
+    "noUnusedParameters": false,
+    "noUnusedLocals": false,
+    "resolveJsonModule": true,
+    "suppressImplicitAnyIndexErrors": true,
+    "strictNullChecks": false,
+    "skipLibCheck": true
+  }
+}

@@ -1,0 +1,6 @@
+<view class="vchart" style="{{ styles }}">
+  <canvas class="cs-canvas" bind:touchstart="bindEvent" bind:touchmove="bindEvent" bind:touchend="bindEvent"
+    id="{{ canvasId }}_draw_canvas" canvas-id="{{ canvasId }}_draw_canvas"></canvas>
+  <canvas width="{{ offscreenCanvasWidth }}" height="{{ offscreenCanvasHeight }}" id="{{ canvasId }}_tooltip_canvas"
+    canvas-id="{{ canvasId }}_tooltip_canvas" class="cs-tooltip-canvas"></canvas>
+</view>

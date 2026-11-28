@@ -1,0 +1,119 @@
+{"type":"message_start","message":{"model":"claude-sonnet-4-5-20250929","id":"msg_01MCmfPn2yQ8Nfqz1cGmHe6K","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":904,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":5,"service_tier":"standard"}}}
+{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+{"type":"ping"}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"I'll help you with"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" this task. Let me start"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" by reading the note tree to see"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" the current structure,"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" an"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"d then search"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" for the appropriate"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" tools to add a"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" bullet"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"."}}
+{"type":"content_block_stop","index":0}
+{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_01WPkY6CkyJnFsaCqY7SZ9FX","name":"readNoteTree","input":{},"caller":{"type":"direct"}}}
+{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":""}}
+{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"noteId\": \"d10aa585-982b"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"-4bd9-984e-"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"420f9b3717f7"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"\"}"}}
+{"type":"content_block_stop","index":1}
+{"type":"content_block_start","index":2,"content_block":{"type":"server_tool_use","id":"srvtoolu_01H4HgrFsi9xizPtvnx1Tm7D","name":"tool_search_tool_regex","input":{},"caller":{"type":"direct"}}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":""}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"{\"pattern\": \"ad"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"d|"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"insert"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"|bullet"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"|create"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\", \"limit\": 10"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"}"}}
+{"type":"content_block_stop","index":2}
+{"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"input_tokens":904,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":175}}
+{"type":"message_stop"}
+{"type":"message_start","message":{"model":"claude-sonnet-4-5-20250929","id":"msg_017tMyttPYQeSLKYEe8V9BN5","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":1519,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":1,"service_tier":"standard"}}}
+{"type":"content_block_start","index":0,"content_block":{"type":"tool_search_tool_result","tool_use_id":"srvtoolu_01H4HgrFsi9xizPtvnx1Tm7D","content":{"type":"tool_search_tool_search_result","tool_references":[{"type":"tool_reference","tool_name":"readNoteTree"},{"type":"tool_reference","tool_name":"executeEditorOperation"}]}}}
+{"type":"content_block_stop","index":0}
+{"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Perfect"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"! I can"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" see the current"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" note structure"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" has"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" one"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" bull"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"eted list"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" item with"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" the"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" text \"hi\". Now I nee"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"d to add \"bye\" as a new"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" bullet after it"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"."}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Let"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" me use"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" the `"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"executeEditorOperation` tool"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" to insert"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" a"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" new bull"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"eted list item."}}
+{"type":"content_block_stop","index":1}
+{"type":"content_block_start","index":2,"content_block":{"type":"tool_use","id":"toolu_01UFHf8D27JBYu9FmrcjJk1p","name":"executeEditorOperation","input":{},"caller":{"type":"direct"}}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":""}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"{\"noteId\": \"d10aa585-982b"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"-4bd9-984e-"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"420f9b3717f7"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\", \"operations\": ["}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\n  "}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"{\n    \"op\": \"insert"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\",\n    \"type"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\": \"bulletedListItem\","}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\n    \"text"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\": \"bye\","}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\n    \"at"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\": {"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\n      \"type"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\": \"after"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\",\n      \"path\": [0"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"]\n    }\n  }"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\n]"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"}"}}
+{"type":"content_block_stop","index":2}
+{"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"input_tokens":1519,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":211,"server_tool_use":{"web_search_requests":0}}}
+{"type":"message_stop"}
+{"type":"message_start","message":{"model":"claude-sonnet-4-5-20250929","id":"msg_01B2PApN3MtQ8zF4Xvnw6pvY","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":1758,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":3,"service_tier":"standard"}}}
+{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+{"type":"ping"}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Great! I"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"'ve successfully complete"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"d the task. Here"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"'s what I did:\n\n1."}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" **Rea"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"d the note tree**:"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" The"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" note containe"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"d one"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" bulleted list item with the"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" text \"hi\""}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" at"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" path"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" [0]"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n2. **Added \"bye\""}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" as a new bullet**: I"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" use"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"d the `executeEditorOperation` tool"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" to insert a new bulleted list item"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" with"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" the text \"bye\" after"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" the \"hi\" bullet"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" ("}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"at path [0])\n\nThe operation"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" was successful"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":","}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" and the note now contains"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" two bulleted list items:"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n- hi"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n- bye"}}
+{"type":"content_block_stop","index":0}
+{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"input_tokens":1758,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":118}}
+{"type":"message_stop"}

@@ -1,0 +1,21 @@
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5rem;
+  min-height: 150vh;
+  align-content: start;
+}
+
+.wrapper {
+  font-family: system-ui, sans-serif;
+  line-height: 1.4;
+  display: flex;
+  flex-flow: column nowrap;
+  align-items: stretch;
+  gap: 1rem;
+  align-self: flex-start;
+}
+
+.nativeButton {
+  all: revert;
+}

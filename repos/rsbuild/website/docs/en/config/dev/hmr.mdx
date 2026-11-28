@@ -1,0 +1,26 @@
+---
+description: 'Refer to Hot Module Replacement for more information.'
+---
+
+# dev.hmr
+
+- **Type:** `boolean`
+- **Default:** `true`
+
+Whether to enable Hot Module Replacement.
+
+Refer to [Hot Module Replacement](/guide/advanced/hmr) for more information.
+
+> You can configure the HMR behavior of the client code via [dev.client](/config/dev/client).
+
+## Disabling HMR
+
+When `dev.hmr` is set to `false`, HMR and react-refresh will be disabled and Rsbuild will automatically fall back to [dev.liveReload](/config/dev/live-reload).
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    hmr: false,
+  },
+};
+```

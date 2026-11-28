@@ -1,0 +1,1317 @@
+// Rstest Snapshot v1
+
+exports[`plugin-swc > should allow \`tools.swc\` to be a function 1`] = `
+[
+  {
+    "resolve": {
+      "fullySpecified": false,
+    },
+    "test": /\\\\\\.m\\?js/,
+  },
+  {
+    "dependency": {
+      "not": "url",
+    },
+    "include": [
+      {
+        "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+      },
+      /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+    ],
+    "oneOf": [
+      {
+        "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+        "type": "javascript/auto",
+        "use": [
+          {
+            "loader": "<ROOT>/packages/core/src/workerLoader.mjs",
+          },
+        ],
+      },
+      {
+        "type": "asset/source",
+        "with": {
+          "type": "text",
+        },
+      },
+      {
+        "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+        "type": "asset/source",
+      },
+      {
+        "type": "javascript/auto",
+        "use": [
+          {
+            "loader": "builtin:swc-loader",
+            "options": {
+              "jsc": {
+                "externalHelpers": false,
+              },
+            },
+          },
+        ],
+      },
+    ],
+    "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+  },
+]
+`;
+
+exports[`plugin-swc > should allow using \`tools.swc\` to configure swc-loader options 1`] = `
+[
+  {
+    "resolve": {
+      "fullySpecified": false,
+    },
+    "test": /\\\\\\.m\\?js/,
+  },
+  {
+    "dependency": {
+      "not": "url",
+    },
+    "include": [
+      {
+        "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+      },
+      /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+    ],
+    "oneOf": [
+      {
+        "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+        "type": "javascript/auto",
+        "use": [
+          {
+            "loader": "<ROOT>/packages/core/src/workerLoader.mjs",
+          },
+        ],
+      },
+      {
+        "type": "asset/source",
+        "with": {
+          "type": "text",
+        },
+      },
+      {
+        "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+        "type": "asset/source",
+      },
+      {
+        "type": "javascript/auto",
+        "use": [
+          {
+            "loader": "builtin:swc-loader",
+            "options": {
+              "collectTypeScriptInfo": {
+                "exportedEnum": false,
+                "typeExports": true,
+              },
+              "detectSyntax": "auto",
+              "env": {
+                "targets": [
+                  "chrome >= 107",
+                  "edge >= 107",
+                  "firefox >= 104",
+                  "safari >= 16",
+                ],
+              },
+              "isModule": "unknown",
+              "jsc": {
+                "experimental": {
+                  "cacheRoot": "<ROOT>/packages/core/node_modules/.cache/.swc",
+                  "keepImportAttributes": true,
+                },
+                "externalHelpers": false,
+                "output": {
+                  "charset": "utf8",
+                },
+                "parser": {
+                  "decorators": true,
+                },
+                "transform": {
+                  "decoratorVersion": "2023-11",
+                  "legacyDecorator": false,
+                },
+              },
+            },
+          },
+        ],
+      },
+    ],
+    "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+  },
+]
+`;
+
+exports[`plugin-swc > should apply decorators version 2023-11 1`] = `
+[
+  [
+    {
+      "resolve": {
+        "fullySpecified": false,
+      },
+      "test": /\\\\\\.m\\?js/,
+    },
+    {
+      "dependency": {
+        "not": "url",
+      },
+      "include": [
+        {
+          "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+        },
+        /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+      ],
+      "oneOf": [
+        {
+          "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+          "type": "javascript/auto",
+          "use": [
+            {
+              "loader": "<ROOT>/packages/core/src/workerLoader.mjs",
+            },
+          ],
+        },
+        {
+          "type": "asset/source",
+          "with": {
+            "type": "text",
+          },
+        },
+        {
+          "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+          "type": "asset/source",
+        },
+        {
+          "type": "javascript/auto",
+          "use": [
+            {
+              "loader": "builtin:swc-loader",
+              "options": {
+                "collectTypeScriptInfo": {
+                  "exportedEnum": false,
+                  "typeExports": true,
+                },
+                "detectSyntax": "auto",
+                "env": {
+                  "targets": [
+                    "chrome >= 107",
+                    "edge >= 107",
+                    "firefox >= 104",
+                    "safari >= 16",
+                  ],
+                },
+                "isModule": "unknown",
+                "jsc": {
+                  "experimental": {
+                    "cacheRoot": "<ROOT>/packages/core/node_modules/.cache/.swc",
+                    "keepImportAttributes": true,
+                  },
+                  "externalHelpers": true,
+                  "output": {
+                    "charset": "utf8",
+                  },
+                  "parser": {
+                    "decorators": true,
+                  },
+                  "transform": {
+                    "decoratorVersion": "2023-11",
+                    "legacyDecorator": false,
+                  },
+                },
+              },
+            },
+          ],
+        },
+      ],
+      "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+    },
+  ],
+]
+`;
+
+exports[`plugin-swc > should apply environment config correctly 1`] = `
+[
+  {
+    "resolve": {
+      "fullySpecified": false,
+    },
+    "test": /\\\\\\.m\\?js/,
+  },
+  {
+    "dependency": {
+      "not": "url",
+    },
+    "exclude": [
+      "src/example",
+    ],
+    "include": [
+      {
+        "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+      },
+      /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+    ],
+    "oneOf": [
+      {
+        "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+        "type": "javascript/auto",
+        "use": [
+          {
+            "loader": "<ROOT>/packages/core/src/workerLoader.mjs",
+          },
+        ],
+      },
+      {
+        "type": "asset/source",
+        "with": {
+          "type": "text",
+        },
+      },
+      {
+        "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+        "type": "asset/source",
+      },
+      {
+        "resolve": {
+          "alias": {
+            "core-js": "<PNPM_INNER>/core-js",
+          },
+        },
+        "type": "javascript/auto",
+        "use": [
+          {
+            "loader": "builtin:swc-loader",
+            "options": {
+              "collectTypeScriptInfo": {
+                "exportedEnum": false,
+                "typeExports": true,
+              },
+              "detectSyntax": "auto",
+              "env": {
+                "coreJs": "3.49",
+                "mode": "usage",
+                "shippedProposals": true,
+                "targets": [
+                  "chrome >= 107",
+                  "edge >= 107",
+                  "firefox >= 104",
+                  "safari >= 16",
+                ],
+              },
+              "isModule": "unknown",
+              "jsc": {
+                "experimental": {
+                  "cacheRoot": "<ROOT>/packages/core/node_modules/.cache/.swc",
+                  "keepImportAttributes": true,
+                },
+                "externalHelpers": true,
+                "output": {
+                  "charset": "utf8",
+                },
+                "parser": {
+                  "decorators": true,
+                },
+                "transform": {
+                  "decoratorVersion": "2023-11",
+                  "legacyDecorator": false,
+                },
+              },
+              "transformImport": [
+                {
+                  "libraryName": "foo",
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+    "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+  },
+]
+`;
+
+exports[`plugin-swc > should apply environment config correctly 2`] = `
+[
+  {
+    "resolve": {
+      "fullySpecified": false,
+    },
+    "test": /\\\\\\.m\\?js/,
+  },
+  {
+    "dependency": {
+      "not": "url",
+    },
+    "exclude": [
+      "src/example1",
+    ],
+    "include": [
+      {
+        "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+      },
+      /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+    ],
+    "oneOf": [
+      {
+        "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+        "type": "javascript/auto",
+        "use": [
+          {
+            "loader": "<ROOT>/packages/core/src/workerLoader.mjs",
+          },
+        ],
+      },
+      {
+        "type": "asset/source",
+        "with": {
+          "type": "text",
+        },
+      },
+      {
+        "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+        "type": "asset/source",
+      },
+      {
+        "type": "javascript/auto",
+        "use": [
+          {
+            "loader": "builtin:swc-loader",
+            "options": {
+              "collectTypeScriptInfo": {
+                "exportedEnum": false,
+                "typeExports": true,
+              },
+              "detectSyntax": "auto",
+              "env": {
+                "targets": [
+                  "node >= 20",
+                ],
+              },
+              "isModule": "unknown",
+              "jsc": {
+                "experimental": {
+                  "cacheRoot": "<ROOT>/packages/core/node_modules/.cache/.swc",
+                  "keepImportAttributes": true,
+                },
+                "externalHelpers": true,
+                "output": {
+                  "charset": "utf8",
+                },
+                "parser": {
+                  "decorators": true,
+                },
+                "transform": {
+                  "decoratorVersion": "2023-11",
+                  "legacyDecorator": false,
+                },
+              },
+              "transformImport": [
+                {
+                  "libraryName": "bar",
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+    "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+  },
+]
+`;
+
+exports[`plugin-swc > should apply overrideBrowserslist 1`] = `
+[
+  [
+    {
+      "resolve": {
+        "fullySpecified": false,
+      },
+      "test": /\\\\\\.m\\?js/,
+    },
+    {
+      "dependency": {
+        "not": "url",
+      },
+      "include": [
+        {
+          "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+        },
+        /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+      ],
+      "oneOf": [
+        {
+          "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+          "type": "javascript/auto",
+          "use": [
+            {
+              "loader": "<ROOT>/packages/core/src/workerLoader.mjs",
+            },
+          ],
+        },
+        {
+          "type": "asset/source",
+          "with": {
+            "type": "text",
+          },
+        },
+        {
+          "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+          "type": "asset/source",
+        },
+        {
+          "type": "javascript/auto",
+          "use": [
+            {
+              "loader": "builtin:swc-loader",
+              "options": {
+                "collectTypeScriptInfo": {
+                  "exportedEnum": false,
+                  "typeExports": true,
+                },
+                "detectSyntax": "auto",
+                "env": {
+                  "targets": [
+                    "chrome 98",
+                  ],
+                },
+                "isModule": "unknown",
+                "jsc": {
+                  "experimental": {
+                    "cacheRoot": "<ROOT>/packages/core/node_modules/.cache/.swc",
+                    "keepImportAttributes": true,
+                  },
+                  "externalHelpers": true,
+                  "output": {
+                    "charset": "utf8",
+                  },
+                  "parser": {
+                    "decorators": true,
+                  },
+                  "transform": {
+                    "decoratorVersion": "2023-11",
+                    "legacyDecorator": false,
+                  },
+                },
+              },
+            },
+          ],
+        },
+      ],
+      "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+    },
+  ],
+]
+`;
+
+exports[`plugin-swc > should apply pluginImport 1`] = `
+[
+  [
+    {
+      "resolve": {
+        "fullySpecified": false,
+      },
+      "test": /\\\\\\.m\\?js/,
+    },
+    {
+      "dependency": {
+        "not": "url",
+      },
+      "include": [
+        {
+          "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+        },
+        /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+      ],
+      "oneOf": [
+        {
+          "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+          "type": "javascript/auto",
+          "use": [
+            {
+              "loader": "<ROOT>/packages/core/src/workerLoader.mjs",
+            },
+          ],
+        },
+        {
+          "type": "asset/source",
+          "with": {
+            "type": "text",
+          },
+        },
+        {
+          "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+          "type": "asset/source",
+        },
+        {
+          "type": "javascript/auto",
+          "use": [
+            {
+              "loader": "builtin:swc-loader",
+              "options": {
+                "collectTypeScriptInfo": {
+                  "exportedEnum": false,
+                  "typeExports": true,
+                },
+                "detectSyntax": "auto",
+                "env": {
+                  "targets": [
+                    "chrome >= 107",
+                    "edge >= 107",
+                    "firefox >= 104",
+                    "safari >= 16",
+                  ],
+                },
+                "isModule": "unknown",
+                "jsc": {
+                  "experimental": {
+                    "cacheRoot": "<ROOT>/packages/core/node_modules/.cache/.swc",
+                    "keepImportAttributes": true,
+                  },
+                  "externalHelpers": true,
+                  "output": {
+                    "charset": "utf8",
+                  },
+                  "parser": {
+                    "decorators": true,
+                  },
+                  "transform": {
+                    "decoratorVersion": "2023-11",
+                    "legacyDecorator": false,
+                  },
+                },
+                "transformImport": [
+                  {
+                    "libraryName": "foo",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+      "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+    },
+  ],
+]
+`;
+
+exports[`plugin-swc > should apply pluginImport correctly with ConfigChain 1`] = `
+[
+  [
+    {
+      "resolve": {
+        "fullySpecified": false,
+      },
+      "test": /\\\\\\.m\\?js/,
+    },
+    {
+      "dependency": {
+        "not": "url",
+      },
+      "include": [
+        {
+          "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+        },
+        /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+      ],
+      "oneOf": [
+        {
+          "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+          "type": "javascript/auto",
+          "use": [
+            {
+              "loader": "<ROOT>/packages/core/src/workerLoader.mjs",
+            },
+          ],
+        },
+        {
+          "type": "asset/source",
+          "with": {
+            "type": "text",
+          },
+        },
+        {
+          "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+          "type": "asset/source",
+        },
+        {
+          "type": "javascript/auto",
+          "use": [
+            {
+              "loader": "builtin:swc-loader",
+              "options": {
+                "collectTypeScriptInfo": {
+                  "exportedEnum": false,
+                  "typeExports": true,
+                },
+                "detectSyntax": "auto",
+                "env": {
+                  "targets": [
+                    "chrome >= 107",
+                    "edge >= 107",
+                    "firefox >= 104",
+                    "safari >= 16",
+                  ],
+                },
+                "isModule": "unknown",
+                "jsc": {
+                  "experimental": {
+                    "cacheRoot": "<ROOT>/packages/core/node_modules/.cache/.swc",
+                    "keepImportAttributes": true,
+                  },
+                  "externalHelpers": true,
+                  "output": {
+                    "charset": "utf8",
+                  },
+                  "parser": {
+                    "decorators": true,
+                  },
+                  "transform": {
+                    "decoratorVersion": "2023-11",
+                    "legacyDecorator": false,
+                  },
+                },
+                "transformImport": [
+                  {
+                    "libraryName": "foo",
+                  },
+                  {
+                    "libraryName": "bar",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+      "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+    },
+  ],
+]
+`;
+
+exports[`plugin-swc > should disable pluginImport when it returns undefined 1`] = `
+[
+  [
+    {
+      "resolve": {
+        "fullySpecified": false,
+      },
+      "test": /\\\\\\.m\\?js/,
+    },
+    {
+      "dependency": {
+        "not": "url",
+      },
+      "include": [
+        {
+          "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+        },
+        /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+      ],
+      "oneOf": [
+        {
+          "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+          "type": "javascript/auto",
+          "use": [
+            {
+              "loader": "<ROOT>/packages/core/src/workerLoader.mjs",
+            },
+          ],
+        },
+        {
+          "type": "asset/source",
+          "with": {
+            "type": "text",
+          },
+        },
+        {
+          "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+          "type": "asset/source",
+        },
+        {
+          "type": "javascript/auto",
+          "use": [
+            {
+              "loader": "builtin:swc-loader",
+              "options": {
+                "collectTypeScriptInfo": {
+                  "exportedEnum": false,
+                  "typeExports": true,
+                },
+                "detectSyntax": "auto",
+                "env": {
+                  "targets": [
+                    "chrome >= 107",
+                    "edge >= 107",
+                    "firefox >= 104",
+                    "safari >= 16",
+                  ],
+                },
+                "isModule": "unknown",
+                "jsc": {
+                  "experimental": {
+                    "cacheRoot": "<ROOT>/packages/core/node_modules/.cache/.swc",
+                    "keepImportAttributes": true,
+                  },
+                  "externalHelpers": true,
+                  "output": {
+                    "charset": "utf8",
+                  },
+                  "parser": {
+                    "decorators": true,
+                  },
+                  "transform": {
+                    "decoratorVersion": "2023-11",
+                    "legacyDecorator": false,
+                  },
+                },
+              },
+            },
+          ],
+        },
+      ],
+      "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+    },
+  ],
+]
+`;
+
+exports[`plugin-swc > should disable preset-env for non-web targets 1`] = `
+[
+  [
+    {
+      "resolve": {
+        "fullySpecified": false,
+      },
+      "test": /\\\\\\.m\\?js/,
+    },
+    {
+      "dependency": {
+        "not": "url",
+      },
+      "include": [
+        {
+          "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+        },
+        /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+      ],
+      "oneOf": [
+        {
+          "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+          "type": "javascript/auto",
+          "use": [
+            {
+              "loader": "<ROOT>/packages/core/src/workerLoader.mjs",
+            },
+          ],
+        },
+        {
+          "type": "asset/source",
+          "with": {
+            "type": "text",
+          },
+        },
+        {
+          "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+          "type": "asset/source",
+        },
+        {
+          "type": "javascript/auto",
+          "use": [
+            {
+              "loader": "builtin:swc-loader",
+              "options": {
+                "collectTypeScriptInfo": {
+                  "exportedEnum": false,
+                  "typeExports": true,
+                },
+                "detectSyntax": "auto",
+                "env": {
+                  "targets": [
+                    "node >= 20",
+                  ],
+                },
+                "isModule": "unknown",
+                "jsc": {
+                  "experimental": {
+                    "cacheRoot": "<ROOT>/packages/core/node_modules/.cache/.swc",
+                    "keepImportAttributes": true,
+                  },
+                  "externalHelpers": true,
+                  "output": {
+                    "charset": "utf8",
+                  },
+                  "parser": {
+                    "decorators": true,
+                  },
+                  "transform": {
+                    "decoratorVersion": "2023-11",
+                    "legacyDecorator": false,
+                  },
+                },
+              },
+            },
+          ],
+        },
+      ],
+      "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+    },
+  ],
+]
+`;
+
+exports[`plugin-swc > should disable preset-env mode 1`] = `
+[
+  [
+    {
+      "resolve": {
+        "fullySpecified": false,
+      },
+      "test": /\\\\\\.m\\?js/,
+    },
+    {
+      "dependency": {
+        "not": "url",
+      },
+      "include": [
+        {
+          "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+        },
+        /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+      ],
+      "oneOf": [
+        {
+          "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+          "type": "javascript/auto",
+          "use": [
+            {
+              "loader": "<ROOT>/packages/core/src/workerLoader.mjs",
+            },
+          ],
+        },
+        {
+          "type": "asset/source",
+          "with": {
+            "type": "text",
+          },
+        },
+        {
+          "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+          "type": "asset/source",
+        },
+        {
+          "type": "javascript/auto",
+          "use": [
+            {
+              "loader": "builtin:swc-loader",
+              "options": {
+                "collectTypeScriptInfo": {
+                  "exportedEnum": false,
+                  "typeExports": true,
+                },
+                "detectSyntax": "auto",
+                "env": {
+                  "targets": [
+                    "chrome >= 107",
+                    "edge >= 107",
+                    "firefox >= 104",
+                    "safari >= 16",
+                  ],
+                },
+                "isModule": "unknown",
+                "jsc": {
+                  "experimental": {
+                    "cacheRoot": "<ROOT>/packages/core/node_modules/.cache/.swc",
+                    "keepImportAttributes": true,
+                  },
+                  "externalHelpers": true,
+                  "output": {
+                    "charset": "utf8",
+                  },
+                  "parser": {
+                    "decorators": true,
+                  },
+                  "transform": {
+                    "decoratorVersion": "2023-11",
+                    "legacyDecorator": false,
+                  },
+                },
+              },
+            },
+          ],
+        },
+      ],
+      "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+    },
+  ],
+]
+`;
+
+exports[`plugin-swc > should enable preset-env in entry mode 1`] = `
+[
+  [
+    {
+      "resolve": {
+        "fullySpecified": false,
+      },
+      "test": /\\\\\\.m\\?js/,
+    },
+    {
+      "dependency": {
+        "not": "url",
+      },
+      "include": [
+        {
+          "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+        },
+        /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+      ],
+      "oneOf": [
+        {
+          "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+          "type": "javascript/auto",
+          "use": [
+            {
+              "loader": "<ROOT>/packages/core/src/workerLoader.mjs",
+            },
+          ],
+        },
+        {
+          "type": "asset/source",
+          "with": {
+            "type": "text",
+          },
+        },
+        {
+          "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+          "type": "asset/source",
+        },
+        {
+          "resolve": {
+            "alias": {
+              "core-js": "<PNPM_INNER>/core-js",
+            },
+          },
+          "type": "javascript/auto",
+          "use": [
+            {
+              "loader": "builtin:swc-loader",
+              "options": {
+                "collectTypeScriptInfo": {
+                  "exportedEnum": false,
+                  "typeExports": true,
+                },
+                "detectSyntax": "auto",
+                "env": {
+                  "coreJs": "3.49",
+                  "mode": "entry",
+                  "targets": [
+                    "chrome >= 107",
+                    "edge >= 107",
+                    "firefox >= 104",
+                    "safari >= 16",
+                  ],
+                },
+                "isModule": "unknown",
+                "jsc": {
+                  "experimental": {
+                    "cacheRoot": "<ROOT>/packages/core/node_modules/.cache/.swc",
+                    "keepImportAttributes": true,
+                  },
+                  "externalHelpers": true,
+                  "output": {
+                    "charset": "utf8",
+                  },
+                  "parser": {
+                    "decorators": true,
+                  },
+                  "transform": {
+                    "decoratorVersion": "2023-11",
+                    "legacyDecorator": false,
+                  },
+                },
+              },
+            },
+          ],
+        },
+      ],
+      "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+    },
+  ],
+]
+`;
+
+exports[`plugin-swc > should enable preset-env in usage mode 1`] = `
+[
+  [
+    {
+      "resolve": {
+        "fullySpecified": false,
+      },
+      "test": /\\\\\\.m\\?js/,
+    },
+    {
+      "dependency": {
+        "not": "url",
+      },
+      "include": [
+        {
+          "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+        },
+        /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+      ],
+      "oneOf": [
+        {
+          "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+          "type": "javascript/auto",
+          "use": [
+            {
+              "loader": "<ROOT>/packages/core/src/workerLoader.mjs",
+            },
+          ],
+        },
+        {
+          "type": "asset/source",
+          "with": {
+            "type": "text",
+          },
+        },
+        {
+          "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+          "type": "asset/source",
+        },
+        {
+          "resolve": {
+            "alias": {
+              "core-js": "<PNPM_INNER>/core-js",
+            },
+          },
+          "type": "javascript/auto",
+          "use": [
+            {
+              "loader": "builtin:swc-loader",
+              "options": {
+                "collectTypeScriptInfo": {
+                  "exportedEnum": false,
+                  "typeExports": true,
+                },
+                "detectSyntax": "auto",
+                "env": {
+                  "coreJs": "3.49",
+                  "mode": "usage",
+                  "shippedProposals": true,
+                  "targets": [
+                    "chrome >= 107",
+                    "edge >= 107",
+                    "firefox >= 104",
+                    "safari >= 16",
+                  ],
+                },
+                "isModule": "unknown",
+                "jsc": {
+                  "experimental": {
+                    "cacheRoot": "<ROOT>/packages/core/node_modules/.cache/.swc",
+                    "keepImportAttributes": true,
+                  },
+                  "externalHelpers": true,
+                  "output": {
+                    "charset": "utf8",
+                  },
+                  "parser": {
+                    "decorators": true,
+                  },
+                  "transform": {
+                    "decoratorVersion": "2023-11",
+                    "legacyDecorator": false,
+                  },
+                },
+              },
+            },
+          ],
+        },
+      ],
+      "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+    },
+  ],
+]
+`;
+
+exports[`plugin-swc > should use the correct core-js version 1`] = `
+[
+  [
+    {
+      "resolve": {
+        "fullySpecified": false,
+      },
+      "test": /\\\\\\.m\\?js/,
+    },
+    {
+      "dependency": {
+        "not": "url",
+      },
+      "include": [
+        {
+          "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+        },
+        /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+      ],
+      "oneOf": [
+        {
+          "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+          "type": "javascript/auto",
+          "use": [
+            {
+              "loader": "<ROOT>/packages/core/src/workerLoader.mjs",
+            },
+          ],
+        },
+        {
+          "type": "asset/source",
+          "with": {
+            "type": "text",
+          },
+        },
+        {
+          "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+          "type": "asset/source",
+        },
+        {
+          "resolve": {
+            "alias": {
+              "core-js": "<PNPM_INNER>/core-js",
+            },
+          },
+          "type": "javascript/auto",
+          "use": [
+            {
+              "loader": "builtin:swc-loader",
+              "options": {
+                "collectTypeScriptInfo": {
+                  "exportedEnum": false,
+                  "typeExports": true,
+                },
+                "detectSyntax": "auto",
+                "env": {
+                  "coreJs": "3.49",
+                  "mode": "entry",
+                  "targets": [
+                    "chrome >= 107",
+                    "edge >= 107",
+                    "firefox >= 104",
+                    "safari >= 16",
+                  ],
+                },
+                "isModule": "unknown",
+                "jsc": {
+                  "experimental": {
+                    "cacheRoot": "<ROOT>/packages/core/node_modules/.cache/.swc",
+                    "keepImportAttributes": true,
+                  },
+                  "externalHelpers": true,
+                  "output": {
+                    "charset": "utf8",
+                  },
+                  "parser": {
+                    "decorators": true,
+                  },
+                  "transform": {
+                    "decoratorVersion": "2023-11",
+                    "legacyDecorator": false,
+                  },
+                },
+              },
+            },
+          ],
+        },
+      ],
+      "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+    },
+  ],
+]
+`;
+
+exports[`plugin-swc > should use the correct core-js version 2`] = `
+[
+  [
+    {
+      "resolve": {
+        "fullySpecified": false,
+      },
+      "test": /\\\\\\.m\\?js/,
+    },
+    {
+      "dependency": {
+        "not": "url",
+      },
+      "include": [
+        {
+          "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+        },
+        /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+      ],
+      "oneOf": [
+        {
+          "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+          "type": "javascript/auto",
+          "use": [
+            {
+              "loader": "<ROOT>/packages/core/src/workerLoader.mjs",
+            },
+          ],
+        },
+        {
+          "type": "asset/source",
+          "with": {
+            "type": "text",
+          },
+        },
+        {
+          "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+          "type": "asset/source",
+        },
+        {
+          "type": "javascript/auto",
+          "use": [
+            {
+              "loader": "builtin:swc-loader",
+              "options": {
+                "collectTypeScriptInfo": {
+                  "exportedEnum": false,
+                  "typeExports": true,
+                },
+                "detectSyntax": "auto",
+                "env": {
+                  "targets": [
+                    "node >= 20",
+                  ],
+                },
+                "isModule": "unknown",
+                "jsc": {
+                  "experimental": {
+                    "cacheRoot": "<ROOT>/packages/core/node_modules/.cache/.swc",
+                    "keepImportAttributes": true,
+                  },
+                  "externalHelpers": true,
+                  "output": {
+                    "charset": "utf8",
+                  },
+                  "parser": {
+                    "decorators": true,
+                  },
+                  "transform": {
+                    "decoratorVersion": "2023-11",
+                    "legacyDecorator": false,
+                  },
+                },
+              },
+            },
+          ],
+        },
+      ],
+      "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+    },
+  ],
+]
+`;

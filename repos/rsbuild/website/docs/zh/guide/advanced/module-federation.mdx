@@ -1,0 +1,86 @@
+---
+description: 'Module Federation 是一种 JavaScript 应用分治的架构模式（类似于服务端的微服务），它允许你在多个 JavaScript 应用程序（或微前端）之间共享代码和资源。'
+---
+
+# 模块联邦
+
+Module Federation 是一种 JavaScript 应用分治的架构模式（类似于服务端的微服务），它允许你在多个 JavaScript 应用程序（或微前端）之间共享代码和资源。
+
+Rspack 团队与 Module Federation 的开发团队密切合作，并为 Module Federation 提供一流的支持。
+
+## 使用场景
+
+模块联邦有一些典型的使用场景，包括：
+
+- 允许独立应用（在微前端架构中称为"微前端"）之间共享模块，无需重新编译整个应用。
+- 不同的团队在不需要重新编译整个应用的情况下处理同一应用的不同部分。
+- 应用之间在运行时进行动态代码加载和共享。
+
+模块联邦可以帮助你：
+
+- 减少代码重复
+- 提高代码可维护性
+- 降低应用程序的整体大小
+- 提高应用程序的性能
+
+## 如何使用
+
+Module Federation（MF） 目前有多个主要版本，你可以根据你的需求选择其中一个使用。
+
+下面是几个版本的特点：
+
+| 版本    | 描述                                                           | 特点                                                                                                                                                                                | 使用场景                         |
+| ------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| MF v2.0 | Module Federation 的增强版本，基于 Module Federation v1.5 实现 | - 开箱即用的提供了一些额外的功能，比如动态 TS 类型提示、Chrome DevTools、预加载等<br />- 更适用于支持大型 Web 应用的微前端架构 <br />- 包括 Module Federation 1.5 的所有功能 <br /> | 需要使用 MF 2.0 进阶能力的项目   |
+| MF v1.5 | Rspack 内置支持的版本                                          | - 支持 Module Federation v1.0 的模块导出、模块加载、依赖共享等能力<br />- 添加了运行时插件功能，允许用户扩展模块联邦的行为、功能 <br />                                             | 不需要使用 MF 2.0 使用的额外能力 |
+
+### Module Federation v2.0
+
+[Module Federation 2.0](https://module-federation.io/blog/announcement.html) 在 Module Federation 的基础上，开箱即用的提供了一些额外的功能，比如动态 TS 类型提示、Chrome devtool、Runtime plugin、预加载，这些功能让 Module Federation 更适用于支持大型 Web 应用的微前端架构，Module Federation v2.0 在 v1.5 的基础上实现。
+
+你需要安装额外的 [@module-federation/rsbuild-plugin](https://npmjs.com/package/@module-federation/rsbuild-plugin) 插件，才能使用 Module Federation v2.0。
+
+```ts title="rsbuild.config.ts"
+import { pluginModuleFederation } from '@module-federation/rsbuild-plugin';
+
+export default defineConfig({
+  plugins: {
+    pluginModuleFederation({
+      name: 'remote',
+     // other options
+    }),
+  },
+});
+```
+
+请参考 [Module Federation v2.0 官方文档](https://module-federation.io/zh/) 来了解具体的用法。
+
+### Module Federation v1.5
+
+这是 Rspack 内置支持的版本，除了支持 Module Federation v1.0 的模块导出、模块加载、依赖共享等能力之外，还添加了运行时插件功能，允许用户扩展模块联邦的行为、功能。
+
+你可以通过 Rsbuild 的 [moduleFederation.options](/config/module-federation/options) 来使用它，无须安装任何插件。
+
+```ts title="rsbuild.config.ts"
+export default defineConfig({
+  moduleFederation: {
+    options: {
+      name: 'remote',
+      // other options
+    },
+  },
+});
+```
+
+## 示例仓库
+
+Rsbuild 提供了一些 Module Federation 的示例项目，你可以参考：
+
+- [Module Federation v2.0 示例](https://github.com/rstackjs/rstack-examples/tree/main/rsbuild/module-federation-enhanced)
+- [Module Federation v1.5 示例](https://github.com/rstackjs/rstack-examples/tree/main/rsbuild/module-federation)
+
+## 使用限制
+
+模块联邦目前不兼容 [output.module](/config/output/module)。
+
+这是因为模块联邦的运行时目前还不支持 ESM 产物。请避免在模块联邦应用中设置 `output.module: true`，否则可能会在运行时加载失败。

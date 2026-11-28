@@ -1,0 +1,115 @@
+# v1.5.0
+
+<Subtitle>May 19, 2026</Subtitle>
+<Meta name="description" content="v1.5.0 release notes. May 19, 2026." />
+
+## General changes
+
+- Improve mount performance with interaction splitting, including closed popup mount performance by up to 50% and unmounting performance by up to 85% ([#4661](https://github.com/mui/base-ui/pull/4661))
+- Use local document for virtual arrow ([#4662](https://github.com/mui/base-ui/pull/4662))
+- Fix macOS Safari and Firefox minimizing fullscreen when closing popups with <kbd>Esc</kbd> ([#4695](https://github.com/mui/base-ui/pull/4695))
+- Drop unnecessary memoization ([#4693](https://github.com/mui/base-ui/pull/4693))
+- Do not use `Math.random()` in `useStableCallback()` ([#4732](https://github.com/mui/base-ui/pull/4732))
+- Fix return focus when reference disconnects ([#4655](https://github.com/mui/base-ui/pull/4655))
+- Don't steal initial focus if focus already moved inside a popup ([#4775](https://github.com/mui/base-ui/pull/4775))
+
+## Alert Dialog
+
+- Fix handle defaults ([#4834](https://github.com/mui/base-ui/pull/4834))
+
+## Autocomplete
+
+- Fix native `FormData` for popup inputs ([#4725](https://github.com/mui/base-ui/pull/4725))
+
+## Checkbox
+
+- Submit the associated form when pressing <kbd>Enter</kbd> ([#4713](https://github.com/mui/base-ui/pull/4713))
+
+## Combobox
+
+- Expose clear visibility state ([#4664](https://github.com/mui/base-ui/pull/4664))
+- Fix popup input form submit ([#4687](https://github.com/mui/base-ui/pull/4687))
+- Preserve `closeQuery` when closing multiple input-inside-popup combobox ([#4715](https://github.com/mui/base-ui/pull/4715))
+- Fix RTL component behavior ([#4840](https://github.com/mui/base-ui/pull/4840))
+- Ignore hidden-input changes while readonly or disabled ([#4810](https://github.com/mui/base-ui/pull/4810))
+
+## Dialog
+
+- Consider the controlled `open` prop for open state detection ([#4712](https://github.com/mui/base-ui/pull/4712))
+
+## Drawer
+
+- Forward `style` prop in `<Drawer.Viewport>` ([#4841](https://github.com/mui/base-ui/pull/4841))
+
+## Field
+
+- Avoid `flushSync` during validation ([#4685](https://github.com/mui/base-ui/pull/4685))
+
+## Form
+
+- Avoid `flushSync` during validation ([#4685](https://github.com/mui/base-ui/pull/4685))
+
+## Menu
+
+- Fix submenu pointer-events scope for `keepMounted` portals ([#4723](https://github.com/mui/base-ui/pull/4723))
+- Support `<Menu.GroupLabel>` in `<Menu.RadioGroup>` ([#4826](https://github.com/mui/base-ui/pull/4826))
+- Consider the controlled `open` prop for open state detection ([#4712](https://github.com/mui/base-ui/pull/4712))
+
+## Navigation Menu
+
+- Fix RTL component behavior ([#4840](https://github.com/mui/base-ui/pull/4840))
+- Fix `keepMounted` content sizing ([#4817](https://github.com/mui/base-ui/pull/4817))
+
+## Number Field
+
+- Allow Persian digits in keyboard input ([#4719](https://github.com/mui/base-ui/pull/4719))
+- Sync pasted input during step interactions ([#4824](https://github.com/mui/base-ui/pull/4824))
+
+## OTP Field
+
+- **Breaking change:** Rename `sanitizeValue()` to `normalizeValue()` and allow composing with validation ([#4717](https://github.com/mui/base-ui/pull/4717))
+- Avoid `flushSync` during validation ([#4685](https://github.com/mui/base-ui/pull/4685))
+- Support <kbd>Ctrl</kbd> and <kbd>Cmd</kbd> shortcuts ([#4606](https://github.com/mui/base-ui/pull/4606))
+- Fire `onValueComplete()` for full paste ([#4690](https://github.com/mui/base-ui/pull/4690))
+- Fix vertical arrow slot navigation ([#4844](https://github.com/mui/base-ui/pull/4844))
+- Ignore hidden input changes while readonly or disabled ([#4806](https://github.com/mui/base-ui/pull/4806))
+- Prevent locked hidden autofill validation ([#4827](https://github.com/mui/base-ui/pull/4827))
+- Fix RTL arrow navigation ([#4847](https://github.com/mui/base-ui/pull/4847))
+
+## Popover
+
+- Fix RTL component behavior ([#4840](https://github.com/mui/base-ui/pull/4840))
+- Preserve active trigger on close press ([#4741](https://github.com/mui/base-ui/pull/4741))
+- Consider the controlled `open` prop for open state detection ([#4712](https://github.com/mui/base-ui/pull/4712))
+
+## Preview Card
+
+- Consider the controlled `open` prop for open state detection ([#4712](https://github.com/mui/base-ui/pull/4712))
+- Integrate inline positioning ([#2074](https://github.com/mui/base-ui/pull/2074))
+
+## Scroll Area
+
+- Fix RTL component behavior ([#4840](https://github.com/mui/base-ui/pull/4840))
+
+## Select
+
+- Clear stale item text ref ([#4683](https://github.com/mui/base-ui/pull/4683))
+- Add `data-popup-side` to trigger ([#4671](https://github.com/mui/base-ui/pull/4671))
+- Allow mouse selection without highlight ([#4699](https://github.com/mui/base-ui/pull/4699))
+- Ignore hidden-input changes while readonly or disabled ([#4810](https://github.com/mui/base-ui/pull/4810))
+- Fix nested Select requiring extra outside clicks to dismiss parent ([#4820](https://github.com/mui/base-ui/pull/4820))
+
+## Tabs
+
+- Fire `onValueChange()` for automatic tab selection ([#4704](https://github.com/mui/base-ui/pull/4704))
+
+## Toast
+
+- Re-use `getElementTransform()` and remove local implementation ([#4749](https://github.com/mui/base-ui/pull/4749))
+- Fix stuck drag state on release ([#4742](https://github.com/mui/base-ui/pull/4742))
+- Remove memoized selector ([#4751](https://github.com/mui/base-ui/pull/4751))
+
+## Tooltip
+
+- Consider the controlled `open` prop for open state detection ([#4712](https://github.com/mui/base-ui/pull/4712))
+- Fix flickering when nesting tooltip inside another tooltip's trigger ([#4501](https://github.com/mui/base-ui/pull/4501))

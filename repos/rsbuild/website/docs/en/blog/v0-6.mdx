@@ -1,0 +1,102 @@
+---
+description: 'Rsbuild 0.6 enables the error overlay by default, adds Vue JSX HMR, and introduces a new transform API.'
+date: 2024-04-10 18:00:00
+sidebar: false
+authors:
+  - name: Jiahan Chen
+    avatar: 'https://github.com/chenjiahan.png'
+    github: 'chenjiahan'
+  - name: 9aoy
+    avatar: 'https://github.com/9aoy.png'
+    github: '9aoy'
+---
+
+import { BlogAuthors } from '@rstack-dev/doc-ui/blog-authors';
+
+# Announcing Rsbuild 0.6
+
+_April 10, 2024_
+
+<BlogAuthors />
+
+![](https://assets.rspack.rs/rsbuild/rsbuild-banner-v0-6.png)
+
+Rsbuild 0.6 has been released along with Rspack 0.6!
+
+Notable changes:
+
+- Upgrade to Rspack 0.6
+- Error overlay enabled by default
+- Support for Vue JSX HMR
+- New transform plugin API
+- Default port changed to 3000
+
+## Upgrade to Rspack 0.6
+
+Rsbuild has upgraded the dependent Rspack to version 0.6, and adapted the breaking changes of CSS Modules contained in Rspack 0.6.
+
+In the new version, Rspack has enabled the new tree shaking algorithm by default, resulting in a significant improvement in bundle size and artifact stability. Please refer to the [Rspack 0.6 release announcement](https://rspack.rs/blog/announcing-0-6) to learn more.
+
+## Error overlay enabled by default
+
+Starting from Rsbuild 0.6, the default value of [dev.client.overlay](/config/dev/client) has been adjusted to `true`. This means that when a compilation error occurs, Rsbuild will pop up the error overlay by default to display the error information:
+
+![](https://assets.rspack.rs/rsbuild/assets/rsbuild-error-overlay.png)
+
+If you do not need this feature, you can set `dev.client.overlay` to `false` to disable it.
+
+```ts title="rsbuild.config.ts"
+export default defineConfig({
+  dev: {
+    client: {
+      overlay: false,
+    },
+  },
+});
+```
+
+## Support for Vue JSX HMR
+
+`@rsbuild/plugin-vue-jsx` now supports JSX HMR. When you modify JSX code in a Vue 3 application, it will automatically trigger hot module replacement and preserve the current page state.
+
+This feature is implemented by community contributor [@liyincode](https://github.com/liyincode) ❤️, and released as a standalone package [babel-plugin-vue-jsx-hmr](https://github.com/liyincode/babel-plugin-vue-jsx-hmr), for use in projects outside of Rsbuild.
+
+## New transform API
+
+Rsbuild plugin now supports the [transform API](/plugins/dev/core#apitransform), which can be thought of as a lightweight implementation of Rspack loader. It provides a simple and easy to use API and automatically calls Rspack loader at the backend to transform the code.
+
+In Rsbuild plugins, you can quickly implement code transformation functions using `api.transform`, which can handle the majority of common scenarios without having to learn how to write an Rspack loader.
+
+For example, match modules with the `.pug` extension and transform them to JavaScript code:
+
+```ts
+import pug from 'pug';
+
+const pluginPug = () => ({
+  name: 'my-pug-plugin',
+  setup(api) {
+    api.transform({ test: /\.pug$/ }, ({ code }) => {
+      const templateCode = pug.compileClient(code, {});
+      return `${templateCode}; module.exports = template;`;
+    });
+  },
+});
+```
+
+For some complex code transformation scenarios, `api.transform` may not be sufficient. In such situations, you can implement it using the Rspack loader.
+
+## Default port changed to 3000
+
+Rsbuild has changed the default value of [server.port](/config/server/port) from `8080` to `3000`.
+
+Port 3000 is commonly used for web development, and is also the default port used by tools such as create-react-app. Changing the default port to 3000 can prevent possible port conflicts when using 8080.
+
+To use port 8080, set it manually as follows:
+
+```ts title="rsbuild.config.ts"
+export default defineConfig({
+  server: {
+    port: 8080,
+  },
+});
+```

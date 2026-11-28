@@ -1,0 +1,18 @@
+.shell {
+  min-height: 100vh;
+  color: rgb(15, 23, 42);
+  background: rgb(240, 249, 255);
+  font-family: Arial, sans-serif;
+  padding: 24px;
+}
+
+.nav {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.nav a {
+  color: rgb(3, 105, 161);
+  font-weight: 700;
+}

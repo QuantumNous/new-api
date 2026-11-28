@@ -1,0 +1,58 @@
+import type { IPoint } from '../../typings/coordinate';
+import { Projection } from './projection';
+import type { IEffect, IModelSpecInfo } from '../../model/interface';
+import { ComponentTypeEnum } from '../interface/type';
+import { BaseComponent } from '../base/base-component';
+import type { IGeoRegionSpec } from '../../region/interface';
+import type { IGeoCoordinate, IGeoCoordinateSpec, IProjectionSpec } from './interface';
+import type { StringOrNumber } from '../../typings';
+import type { Maybe } from '@visactor/vutils';
+export declare function projectionName(key: string, id: number): string;
+export declare class GeoCoordinate extends BaseComponent<IGeoRegionSpec> implements IGeoCoordinate {
+    static type: ComponentTypeEnum;
+    type: ComponentTypeEnum;
+    name: string;
+    layoutType: 'none';
+    protected layoutZIndex: number;
+    _longitudeField?: string;
+    get longitudeField(): string;
+    _latitudeField?: string;
+    get latitudeField(): string;
+    protected _projectionSpec: IProjectionSpec;
+    get projectionSpec(): IProjectionSpec;
+    setProjection(projectionSpec: IGeoCoordinateSpec['projection']): void;
+    protected _projection: Projection;
+    protected _centerCache: Map<StringOrNumber, {
+        x: number;
+        y: number;
+    }>;
+    private _actualScale;
+    getZoom(): number;
+    private _initialScale;
+    static getSpecInfo(chartSpec: any): Maybe<IModelSpecInfo[]>;
+    effect: IEffect;
+    setAttrFromSpec(): void;
+    created(): void;
+    private _handleChartZoom;
+    dispatchZoom(zoomDelta: number, center?: {
+        x: number;
+        y: number;
+    }): void;
+    initEvent(): void;
+    initProjection(): void;
+    coordinateHelper(): void;
+    onLayoutEnd(): void;
+    protected collectFeatures(): any[];
+    dataToPosition(values?: number[]): IPoint;
+    dataToLatitude(lat: number): number;
+    dataToLongitude(lon: number): number;
+    zoom(p: number, anchor?: [number, number]): void;
+    pan: (delta?: [number, number]) => void;
+    shape(datum?: any): any;
+    invert(point: [number, number]): any;
+    private evaluateProjection;
+    protected _initCenterCache(): void;
+    _compareSpec(spec: IGeoRegionSpec, prevSpec: IGeoRegionSpec): import("../../model/interface").IUpdateSpecResult;
+    release(): void;
+}
+export declare const registerGeoCoordinate: () => void;

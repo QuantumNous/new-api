@@ -1,0 +1,66 @@
+# domain_map.yaml
+# Library: @tanstack/virtual-file-routes
+# Version: 1.161.4
+# Date: 2026-03-08
+# Status: reviewed
+
+library:
+  name: '@tanstack/virtual-file-routes'
+  version: '1.161.4'
+  repository: 'https://github.com/TanStack/router'
+  description: >-
+    Programmatic route tree building as an alternative to filesystem
+    conventions. Provides rootRoute, index, route, layout, physical,
+    and defineVirtualSubtreeConfig helpers for explicit route control.
+  primary_framework: 'framework-agnostic'
+
+domains:
+  - name: 'Virtual Route Configuration'
+    slug: 'virtual-route-config'
+    description: >-
+      Building route trees programmatically with helper functions
+      instead of filesystem conventions. Mixing virtual and physical
+      routes, subtree configs, and route plugin integration.
+
+skills:
+  - name: 'Virtual File Routes'
+    slug: 'virtual-file-routes'
+    domain: 'virtual-route-config'
+    description: >-
+      Programmatic route tree building with rootRoute, index, route,
+      layout, physical, defineVirtualSubtreeConfig. Integrates with
+      TanStack Router plugin's virtualRouteConfig option.
+    type: core
+    packages:
+      - '@tanstack/virtual-file-routes'
+    covers:
+      - rootRoute helper
+      - index helper
+      - route helper with children
+      - layout helper
+      - physical helper for filesystem subtrees
+      - defineVirtualSubtreeConfig for per-directory config
+      - Vite plugin virtualRouteConfig option
+    tasks:
+      - 'Define routes programmatically'
+      - 'Mix virtual and physical routes'
+      - 'Create virtual subtree configs'
+    failure_modes:
+      - mistake: 'Omitting rootRoute() in a top-level virtual route config'
+        mechanism: >-
+          Top-level virtual route trees should be wrapped in rootRoute().
+          defineVirtualSubtreeConfig() in __virtual.ts files is the
+          exception and should export an array of child nodes instead.
+        priority: HIGH
+        status: active
+
+      - mistake: 'Passing a physical() directory outside routesDirectory'
+        mechanism: >-
+          Only the directory argument of physical() is relative to
+          routesDirectory; the first argument is a URL prefix. Using
+          an absolute or wrong-relative directory causes routes to
+          not be found.
+        priority: MEDIUM
+        status: active
+
+gaps: []

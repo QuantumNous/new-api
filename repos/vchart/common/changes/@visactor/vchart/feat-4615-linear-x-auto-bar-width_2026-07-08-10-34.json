@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "comment": "feat: support automatic bar width for linear x axis",
+      "type": "minor",
+      "packageName": "@visactor/vchart"
+    }
+  ],
+  "packageName": "@visactor/vchart",
+  "email": "lixuef1313@163.com"
+}

@@ -1,0 +1,5 @@
+@reference "./globals.css";
+
+.heading {
+  @apply text-red-500;
+}

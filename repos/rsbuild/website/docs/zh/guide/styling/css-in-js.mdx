@@ -1,0 +1,179 @@
+---
+description: '本文档列出了在 Rsbuild 中使用常见 CSS-in-JS 库的方法。'
+---
+
+# CSS-in-JS
+
+本文档列出了在 Rsbuild 中使用常见 CSS-in-JS 库的方法。
+
+虽然示例基于 React，但部分 CSS-in-JS 库（如 [vanilla-extract](#use-vanilla-extract)）也适用于其他框架。
+
+## Emotion
+
+Rsbuild 支持编译 [Emotion](https://github.com/emotion-js/emotion)，你可以添加以下配置来使用：
+
+- [swcReactOptions.importSource](/plugins/list/plugin-react#swcreactoptions)
+- [@swc/plugin-emotion](https://npmjs.com/package/@swc/plugin-emotion)
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginReact } from '@rsbuild/plugin-react';
+
+export default defineConfig({
+  plugins: [
+    pluginReact({
+      swcReactOptions: {
+        importSource: '@emotion/react',
+      },
+    }),
+  ],
+  tools: {
+    swc: {
+      jsc: {
+        experimental: {
+          plugins: [['@swc/plugin-emotion', {}]],
+        },
+      },
+    },
+  },
+});
+```
+
+> 参考示例：[emotion](https://github.com/rstackjs/rstack-examples/tree/main/rsbuild/emotion)。
+
+## styled-jsx
+
+你可以通过 [@swc/plugin-styled-jsx](https://npmjs.com/package/@swc/plugin-styled-jsx) 来使用 [styled-jsx](https://github.com/vercel/styled-jsx)：
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginReact } from '@rsbuild/plugin-react';
+
+export default defineConfig({
+  plugins: [pluginReact()],
+  tools: {
+    swc: {
+      jsc: {
+        experimental: {
+          plugins: [['@swc/plugin-styled-jsx', {}]],
+        },
+      },
+    },
+  },
+});
+```
+
+请注意，你需要选择和当前 `@swc/core` 版本匹配的 SWC 插件，才能使 SWC 正常执行，详见 [tools.swc](/config/tools/swc)。
+
+> 参考示例：[styled-jsx](https://github.com/rstackjs/rstack-examples/tree/main/rsbuild/styled-jsx)。
+
+## vanilla-extract \{#use-vanilla-extract}
+
+Rsbuild 支持使用 [@vanilla-extract/webpack-plugin](https://npmjs.com/package/@vanilla-extract/webpack-plugin) 插件，你可以添加以下配置来使用 [vanilla-extract](https://github.com/vanilla-extract-css/vanilla-extract)：
+
+目前，Rspack 在同时使用 `splitChunks` 和 `@vanilla-extract/webpack-plugin` 时存在一个 [HMR 问题](https://github.com/web-infra-dev/rsbuild/issues/6049)。在开发模式下，你可以使用特殊的 `splitChunks` 配置来规避这个问题。
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginReact } from '@rsbuild/plugin-react';
+import { VanillaExtractPlugin } from '@vanilla-extract/webpack-plugin';
+
+export default defineConfig({
+  plugins: [
+    pluginReact({
+      reactRefreshOptions: {
+        exclude: [/\.css\.ts$/],
+      },
+    }),
+  ],
+  splitChunks: {
+    cacheGroups: {
+      vanilla: {
+        test: /@vanilla-extract\/webpack-plugin/,
+        // 确保在开发模式下 @vanilla-extract/webpack-plugin 产生虚拟模块所在的 Chunk id 稳定以避免 HMR 问题
+        name: process.env.NODE_ENV === 'development' && 'vanilla',
+        chunks: 'all',
+      },
+    },
+  },
+  tools: {
+    rspack: {
+      plugins: [new VanillaExtractPlugin()],
+    },
+  },
+});
+```
+
+> 参考示例：[vanilla-extract](https://github.com/rstackjs/rstack-examples/tree/main/rsbuild/vanilla-extract)。
+
+#### 静态资源
+
+当导入静态资源时，使用 import 语法：
+
+```ts title="src/App.css.ts"
+import { style } from '@vanilla-extract/css';
+import logoUrl from './logo.png';
+
+export const containerStyle = style({
+  backgroundImage: `url(${logoUrl})`,
+});
+```
+
+由于 `logoUrl` 已经是一个指向 dist 目录的解析路径，`css-loader` 不需要再次处理它。通过 [tools.cssLoader.url](/config/tools/css-loader) 禁用 CSS URL 处理，以避免遇到模块解析错误：
+
+```ts title="rsbuild.config.ts"
+export default defineConfig({
+  // ... 其他配置
+  tools: {
+    cssLoader: {
+      url: false,
+    },
+  },
+});
+```
+
+> 参考：[#6215](https://github.com/web-infra-dev/rsbuild/issues/6215)。
+
+## StyleX
+
+你可以通过 [unplugin-stylex](https://github.com/eryue0220/unplugin-stylex) 来使用 [StyleX](https://github.com/facebook/stylex):
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginReact } from '@rsbuild/plugin-react';
+import stylexPlugin from 'unplugin-stylex/rspack';
+
+export default defineConfig({
+  plugins: [pluginReact()],
+  tools: {
+    rspack: {
+      plugins: [stylexPlugin()],
+    },
+  },
+});
+```
+
+> 参考示例：[stylex](https://github.com/rstackjs/rstack-examples/tree/main/rsbuild/stylex)。
+
+## styled-components
+
+[styled-components](https://github.com/styled-components/styled-components) 是一个运行时库，默认情况下你可以直接使用它，无需任何额外配置。
+
+Rsbuild 支持编译 styled-components，用于优化调试体验，并对 styled-components 添加服务器端渲染支持。
+
+如果你需要使用 styled-components，推荐使用 [@rsbuild/plugin-styled-components](https://github.com/rsbuild-contrib/rsbuild-plugin-styled-components)。
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginStyledComponents } from '@rsbuild/plugin-styled-components';
+
+export default defineConfig({
+  plugins: [pluginStyledComponents()],
+});
+```
+
+> 参考示例：[styled-components](https://github.com/rstackjs/rstack-examples/tree/main/rsbuild/styled-components)。
+
+:::tip
+styled-components 不再推荐用于新项目，因为它已经处于 [维护模式](https://opencollective.com/styled-components/updates/thank-you)。
+:::

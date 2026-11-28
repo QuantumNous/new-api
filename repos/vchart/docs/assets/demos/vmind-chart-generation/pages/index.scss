@@ -1,0 +1,38 @@
+.left-sider {
+  padding: 10px 15px;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-y: auto;
+  .generate-botton {
+    margin-top: auto;
+  }
+}
+
+.right-chart {
+  padding: 20px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  background-color: #17171a;
+  .right-chart-title {
+    height: 60px;
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+}
+
+.arco-spin-children {
+  display: flex;
+  flex: 1;
+}
+.arco-modal {
+  width: unset;
+}
+span {
+  color: var(--color-text-1);
+}

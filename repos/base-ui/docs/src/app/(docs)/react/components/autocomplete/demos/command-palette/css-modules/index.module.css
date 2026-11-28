@@ -1,0 +1,376 @@
+.Button {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 2rem;
+  padding: 0 0.75rem;
+  margin: 0;
+  outline: 0;
+  border: 1px solid oklch(14.5% 0 0deg);
+  background-color: white;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1;
+  white-space: nowrap;
+  color: oklch(14.5% 0 0deg);
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+
+  @media (prefers-color-scheme: dark) {
+    border: 1px solid white;
+    background-color: oklch(14.5% 0 0deg);
+    color: white;
+  }
+
+  @media (hover: hover) {
+    &:hover {
+      background-color: oklch(97% 0 0deg);
+
+      @media (prefers-color-scheme: dark) {
+        background-color: oklch(26.9% 0 0deg);
+      }
+    }
+  }
+
+  &:active {
+    background-color: oklch(92.2% 0 0deg);
+
+    @media (prefers-color-scheme: dark) {
+      background-color: oklch(37.1% 0 0deg);
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid oklch(14.5% 0 0deg);
+    outline-offset: -1px;
+
+    @media (prefers-color-scheme: dark) {
+      outline-color: white;
+    }
+  }
+}
+
+.Backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: black;
+  opacity: 0.2;
+  transition: opacity 150ms cubic-bezier(0.45, 1.005, 0, 1.005);
+
+  @media (prefers-color-scheme: dark) {
+    opacity: 0.7;
+  }
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 0;
+  }
+
+  @supports (-webkit-touch-callout: none) {
+    position: absolute;
+  }
+}
+
+.Viewport {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 4.5rem 0.5rem 0.5rem;
+  overflow: hidden;
+}
+
+.Popup {
+  box-sizing: border-box;
+  position: relative;
+  width: calc(100vw - 1rem);
+  max-width: 28rem;
+  background-color: white;
+  color: oklch(14.5% 0 0deg);
+  transition:
+    transform 150ms,
+    opacity 150ms;
+  max-height: min(36rem, calc(100dvh - 5rem));
+  display: flex;
+  flex-direction: column;
+  border: 1px solid oklch(14.5% 0 0deg);
+  box-shadow: 0.25rem 0.25rem 0 rgb(0 0 0 / 12%);
+
+  @media (prefers-color-scheme: dark) {
+    background-color: oklch(14.5% 0 0deg);
+    color: white;
+    border: 1px solid white;
+    box-shadow: none;
+  }
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 0;
+    transform: translateY(-1rem) scale(0.95);
+  }
+}
+
+.Input {
+  box-sizing: border-box;
+  position: relative;
+  z-index: 1;
+  padding: 0 0.75rem;
+  margin: 0;
+  border: none;
+  width: 100%;
+  height: 2.5rem;
+  border-radius: 0;
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 400;
+  background-color: white;
+  color: oklch(14.5% 0 0deg);
+  outline: none;
+
+  @media (any-pointer: coarse) {
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    background-color: oklch(14.5% 0 0deg);
+    color: white;
+  }
+
+  &::placeholder {
+    color: oklch(55.6% 0 0deg);
+
+    @media (prefers-color-scheme: dark) {
+      color: oklch(70.8% 0 0deg);
+    }
+  }
+
+  &:focus {
+    outline: 2px solid oklch(14.5% 0 0deg);
+
+    @media (prefers-color-scheme: dark) {
+      outline-color: white;
+    }
+  }
+}
+
+.ListArea {
+  position: relative;
+  display: flex;
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: min(60dvh, 24rem);
+  overflow: hidden;
+  border-top: 1px solid oklch(14.5% 0 0deg);
+
+  @media (prefers-color-scheme: dark) {
+    border-color: white;
+  }
+}
+
+.ListViewport {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-height: 0;
+  overscroll-behavior: contain;
+  scroll-padding-block: 0.25rem;
+
+  &:focus-visible {
+    outline: 2px solid oklch(14.5% 0 0deg);
+    outline-offset: -1px;
+
+    @media (prefers-color-scheme: dark) {
+      outline-color: white;
+    }
+  }
+}
+
+.List {
+  box-sizing: border-box;
+  padding: 0.25rem 0;
+
+  &:empty {
+    padding: 0;
+  }
+}
+
+.ListContent {
+  min-width: 100%;
+}
+
+.Group:not(:last-child) {
+  margin-block-end: 0.25rem;
+}
+
+.GroupLabel {
+  outline: 0;
+  -webkit-user-select: none;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  min-height: 2rem;
+  margin: 0;
+  padding: 0 1.5rem 0 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1;
+  font-weight: 400;
+  color: oklch(55.6% 0 0deg);
+
+  @media (prefers-color-scheme: dark) {
+    color: oklch(70.8% 0 0deg);
+  }
+}
+
+.Item {
+  box-sizing: border-box;
+  outline: 0;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+  scroll-margin-block: 0.25rem;
+  min-height: 2rem;
+  padding: 0 1.5rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.875rem;
+  line-height: 1.25;
+  font-weight: 400;
+
+  &[data-highlighted] {
+    background-color: oklch(92.2% 0 0deg);
+
+    @media (prefers-color-scheme: dark) {
+      background-color: oklch(37.1% 0 0deg);
+    }
+  }
+}
+
+.ItemLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 400;
+}
+
+.ItemType {
+  font-size: 0.875rem;
+  color: oklch(55.6% 0 0deg);
+  white-space: nowrap;
+
+  @media (prefers-color-scheme: dark) {
+    color: oklch(70.8% 0 0deg);
+  }
+
+  [data-highlighted] & {
+    color: oklch(37.1% 0 0deg);
+
+    @media (prefers-color-scheme: dark) {
+      color: oklch(87% 0 0deg);
+    }
+  }
+}
+
+.Empty {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 1rem 1rem 1rem 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1rem;
+  color: oklch(55.6% 0 0deg);
+  min-height: 8rem;
+
+  @media (prefers-color-scheme: dark) {
+    color: oklch(70.8% 0 0deg);
+  }
+}
+
+.Scrollbar {
+  display: flex;
+  justify-content: center;
+  background-color: rgb(0 0 0 / 12%);
+  width: 1rem;
+  transition: opacity 150ms;
+
+  @media (prefers-color-scheme: dark) {
+    background-color: rgb(255 255 255 / 12%);
+  }
+}
+
+.ScrollbarThumb {
+  width: 100%;
+  background-color: oklch(14.5% 0 0deg);
+
+  @media (prefers-color-scheme: dark) {
+    background-color: white;
+  }
+}
+
+.Footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 0.75rem;
+  border-top: 1px solid oklch(14.5% 0 0deg);
+  font-size: 0.75rem;
+  color: oklch(43.9% 0 0deg);
+  background-color: white;
+
+  @media (prefers-color-scheme: dark) {
+    border-top: 1px solid white;
+    color: oklch(70.8% 0 0deg);
+    background-color: oklch(14.5% 0 0deg);
+  }
+}
+
+.FooterLeft,
+.FooterRight {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.Kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.25rem;
+  font-size: 0.625rem;
+  font-family:
+    ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-weight: 400;
+  line-height: 1;
+  color: oklch(43.9% 0 0deg);
+  background-color: oklch(97% 0 0deg);
+  border: 1px solid oklch(70.8% 0 0deg);
+
+  @media (prefers-color-scheme: dark) {
+    color: oklch(70.8% 0 0deg);
+    background-color: oklch(20.5% 0 0deg);
+    border: 1px solid oklch(43.9% 0 0deg);
+  }
+}
+
+.VisuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

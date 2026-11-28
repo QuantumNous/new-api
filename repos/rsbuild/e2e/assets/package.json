@@ -1,0 +1,7 @@
+{
+  "name": "@e2e/assets",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Common static assets used in E2E test cases.",
+  "type": "module"
+}

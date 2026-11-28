@@ -1,0 +1,32 @@
+{
+  "name": "rsbuild-website",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "rspress build",
+    "dev": "rspress dev",
+    "preview": "rspress preview"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "workspace:*",
+    "@rsbuild/plugin-sass": "workspace:*",
+    "@rspress/core": "catalog:",
+    "@rspress/plugin-algolia": "catalog:",
+    "@rspress/plugin-client-redirects": "catalog:",
+    "@rspress/plugin-rss": "catalog:",
+    "@rspress/plugin-sitemap": "catalog:",
+    "@rstack-dev/doc-ui": "catalog:",
+    "@shikijs/transformers": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "fast-glob": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "rsbuild-plugin-google-analytics": "catalog:",
+    "rsbuild-plugin-open-graph": "catalog:",
+    "rspress-plugin-font-open-sans": "catalog:",
+    "typescript": "catalog:"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "experimentalDecorators": true
+  },
+  "include": ["src", "eslint.config.js", "vite.config.ts"]
+}

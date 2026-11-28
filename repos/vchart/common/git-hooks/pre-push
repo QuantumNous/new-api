@@ -1,0 +1,38 @@
+#!/bin/sh
+
+while read local_ref local_sha remote_ref remote_sha
+do
+  # 检查是否是hotfix发布分支
+  if [[ $local_ref = refs/heads/hotfix/* && $local_ref =~ ^refs/heads/hotfix/[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "Hotfix branch, skipping local test"
+    exit 0
+  fi
+
+  # 检查是否是release发布分支
+  if [[ $local_ref = refs/heads/release/* && $local_ref =~ ^refs/heads/release/[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "Release branch, skipping local test"
+    exit 0
+  fi
+
+  # 检查是否是同步代码发布分支
+  if [[ $local_ref = refs/heads/sync/main-* && $local_ref =~ ^refs/heads/sync/main-[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "Auto sync code branch, skipping local test"
+    exit 0
+  fi
+
+  # 检查是否是changelog分支
+  if [[ $local_ref = refs/heads/sync/docs/generate-changelog-* && $local_ref =~ ^refs/heads/docs/generate-changelog-[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "Auto changelog branch, skipping local test"
+    exit 0
+  fi
+
+  # 检查是否是删除操作
+  if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+    echo "Ignoring push deletion. Skipping local test."
+    exit 0
+  fi
+
+  # 其他推送逻辑...
+  node common/scripts/install-run-rush.js test --only tag:package
+done
+

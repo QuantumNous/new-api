@@ -1,0 +1,7 @@
+{
+  "simple_dev": "ok_from_dev",
+  "xhr_simple_dev": "xhr_ok_from_dev",
+  "test": {
+    "simple_dev": "ok_from_dev"
+  }
+}

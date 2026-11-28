@@ -1,0 +1,346 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`zodSchema > zod/v4 > json schema conversion > .literal and .enum 1`] = `
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "number": {
+      "enum": [
+        "one",
+        "two",
+        "three",
+      ],
+      "type": "string",
+    },
+    "text": {
+      "const": "hello",
+      "type": "string",
+    },
+  },
+  "required": [
+    "text",
+    "number",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`zodSchema > zod/v4 > json schema conversion > should create a schema with simple types 1`] = `
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "number": {
+      "type": "number",
+    },
+    "text": {
+      "type": "string",
+    },
+  },
+  "required": [
+    "text",
+    "number",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`zodSchema > zod/v4 > json schema conversion > should duplicate referenced schemas (and not use references) by default 1`] = `
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "group1": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "number": {
+            "type": "number",
+          },
+          "text": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "text",
+          "number",
+        ],
+        "type": "object",
+      },
+      "type": "array",
+    },
+    "group2": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "number": {
+            "type": "number",
+          },
+          "text": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "text",
+          "number",
+        ],
+        "type": "object",
+      },
+      "type": "array",
+    },
+  },
+  "required": [
+    "group1",
+    "group2",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`zodSchema > zod/v4 > json schema conversion > should generate JSON schema for input when transform is used 1`] = `
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "user": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+        },
+        "name": {
+          "type": "string",
+        },
+      },
+      "required": [
+        "id",
+        "name",
+      ],
+      "type": "object",
+    },
+  },
+  "required": [
+    "user",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`zodSchema > zod/v4 > json schema conversion > should support arrays 1`] = `
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "items": {
+        "type": "string",
+      },
+      "type": "array",
+    },
+  },
+  "required": [
+    "items",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`zodSchema > zod/v4 > json schema conversion > should support nullable 1`] = `
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "location": {
+      "anyOf": [
+        {
+          "type": "string",
+        },
+        {
+          "type": "null",
+        },
+      ],
+    },
+  },
+  "required": [
+    "location",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`zodSchema > zod/v4 > json schema conversion > should support optional arrays 1`] = `
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "items": {
+        "type": "string",
+      },
+      "type": "array",
+    },
+  },
+  "type": "object",
+}
+`;
+
+exports[`zodSchema > zod/v4 > json schema conversion > should support optional enums 1`] = `
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "type": {
+      "enum": [
+        "a",
+        "b",
+        "c",
+      ],
+      "type": "string",
+    },
+  },
+  "type": "object",
+}
+`;
+
+exports[`zodSchema > zod/v4 > json schema conversion > should support optional fields in object 1`] = `
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "optional": {
+      "type": "string",
+    },
+    "required": {
+      "type": "string",
+    },
+  },
+  "required": [
+    "required",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`zodSchema > zod/v4 > json schema conversion > should support optional fields with descriptions in object 1`] = `
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "optional": {
+      "description": "Optional description",
+      "type": "string",
+    },
+    "required": {
+      "description": "Required description",
+      "type": "string",
+    },
+  },
+  "required": [
+    "required",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`zodSchema > zod/v4 > json schema conversion > should support required enums 1`] = `
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "type": {
+      "enum": [
+        "a",
+        "b",
+        "c",
+      ],
+      "type": "string",
+    },
+  },
+  "required": [
+    "type",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`zodSchema > zod/v4 > json schema conversion > should use recursive references with z.lazy when useReferences is true 1`] = `
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "__schema0": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+        },
+        "subcategories": {
+          "items": {
+            "$ref": "#/definitions/__schema0",
+          },
+          "type": "array",
+        },
+      },
+      "required": [
+        "name",
+        "subcategories",
+      ],
+      "type": "object",
+    },
+  },
+  "properties": {
+    "category": {
+      "$ref": "#/definitions/__schema0",
+    },
+  },
+  "required": [
+    "category",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`zodSchema > zod/v4 > json schema conversion > should use references when useReferences is true 1`] = `
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "__schema0": {
+      "additionalProperties": false,
+      "properties": {
+        "number": {
+          "type": "number",
+        },
+        "text": {
+          "type": "string",
+        },
+      },
+      "required": [
+        "text",
+        "number",
+      ],
+      "type": "object",
+    },
+  },
+  "properties": {
+    "group1": {
+      "items": {
+        "$ref": "#/definitions/__schema0",
+      },
+      "type": "array",
+    },
+    "group2": {
+      "items": {
+        "$ref": "#/definitions/__schema0",
+      },
+      "type": "array",
+    },
+  },
+  "required": [
+    "group1",
+    "group2",
+  ],
+  "type": "object",
+}
+`;

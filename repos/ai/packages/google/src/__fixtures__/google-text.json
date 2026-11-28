@@ -1,0 +1,31 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "There are **3** r's in strawberry.\n\nHere is the breakdown: st**r**awbe**rr**y.",
+            "thoughtSignature": "EtoFCtcFAb4+9vtfe4MXRxQjw48U1WKrR/7lYsgFkVi/bepqsSPjY0VU7HEzkeCBIfy1fu5t9aUZ4IZ65aWagqbBrV45fc97olcg"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 9,
+    "candidatesTokenCount": 28,
+    "totalTokenCount": 281,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 9
+      }
+    ],
+    "thoughtsTokenCount": 244
+  },
+  "modelVersion": "gemini-3-pro-preview",
+  "responseId": "Un6LacrVMcjUxs0PmJfWoQc"
+}

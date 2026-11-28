@@ -1,0 +1,59 @@
+{
+  "name": "@tanstack/svelte-table",
+  "version": "8.21.3",
+  "description": "Headless UI for building powerful tables & datagrids for Svelte.",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TanStack/table.git",
+    "directory": "packages/svelte-table"
+  },
+  "homepage": "https://tanstack.com/table",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "keywords": [
+    "svelte",
+    "table",
+    "svelte-table",
+    "datagrid"
+  ],
+  "type": "commonjs",
+  "module": "build/lib/index.esm.js",
+  "main": "build/lib/index.js",
+  "types": "build/lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./build/lib/index.d.ts",
+      "import": "./build/lib/index.mjs",
+      "default": "./build/lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=12"
+  },
+  "files": [
+    "build/lib/*",
+    "build/umd/*",
+    "src"
+  ],
+  "scripts": {
+    "clean": "rimraf ./build",
+    "test:types": "tsc --noEmit",
+    "build": "pnpm build:rollup && pnpm build:types",
+    "build:rollup": "rollup --config rollup.config.mjs",
+    "build:types": "tsc --emitDeclarationOnly"
+  },
+  "dependencies": {
+    "@tanstack/table-core": "workspace:*"
+  },
+  "devDependencies": {
+    "svelte": "^3.59.2"
+  },
+  "peerDependencies": {
+    "svelte": "^4.0.0 || ^3.49.0"
+  }
+}

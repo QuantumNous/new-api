@@ -1,0 +1,7 @@
+node_modules
+dist
+.vite
+*.gen.ts
+port*.txt
+test-results
+playwright-report

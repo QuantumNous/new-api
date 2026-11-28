@@ -1,0 +1,12 @@
+{
+  "extends": "@internal/ts-config/tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["jest", "node"],
+    "lib": ["DOM", "ESNext"],
+    "baseUrl": "./",
+    "rootDir": "./",
+    "allowJs": true
+  },
+  "include": ["src/"],
+  "exclude": []
+}

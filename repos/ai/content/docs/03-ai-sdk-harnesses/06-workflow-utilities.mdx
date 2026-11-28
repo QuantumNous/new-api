@@ -1,0 +1,327 @@
+---
+title: Workflow Utilities
+description: Run HarnessAgent turns as durable Workflow DevKit workflows.
+---
+
+# Workflow Utilities
+
+`@ai-sdk/workflow-harness` provides helpers for running `HarnessAgent` turns
+inside a [workflow](https://vercel.com/docs/workflow).
+
+The package provides a serializable state machine and a slice runner that you
+call from your own `'use workflow'` and `'use step'` functions.
+
+The core harness and workflow files are framework-independent. The HTTP handler
+and Next.js configuration shown below are examples of how to expose the workflow
+from one app framework; adapt those parts to your runtime and Workflow SDK
+integration.
+
+## Installation
+
+<InstallPackages packages="@ai-sdk/workflow-harness workflow" />
+
+Install the core harness package, a harness adapter, and a sandbox provider as
+shown in [HarnessAgent](/docs/ai-sdk-harnesses/harness-agent).
+
+## Using a Durable Harness Agent
+
+The agent can be configured in the usual way.
+
+```ts filename='harness-workflow/agent.ts'
+import { HarnessAgent } from '@ai-sdk/harness/agent';
+import { claudeCode } from '@ai-sdk/harness-claude-code';
+import { createVercelSandbox } from '@ai-sdk/sandbox-vercel';
+
+export const agent = new HarnessAgent({
+  harness: claudeCode,
+  sandbox: createVercelSandbox({
+    runtime: 'node24',
+    ports: [4000],
+  }),
+  instructions: 'You are a helpful coding assistant.',
+});
+```
+
+With the agent definition file in place, start with the two workflow-specific
+pieces: a slice step that runs one time-boxed part of the harness turn, and a
+workflow that calls that step until the turn finishes.
+
+```ts filename='harness-workflow/run-slice-step.ts'
+import {
+  runHarnessAgentSlice,
+  type HarnessWorkflowState,
+} from '@ai-sdk/workflow-harness';
+
+export async function runSlice(
+  state: HarnessWorkflowState,
+): Promise<HarnessWorkflowState> {
+  'use step';
+
+  const { agent } = await import('./agent');
+
+  return runHarnessAgentSlice({
+    agent,
+    state,
+  });
+}
+```
+
+```ts filename='harness-workflow/workflow.ts'
+import { runSlice } from './run-slice-step';
+import {
+  createHarnessWorkflowState,
+  finalizeHarnessWorkflow,
+  type HarnessWorkflowInput,
+} from '@ai-sdk/workflow-harness';
+
+export async function codingWorkflow(
+  input: Pick<HarnessWorkflowInput, 'prompt' | 'sessionId'>,
+) {
+  'use workflow';
+
+  let state = createHarnessWorkflowState(input);
+
+  while (state.status === 'running' || state.status === 'timed_out') {
+    state = await runSlice(state);
+  }
+
+  return finalizeHarnessWorkflow(state);
+}
+```
+
+### Starting the Workflow
+
+Start the workflow from server-side code. You can return `run.readable` from an
+HTTP endpoint, consume it directly, or expose it through your framework's
+streaming response primitive.
+
+```ts filename='server/start-coding-workflow.ts'
+import { codingWorkflow } from '../harness-workflow/workflow';
+import { start } from 'workflow/api';
+
+export async function startCodingWorkflow({
+  prompt,
+  sessionId,
+}: {
+  prompt: string;
+  sessionId: string;
+}) {
+  const run = await start(codingWorkflow, [{ prompt, sessionId }]);
+
+  return run.readable;
+}
+```
+
+This is the core workflow/harness integration. Add resume persistence when you
+need a multi-turn chat to reattach to the same native harness session across
+workflow runs.
+
+### HTTP Route Example
+
+This example uses a Next.js `Request`/`Response` handler and AI SDK UI message
+streams. For other frameworks, the workflow related code is similar: derive the
+newest user message, call `start(codingWorkflow, [...])`, and return the run's
+readable stream.
+
+```ts filename='app/api/harness-workflow/route.ts'
+import { codingWorkflow } from '../../../harness-workflow/workflow';
+import {
+  convertToModelMessages,
+  createUIMessageStreamResponse,
+  type UIMessage,
+  type UIMessageChunk,
+} from 'ai';
+import { start } from 'workflow/api';
+
+function latestUserMessage(
+  messages: Awaited<ReturnType<typeof convertToModelMessages>>,
+) {
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index];
+    if (message.role === 'user') return message;
+  }
+}
+
+export async function POST(request: Request) {
+  const body: {
+    id?: string;
+    messages: UIMessage[];
+  } = await request.json();
+
+  if (!body.id) {
+    return new Response('Missing chat ID', { status: 400 });
+  }
+
+  const prompt = latestUserMessage(await convertToModelMessages(body.messages));
+  if (!prompt) {
+    return new Response('No user message to run', { status: 400 });
+  }
+
+  const run = await start(codingWorkflow, [
+    {
+      prompt,
+      sessionId: body.id,
+    },
+  ]);
+
+  return createUIMessageStreamResponse({
+    stream: run.readable as ReadableStream<UIMessageChunk>,
+  });
+}
+```
+
+If you use Next.js, wrap your config with `withWorkflow()` so Workflow SDK
+transforms `'use workflow'` and `'use step'` modules. Other frameworks have
+their own Workflow SDK setup.
+
+```js filename='next.config.js'
+const { withWorkflow } = require('workflow/next');
+
+const nextConfig = {};
+
+module.exports = withWorkflow(nextConfig, {});
+```
+
+## Resume Persistence
+
+Persist only the opaque `resumeFrom` state returned after a finished turn. The
+example below uses Workflow steps because filesystem access must stay out of the
+workflow function itself. Use durable storage instead of local files in
+production.
+
+```ts filename='harness-workflow/resume-store.ts'
+import type { HarnessV1ResumeSessionState } from '@ai-sdk/harness';
+import { safeParseJSON } from '@ai-sdk/provider-utils';
+
+const RESUME_DIR = '.harness-sessions';
+
+function fileName(sessionId: string): string {
+  return `${sessionId.replace(/[^a-zA-Z0-9_-]/g, '_')}.json`;
+}
+
+export async function loadResumeStep(
+  sessionId: string,
+): Promise<HarnessV1ResumeSessionState | undefined> {
+  'use step';
+
+  const { readFile } = await import('node:fs/promises');
+  const { join } = await import('node:path');
+
+  let text: string;
+  try {
+    text = await readFile(
+      join(process.cwd(), RESUME_DIR, fileName(sessionId)),
+      'utf8',
+    );
+  } catch {
+    return undefined;
+  }
+
+  const parsed = await safeParseJSON({ text });
+
+  return parsed.success
+    ? (parsed.value as unknown as HarnessV1ResumeSessionState)
+    : undefined;
+}
+
+export async function persistResumeStep({
+  sessionId,
+  resumeState,
+}: {
+  sessionId: string;
+  resumeState: HarnessV1ResumeSessionState | undefined;
+}): Promise<void> {
+  'use step';
+
+  if (!resumeState) return;
+
+  const { mkdir, writeFile } = await import('node:fs/promises');
+  const { join } = await import('node:path');
+  const dir = join(process.cwd(), RESUME_DIR);
+
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, fileName(sessionId)), JSON.stringify(resumeState));
+}
+```
+
+Load the resume state before the first slice and persist the new one after the
+turn finishes:
+
+```ts filename='harness-workflow/workflow.ts'
+import { loadResumeStep, persistResumeStep } from './resume-store';
+import { runSlice } from './run-slice-step';
+import {
+  createHarnessWorkflowState,
+  finalizeHarnessWorkflow,
+  type HarnessWorkflowInput,
+} from '@ai-sdk/workflow-harness';
+
+export async function codingWorkflow(
+  input: Pick<HarnessWorkflowInput, 'prompt' | 'sessionId'>,
+) {
+  'use workflow';
+
+  const resumeFrom = await loadResumeStep(input.sessionId);
+  let state = createHarnessWorkflowState({ ...input, resumeFrom });
+
+  while (state.status === 'running' || state.status === 'timed_out') {
+    state = await runSlice(state);
+  }
+
+  await persistResumeStep({
+    sessionId: state.sessionId,
+    resumeState: state.resumeFrom,
+  });
+
+  return finalizeHarnessWorkflow(state);
+}
+```
+
+The harness `sessionId` gives the sandbox a stable identity across workflow runs
+and lets the workflow load the previous turn's resume state before sending the
+next user message.
+
+A harness session owns its native conversation history, so the route sends only
+the newest user message. Do not replay the full UI message history into the
+harness.
+
+## How It Works
+
+Each user turn is represented by a `HarnessWorkflowState`:
+
+- `createHarnessWorkflowState()` creates the initial state for the turn.
+- `runHarnessAgentSlice()` streams one time-boxed slice of the turn.
+- If the slice times out, the harness turn is suspended non-destructively and
+  the returned state contains `continueFrom` for the next slice.
+- If the turn finishes, the helper closes the workflow output stream and returns
+  `resumeFrom` for the next user turn.
+- `finalizeHarnessWorkflow()` returns the final result or throws when the
+  workflow failed.
+
+The workflow output stream receives AI SDK UI message chunks, so a route can
+return `run.readable` through `createUIMessageStreamResponse()`.
+
+## File Boundaries
+
+Keep the `workflow` entrypoints separate from the agent definition:
+
+- `agent.ts` defines the `HarnessAgent`.
+- `run-slice-step.ts` is a `'use step'` module and imports the agent
+  dynamically inside the step body.
+- `workflow.ts` contains the `'use workflow'` function and imports only
+  workflow-safe helpers and step modules.
+- your route or server entrypoint starts the workflow. It can import `ai`
+  helpers such as `convertToModelMessages()` and
+  `createUIMessageStreamResponse()`.
+
+Do not define the workflow function in the same module as the route handler,
+server entrypoint, or agent. The Workflow DevKit compiles the module graph
+reachable from a `'use workflow'` directive. Keeping the graph small prevents
+Node-heavy agent, sandbox, and framework dependencies from being pulled into the
+workflow bundle.
+
+## Related
+
+- [HarnessAgent](/docs/ai-sdk-harnesses/harness-agent)
+- [Harness adapters](/docs/ai-sdk-harnesses/harness-adapters)
+- [UI](/docs/ai-sdk-harnesses/ui)

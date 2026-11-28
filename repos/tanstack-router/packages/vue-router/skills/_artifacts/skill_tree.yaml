@@ -1,0 +1,22 @@
+library:
+  name: '@tanstack/vue-router'
+  version: '1.166.2'
+  repository: 'https://github.com/TanStack/router'
+  description: >-
+    Vue bindings for TanStack Router. Ref<T> returns,
+    defineComponent, h() render functions, provide/inject,
+    Html/Body components.
+generated_at: '2026-03-08'
+skills:
+  - name: 'Vue Router'
+    slug: 'vue-router'
+    type: 'framework'
+    domain: 'vue-router-bindings'
+    path: 'skills/vue-router/SKILL.md'
+    package: 'packages/vue-router'
+    description: >-
+      Vue bindings for TanStack Router. Ref<T> returns,
+      defineComponent, h() render functions, provide/inject,
+      Html/Body components.
+    sources:
+      - 'TanStack/router:packages/vue-router/src'

@@ -1,0 +1,207 @@
+---
+description: '用于设置是否生成 source map 文件，以及生成哪一种格式的 source map。'
+---
+
+# output.sourceMap
+
+- **类型：**
+
+```ts
+type SourceMap =
+  | boolean
+  | {
+      js?: Rspack.Configuration['devtool'];
+      css?: boolean;
+      extract?:
+        | boolean
+        | {
+            /** @default /\.(?:js|mjs|cjs|jsx)$/ */
+            test?: Rspack.RuleSetCondition;
+            include?: Rspack.RuleSetCondition[];
+            exclude?: Rspack.RuleSetCondition[];
+          };
+    };
+```
+
+- **默认值：**
+
+```ts
+const defaultSourceMap = {
+  js: mode === 'development' ? 'cheap-module-source-map' : false,
+  css: false,
+  extract: false,
+};
+```
+
+用于设置是否生成 source map 文件，以及生成哪一种格式的 source map。
+
+:::tip 什么是 source map
+source map 是保存源代码映射关系的信息文件，它记录了编译后的代码的每一个位置，以及所对应的编译前的位置。通过 source map，可以在调试编译后的代码时，直接查看对应的源代码。
+:::
+
+## 默认行为
+
+默认情况下，Rsbuild 的 source map 生成规则如下：
+
+- 在开发模式构建时，会生成 JS 文件的 source map，便于进行开发调试；不会生成 CSS 文件的 source map。
+- 在生产模式构建时，不会生成 JS 和 CSS 文件的 source map，以提供最佳的构建性能。
+
+## 布尔值
+
+如果 `output.sourceMap` 为 `true`，则会根据 [mode](/config/mode) 生成 JS 和 CSS 文件的 source map，等价于：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    sourceMap: {
+      js: mode === 'development' ? 'cheap-module-source-map' : 'source-map',
+      css: true,
+    },
+  },
+};
+```
+
+如果 `output.sourceMap` 为 `false`，则不会生成 JS 和 CSS 文件的 source map，等价于：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    sourceMap: {
+      js: false,
+      css: false,
+    },
+  },
+};
+```
+
+## JS source map
+
+JS 文件的 source map 通过 `sourceMap.js` 来控制，可以传入 Rspack [devtool](https://rspack.rs/zh/config/devtool) 选项支持的所有 source map 格式，设置为 `false` 为关闭。
+
+比如，如果你需要在所有模式生成高质量的 source map，可以设置为：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    sourceMap: {
+      js: 'source-map',
+    },
+  },
+};
+```
+
+你也可以根据 `NODE_ENV` 来设置不同的 source map 格式：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    sourceMap: {
+      js:
+        process.env.NODE_ENV === 'production'
+          ? // 生产模式使用高质量的 source map 格式
+            'source-map'
+          : // 开发模式使用性能更好的 source map 格式
+            'cheap-module-source-map',
+    },
+  },
+};
+```
+
+:::warning
+在生产构建中使用 `source-map` 或 `hidden-source-map` 等选项时，请勿将 source maps (`.map` 文件) 部署到公开访问的 Web 服务器或 CDN 上。公开 source maps 会暴露你的源代码，并且可能带来安全风险。
+:::
+
+## CSS source map
+
+CSS 文件的 source map 通过 `sourceMap.css` 来控制，设置为 `true` 为开启，设置为 `false` 为关闭。
+
+比如，如果需要生成 CSS 文件的 source map，可以设置为：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    sourceMap: {
+      css: true,
+    },
+  },
+};
+```
+
+在生产构建时，我们不推荐同时开启 [output.injectStyles](/config/output/inject-styles) 和 `output.sourceMap.css`，因为 `output.injectStyles` 会将 source map 注入到 JS 文件中，这会增加文件的体积并导致页面加载变慢。
+
+你可以仅在开发模式下开启 CSS 文件的 source map：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    injectStyles: true,
+    sourceMap: {
+      css: process.env.NODE_ENV === 'development',
+    },
+  },
+};
+```
+
+## 提取 source map
+
+使用 `sourceMap.extract` 可以从匹配的文件中提取已有的 source map。这在第三方包已经同时产出构建产物和 source map 文件（例如 `.js` 和 `.js.map`）时会很有用。
+
+:::tip
+该功能基于 Rspack 的 [`module.rules[].extractSourceMap`](https://rspack.rs/zh/config/module-rules#rulesextractsourcemap) 实现，可以替代 `source-map-loader`。
+:::
+
+:::note
+启用 `output.sourceMap.css` 后，CSS source map 会由 CSS 构建链路处理。大多数情况下，你不需要使用 `sourceMap.extract` 来保留已有的 CSS source map。
+:::
+
+要为所有 JavaScript 文件开启提取，可以这样配置：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    sourceMap: {
+      js: 'source-map',
+      extract: true,
+    },
+  },
+};
+```
+
+启用 `extract` 后，默认情况下 Rsbuild 会从 JavaScript 文件中提取已有的 source map。
+
+你也可以通过 `include` 或 `exclude` 将提取范围限制到特定文件，这有助于减少性能开销：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    sourceMap: {
+      js: 'source-map',
+      extract: {
+        include: [/node_modules[\\/]some-package[\\/]/],
+      },
+    },
+  },
+};
+```
+
+仅在需要自定义文件匹配规则时使用 `test`：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    sourceMap: {
+      js: 'source-map',
+      extract: {
+        test: /node_modules[\\/]some-package[\\/].*\.mjs$/,
+      },
+    },
+  },
+};
+```
+
+## 版本历史
+
+| 版本   | 变更内容                                                        |
+| ------ | --------------------------------------------------------------- |
+| v2.0.0 | 新增 `sourceMap.extract` 选项                                   |
+| v2.0.3 | 为 `sourceMap.extract` 新增 `test`、`include` 和 `exclude` 选项 |

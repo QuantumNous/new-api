@@ -1,0 +1,8 @@
+{
+  "name": "rush-upgrade",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "rush-upgrade-self-plugin": "^1.1.2"
+  }
+}

@@ -1,0 +1,174 @@
+---
+description: '系统了解 Rsbuild 中 logger、createLogger、customLogger、logLevel 与 dev.client.logLevel 的关系。'
+---
+
+# 日志
+
+本指南介绍如何控制 Rsbuild 的日志输出、为特定实例定制 logger，以及在不同场景下获取和使用 logger。
+
+> Rsbuild 的 logger 基于 `rslog` 实现，查看 [rslog](https://github.com/rstackjs/rslog) 了解更多方法和选项。
+
+## 日志级别
+
+### Node.js 侧
+
+[logLevel](/config/log-level) 用于控制当前 Rsbuild 实例在 Node.js 侧的日志级别，例如终端中的构建日志、开发服务器日志、插件日志等。
+
+例如，将 `logLevel` 设置为 `warn` 后，Rsbuild 只会输出警告和错误日志：
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+
+export default defineConfig({
+  logLevel: 'warn',
+});
+```
+
+### 浏览器侧
+
+[dev.client.logLevel](/config/dev/client#loglevel) 用于控制浏览器控制台中的客户端日志级别。
+
+默认情况下，`dev.client.logLevel` 会继承根级的 [logLevel](/config/log-level)。
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+
+export default defineConfig({
+  dev: {
+    client: {
+      logLevel: 'warn',
+    },
+  },
+});
+```
+
+## 自定义 logger
+
+每个 Rsbuild 实例在创建时都生成一个 logger。你可以通过 [createLogger](/api/javascript-api/core#createlogger) 创建一个自定义的 logger 实例，并通过 [customLogger](/config/custom-logger) 把它挂到当前 Rsbuild 实例上。
+
+例如，下面的配置会让当前实例只输出 `warn` 和 `error` 级别的日志：
+
+```ts title="rsbuild.config.ts"
+import { createLogger, defineConfig } from '@rsbuild/core';
+
+const customLogger = createLogger({
+  level: 'warn',
+});
+
+export default defineConfig({
+  customLogger,
+});
+```
+
+### 自定义 prefix
+
+可以通过 `prefix` 为每条日志附加固定前缀：
+
+```ts title="rsbuild.config.ts"
+import { createLogger } from '@rsbuild/core';
+
+const logger = createLogger({
+  prefix: '[web]',
+});
+
+logger.info('hello'); // info    [web] hello
+```
+
+### 覆盖日志方法
+
+可以通过 `override()` 覆盖 logger 的部分方法，以使用自定义的输出格式：
+
+```ts title="rsbuild.config.ts"
+import { createLogger } from '@rsbuild/core';
+
+const logger = createLogger();
+
+logger.override({
+  info(message) {
+    console.log(`[info] ${message}`);
+  },
+  warn(message) {
+    console.warn(`[warn] ${message}`);
+  },
+});
+
+logger.info('hello'); // [info] hello
+logger.warn('world'); // [warn] world
+```
+
+## 实例 logger
+
+通过以下方式来访问 Rsbuild 实例上的 logger 对象：
+
+1. [rsbuild.logger](/api/javascript-api/instance#rsbuildlogger)：在 JavaScript API 中访问当前实例的 logger。
+
+```ts
+import { createRsbuild } from '@rsbuild/core';
+
+const rsbuild = await createRsbuild();
+
+rsbuild.logger.info('Hello from rsbuild.logger');
+```
+
+2. [api.logger](/plugins/dev/core#apilogger)：在插件中访问当前实例的 logger。
+
+```ts
+const pluginLoggerDemo = () => ({
+  name: 'plugin-logger-demo',
+  setup(api) {
+    api.logger.info('Hello from plugin logger');
+  },
+});
+```
+
+## 全局 logger
+
+Rsbuild 也包含了一个全局共享的 logger 单例，可以通过 [logger](/api/javascript-api/core#logger) 访问。
+
+```ts
+import { logger } from '@rsbuild/core';
+
+logger.info('Hello from global logger');
+```
+
+- 当全局 logger 的日志级别被修改时，后续创建的 Rsbuild 实例会继承这个修改后的日志级别。
+
+## logger 方法
+
+所有 logger 实例都提供相同的方法：
+
+```ts
+import { logger } from '@rsbuild/core';
+
+// A gradient welcome log
+logger.greet(`\n➜ Rsbuild v1.0.0\n`);
+
+// Info
+logger.info('This is an info message');
+
+// Start
+logger.start('This is a start message');
+
+// Warn
+logger.warn('This is a warning message');
+
+// Ready
+logger.ready('This is a ready message');
+
+// Success
+logger.success('This is a success message');
+
+// Error
+logger.error('This is an error message');
+logger.error(new Error('This is an error message with stack'));
+
+// Debug
+logger.debug('This is a debug message');
+
+// Same as console.log
+logger.log('This is a log message');
+```
+
+## 调试模式
+
+当开启 [调试模式](/guide/debug/debug-mode) 时，Rsbuild 会自动将日志级别提升到 `verbose`，以输出更详细的日志，帮助排查问题。

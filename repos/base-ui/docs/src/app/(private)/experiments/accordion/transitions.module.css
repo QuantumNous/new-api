@@ -1,0 +1,19 @@
+.root {
+  --duration: 200ms;
+}
+
+.slowRoot {
+  --duration: 1000ms;
+}
+
+.panel {
+  height: var(--accordion-panel-height);
+
+  transition: all var(--duration) ease-out;
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    height: 0;
+    opacity: 0;
+  }
+}

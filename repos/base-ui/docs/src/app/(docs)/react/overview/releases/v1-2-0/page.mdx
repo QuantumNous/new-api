@@ -1,0 +1,171 @@
+# v1.2.0
+
+<Subtitle>Feb 12, 2026</Subtitle>
+<Meta name="description" content="v1.2.0 release notes. Feb 12, 2026." />
+
+## General changes
+
+- Do not memoize `state` when not needed ([#3812](https://github.com/mui/base-ui/pull/3812))
+- Support lazy element in `render` prop ([#3856](https://github.com/mui/base-ui/pull/3856))
+- Replace Firefox deprecated mozInputSource check for virtual click detection ([#3942](https://github.com/mui/base-ui/pull/3942))
+- Use `WeakRef` for previously focused elements ([#3916](https://github.com/mui/base-ui/pull/3916))
+- Fix page scroll jump when input has focus on unmount in Safari ([#3925](https://github.com/mui/base-ui/pull/3925))
+- Fix flash at origin before positioning completes in Preact ([#3975](https://github.com/mui/base-ui/pull/3975))
+- Reduce style recalculation with classic scrollbars ([#3854](https://github.com/mui/base-ui/pull/3854))
+- Fix event handling in useEnhancedClickHandler ([#3981](https://github.com/mui/base-ui/pull/3981))
+
+## Autocomplete
+
+- Fix filter method's `useMemo` dependency ([#3862](https://github.com/mui/base-ui/pull/3862))
+- Fix Autocomplete not using its internal filter method when `mode` is `list` ([#3936](https://github.com/mui/base-ui/pull/3936))
+- Remove unnecessary double stringification of item in filtering logic ([#3945](https://github.com/mui/base-ui/pull/3945))
+- Add `useFilteredItems` hook ([#3732](https://github.com/mui/base-ui/pull/3732))
+- Fix popup closing on iOS VoiceOver ([#3859](https://github.com/mui/base-ui/pull/3859))
+- Remove `aria-readonly` prop from `Clear` and `Popup` components when `readOnly` ([#3907](https://github.com/mui/base-ui/pull/3907))
+
+## Avatar
+
+- Add transition attributes ([#3939](https://github.com/mui/base-ui/pull/3939))
+
+## Button
+
+- Capture component stack for `nativeButton` error message ([#3861](https://github.com/mui/base-ui/pull/3861))
+
+## Checkbox
+
+- Cleanup disabled state tracking ([#3913](https://github.com/mui/base-ui/pull/3913))
+- Preserve modifier key properties in the change event ([#3935](https://github.com/mui/base-ui/pull/3935))
+- Allow exit animations on `<Checkbox.Indicator>` when `keepMounted={false}` ([#3939](https://github.com/mui/base-ui/pull/3939))
+
+## Combobox
+
+- Fix the type of the ref of the `Icon` part ([#3796](https://github.com/mui/base-ui/pull/3796))
+- Avoid clearing selected value if item is not present in items array ([#3824](https://github.com/mui/base-ui/pull/3824))
+- Fix highlight change reason in `ChipRemove` ([#3980](https://github.com/mui/base-ui/pull/3980))
+- Keep highlight on last deselect ([#3923](https://github.com/mui/base-ui/pull/3923))
+- Fix inline filtering after selection in single mode ([#3978](https://github.com/mui/base-ui/pull/3978))
+- Clear highlight on inline blur when inline ([#3973](https://github.com/mui/base-ui/pull/3973))
+- Prevent opening popup on autofill change ([#3924](https://github.com/mui/base-ui/pull/3924))
+- Distinguish `input-press` from `trigger-press` in `onOpenChange` reason ([#4015](https://github.com/mui/base-ui/pull/4015))
+- Fix async items while popup is open ([#4034](https://github.com/mui/base-ui/pull/4034))
+- Prevent `Chip` from receiving focus when `disabled` ([#4044](https://github.com/mui/base-ui/pull/4044))
+- Add `useFilteredItems` hook ([#3732](https://github.com/mui/base-ui/pull/3732))
+- Fix popup closing on iOS VoiceOver ([#3859](https://github.com/mui/base-ui/pull/3859))
+- Remove `aria-readonly` prop from `Clear` and `Popup` components when `readOnly` ([#3907](https://github.com/mui/base-ui/pull/3907))
+- Fix `onClick` `Item` type ([#3964](https://github.com/mui/base-ui/pull/3964))
+- Use reactive `domReferenceElement` subscriptions ([#4017](https://github.com/mui/base-ui/pull/4017))
+- Add `autoComplete` prop for explicit browser autofill support ([#4005](https://github.com/mui/base-ui/pull/4005))
+- Fix inconsistent `isItemEqualToValue` argument order ([#4056](https://github.com/mui/base-ui/pull/4056))
+
+## Context Menu
+
+- Fix `disabled` prop not working ([#3806](https://github.com/mui/base-ui/pull/3806))
+- Fix explicit `collisionAvoidance` with `side: 'flip'` not working ([#3877](https://github.com/mui/base-ui/pull/3877))
+
+## Drawer
+
+- Create new Drawer / Sheet component ([#3680](https://github.com/mui/base-ui/pull/3680))
+
+## Field
+
+- Prevent re-renders when `Field.Control` is uncontrolled ([#3820](https://github.com/mui/base-ui/pull/3820))
+- Fix autofocus in SSR environments ([#3871](https://github.com/mui/base-ui/pull/3871))
+- Fix max update depth loop when using `<React.Activity>` ([#3931](https://github.com/mui/base-ui/pull/3931))
+- Add transition attributes ([#3939](https://github.com/mui/base-ui/pull/3939))
+
+## Input
+
+- Fix autofocus in SSR environments ([#3871](https://github.com/mui/base-ui/pull/3871))
+- Update ref type to `HTMLElement` ([#3866](https://github.com/mui/base-ui/pull/3866))
+
+## Menu
+
+- Fix `onClick` `Item` type ([#3964](https://github.com/mui/base-ui/pull/3964))
+- Fix submenu stuck glitch ([#3783](https://github.com/mui/base-ui/pull/3783))
+- Fix race conditions ([#3821](https://github.com/mui/base-ui/pull/3821))
+- Add `<Menu.LinkItem>` part ([#3400](https://github.com/mui/base-ui/pull/3400))
+
+## Navigation Menu
+
+- Fix forwarded ref types ([#3775](https://github.com/mui/base-ui/pull/3775))
+- Add `keepMounted` prop to `Content` part ([#3794](https://github.com/mui/base-ui/pull/3794))
+
+## Number Field
+
+- Fix click handlers on ScrubArea ([#3827](https://github.com/mui/base-ui/pull/3827))
+- Remove `event.isTrusted` ([#3920](https://github.com/mui/base-ui/pull/3920))
+- Stop repeat change at bounds ([#3915](https://github.com/mui/base-ui/pull/3915))
+- Add `allowOutOfRange` prop ([#3919](https://github.com/mui/base-ui/pull/3919))
+- Fix pen pointer handling ([#3917](https://github.com/mui/base-ui/pull/3917))
+- Fix missing field state data attributes ([#3909](https://github.com/mui/base-ui/pull/3909))
+
+## Popover
+
+- Fix missing `aria-owns` element ([#3959](https://github.com/mui/base-ui/pull/3959))
+- Use reactive `domReferenceElement` subscriptions ([#4017](https://github.com/mui/base-ui/pull/4017))
+- Fix broken scale transition with detached triggers ([#3810](https://github.com/mui/base-ui/pull/3810))
+
+## Preview Card
+
+- Fix broken scale transition with detached triggers ([#3810](https://github.com/mui/base-ui/pull/3810))
+
+## Progress
+
+- De-duplicate `formatValue` function ([#3805](https://github.com/mui/base-ui/pull/3805))
+
+## Radio Group
+
+- Preserve modifier key properties in the change event ([#3935](https://github.com/mui/base-ui/pull/3935))
+- Allow exit animations on `<Radio.Indicator>` when `keepMounted={false}` ([#3939](https://github.com/mui/base-ui/pull/3939))
+- Rely on individual radio hidden inputs ([#3826](https://github.com/mui/base-ui/pull/3826))
+- Add generic `Value` typing to `Radio` ([#4033](https://github.com/mui/base-ui/pull/4033))
+
+## Scroll Area
+
+- Add `data-scrolling` state attribute to `Root` and `Viewport` parts ([#3823](https://github.com/mui/base-ui/pull/3823))
+- Fix overflow edge rounding ([#3888](https://github.com/mui/base-ui/pull/3888))
+
+## Select
+
+- Add `finalFocus` prop ([#3785](https://github.com/mui/base-ui/pull/3785))
+- Fix `alignItemWithTrigger` transform with CSS animations ([#3831](https://github.com/mui/base-ui/pull/3831))
+- Fix `highlightItemOnHover` not being respected ([#3868](https://github.com/mui/base-ui/pull/3868))
+- Reset typeahead on external blur ([#2618](https://github.com/mui/base-ui/pull/2618))
+- Fix scroll height loop ([#3795](https://github.com/mui/base-ui/pull/3795))
+- Add `autoComplete` prop for explicit browser autofill support ([#4005](https://github.com/mui/base-ui/pull/4005))
+- Fix inconsistent `isItemEqualToValue` argument order ([#4056](https://github.com/mui/base-ui/pull/4056))
+
+## Slider
+
+- Fix missing field state data attributes ([#3909](https://github.com/mui/base-ui/pull/3909))
+- Fix change event cloning ([#3960](https://github.com/mui/base-ui/pull/3960))
+
+## Switch
+
+- Preserve modifier key properties in the change event ([#3935](https://github.com/mui/base-ui/pull/3935))
+
+## Tabs
+
+- Add transition attributes to `<Tabs.Panel>` part ([#3880](https://github.com/mui/base-ui/pull/3880))
+
+## Toast
+
+- Make `useToastManager` and `createToastManager` generic functions ([#3882](https://github.com/mui/base-ui/pull/3882))
+- Prevent dismissed promise toast from reopening on updates ([#4040](https://github.com/mui/base-ui/pull/4040))
+- Introduce a store ([#3464](https://github.com/mui/base-ui/pull/3464))
+
+## Toggle
+
+- Improve type safety and inference ([#3173](https://github.com/mui/base-ui/pull/3173))
+
+## Toggle Group
+
+- Type value as string to match Toggle ([#3770](https://github.com/mui/base-ui/pull/3770))
+- Enable `Home`/`End` key navigation ([#3971](https://github.com/mui/base-ui/pull/3971))
+- Improve type safety and inference ([#3173](https://github.com/mui/base-ui/pull/3173))
+
+## Tooltip
+
+- Prevent opening when focusing a disabled Trigger ([#3902](https://github.com/mui/base-ui/pull/3902))
+- Fix broken scale transition with detached triggers ([#3810](https://github.com/mui/base-ui/pull/3810))
+- Fix disabled prop on Triggers ([#4049](https://github.com/mui/base-ui/pull/4049))

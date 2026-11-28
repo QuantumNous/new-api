@@ -1,0 +1,48 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`convertToPerplexityMessages > assistant messages > should convert an assistant message with text content 1`] = `
+[
+  {
+    "content": "Assistant reply",
+    "role": "assistant",
+  },
+]
+`;
+
+exports[`convertToPerplexityMessages > system messages > should convert a system message with text content 1`] = `
+[
+  {
+    "content": "System initialization",
+    "role": "system",
+  },
+]
+`;
+
+exports[`convertToPerplexityMessages > user messages > should convert a user message with image parts 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "Hello ",
+        "type": "text",
+      },
+      {
+        "image_url": {
+          "url": "data:image/png;base64,AAECAw==",
+        },
+        "type": "image_url",
+      },
+    ],
+    "role": "user",
+  },
+]
+`;
+
+exports[`convertToPerplexityMessages > user messages > should convert a user message with text parts 1`] = `
+[
+  {
+    "content": "Hello World",
+    "role": "user",
+  },
+]
+`;

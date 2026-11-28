@@ -1,0 +1,56 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "declaration": true,
+    "sourceMap": true,
+    "target": "es2022",
+    "lib": [
+      "es2022",
+      "dom"
+    ],
+    "module": "esnext",
+    "types": [
+      "node"
+    ],
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "moduleResolution": "Bundler",
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    },
+    "rootDir": ".",
+    "outDir": "./build",
+    "skipLibCheck": true,
+    "composite": true
+  },
+  "include": [
+    "agents/**/*.ts",
+    "harness/**/*.ts",
+    "lib/**/*.ts"
+  ],
+  "references": [
+    {
+      "path": "../../packages/ai"
+    },
+    {
+      "path": "../../packages/harness"
+    },
+    {
+      "path": "../../packages/harness-claude-code"
+    },
+    {
+      "path": "../../packages/harness-codex"
+    },
+    {
+      "path": "../../packages/harness-pi"
+    },
+    {
+      "path": "../../packages/sandbox-vercel"
+    },
+    {
+      "path": "../../packages/tui"
+    }
+  ]
+}

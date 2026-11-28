@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.base.json",
+  "files": [],
+  "include": [],
+  "references": [
+    {
+      "path": "docs/tsconfig.json"
+    },
+    {
+      "path": "packages/react/tsconfig.json"
+    },
+    {
+      "path": "packages/utils/tsconfig.json"
+    },
+    {
+      "path": "scripts/tsconfig.json"
+    },
+    {
+      "path": "playground/vite-app/tsconfig.json"
+    }
+  ]
+}

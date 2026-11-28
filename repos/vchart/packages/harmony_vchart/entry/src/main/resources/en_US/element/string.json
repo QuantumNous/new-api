@@ -1,0 +1,76 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "module description"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "description"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "label"
+    },
+    {
+      "name": "VisActor_desc",
+      "value": "A data visualization solution for narrative and AI. Native compatibility for HarmonyOS"
+    },
+    {
+      "name": "name_scatter",
+      "value": "scatter chart"
+    },
+    {
+      "name": "name_line",
+      "value": "折线 chart"
+    },
+    {
+      "name": "name_area",
+      "value": "area chart"
+    },
+    {
+      "name": "name_funnel",
+      "value": "funnel chart"
+    },
+    {
+      "name": "name_bar",
+      "value": "bar chart"
+    },
+    {
+      "name": "name_horizontal_bar",
+      "value": "horizontal_bar chart"
+    },
+    {
+      "name": "name_radar",
+      "value": "radar chart"
+    },
+    {
+      "name": "name_sankey",
+      "value": "sankey chart"
+    },
+    {
+      "name": "name_pie",
+      "value": "pie chart"
+    },
+    {
+      "name": "name_ring",
+      "value": "ring chart"
+    },
+    {
+      "name": "name_rose",
+      "value": "rose chart"
+    },
+    {
+      "name": "name_wordcloud",
+      "value": "wordcloud chart"
+    },
+    {
+      "name": "name_boxplot",
+      "value": "boxplot chart"
+    },
+    {
+      "name": "name_dual_axis",
+      "value": "dual_axis chart"
+    }
+  ]
+}

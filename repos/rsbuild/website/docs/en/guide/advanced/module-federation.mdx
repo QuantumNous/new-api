@@ -1,0 +1,86 @@
+---
+description: 'Module Federation is an architectural pattern for decomposing JavaScript applications.'
+---
+
+# Module Federation
+
+Module Federation is an architectural pattern for decomposing JavaScript applications. Similar to server-side microservices, it lets multiple JavaScript applications (or micro-frontends) share code and resources.
+
+The Rspack team works closely with the Module Federation maintainers to deliver first-class support.
+
+## Use cases
+
+Module Federation has several typical use cases, including:
+
+- Allowing independent applications (called "micro-frontends" in micro-frontend architecture) to share modules without recompiling the entire application.
+- Enabling different teams to work on different parts of the same application without needing to recompile the entire application.
+- Providing dynamic code loading and sharing between applications at runtime.
+
+Module Federation can help you:
+
+- Reduce code duplication
+- Improve code maintainability
+- Reduce the overall size of applications
+- Improve application performance
+
+## How to use
+
+Module Federation (MF) currently offers multiple major versions; choose the one that fits your needs.
+
+The key characteristics of each version are:
+
+| Version | Description                                                            | Features                                                                                                                                                                                                                                                                  | Use Cases                                                 |
+| ------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| MF v2.0 | Enhanced version of Module Federation, built on Module Federation v1.5 | - Provides additional out-of-the-box features such as dynamic TS type hints, Chrome DevTools, preloading, etc.<br />- Better suited for micro-frontend architecture supporting large-scale web applications <br />- Includes all features of Module Federation 1.5 <br /> | Projects that need MF 2.0's advanced capabilities         |
+| MF v1.5 | Version built into Rspack                                              | - Supports module export, module loading, dependency sharing capabilities of Module Federation v1.0<br />- Added runtime plugin functionality, enabling users to extend the behavior and functionality of module federation <br />                                        | Projects that don't need the extra capabilities of MF 2.0 |
+
+### Module Federation v2.0
+
+[Module Federation 2.0](https://module-federation.io/blog/announcement.html) provides additional out-of-the-box features based on Module Federation, such as dynamic TS type hints, Chrome DevTools, Runtime plugins, and preloading, making it better suited for large-scale micro-frontend architectures.
+
+You need to install the additional [@module-federation/rsbuild-plugin](https://npmjs.com/package/@module-federation/rsbuild-plugin) plugin to use Module Federation v2.0.
+
+```ts title="rsbuild.config.ts"
+import { pluginModuleFederation } from '@module-federation/rsbuild-plugin';
+
+export default defineConfig({
+  plugins: {
+    pluginModuleFederation({
+      name: 'remote',
+     // other options
+    }),
+  },
+});
+```
+
+Please refer to the [Module Federation v2.0 official documentation](https://module-federation.io/) for detailed usage.
+
+### Module Federation v1.5
+
+This is the version built into Rspack. In addition to supporting Module Federation v1.0's capabilities such as module export, module loading, and dependency sharing, it also adds runtime plugin functionality, letting you extend the behavior and functionality of module federation.
+
+You can enable it through Rsbuild's [moduleFederation.options](/config/module-federation/options) without installing additional plugins.
+
+```ts title="rsbuild.config.ts"
+export default defineConfig({
+  moduleFederation: {
+    options: {
+      name: 'remote',
+      // other options
+    },
+  },
+});
+```
+
+## Example repositories
+
+Rsbuild provides Module Federation example projects you can explore:
+
+- [Module Federation v2.0 Example](https://github.com/rstackjs/rstack-examples/tree/main/rsbuild/module-federation-enhanced)
+- [Module Federation v1.5 Example](https://github.com/rstackjs/rstack-examples/tree/main/rsbuild/module-federation)
+
+## Limitations
+
+Module Federation is currently incompatible with [output.module](/config/output/module).
+
+The Module Federation runtime does not yet support ESM output. Avoid setting `output.module: true` in a Module Federation application; otherwise, loading may fail at runtime.

@@ -1,0 +1,131 @@
+---
+description: 'Rsbuild 支持多种构建产物类型，分别适用于不同的目标运行环境。在设置产物类型后，Rsbuild 的默认配置会有所变化。'
+---
+
+# output.target
+
+- **类型：**
+
+```ts
+type RsbuildTarget = 'web' | 'node' | 'web-worker';
+```
+
+- **默认值：** `'web'`
+- **版本：** `>= 1.0.0`
+
+用于设置 Rsbuild 的构建产物类型。
+
+Rsbuild 支持多种构建产物类型，分别适用于不同的目标运行环境。在设置产物类型后，Rsbuild 的默认配置会有所变化。
+
+## 默认产物
+
+默认情况下，`target` 会被设置为 `'web'`，并构建出运行在浏览器里的产物。
+
+Rsbuild 会读取项目中的 [Browserslist 配置](https://github.com/browserslist/browserslist)，以确定需要兼容的浏览器范围。
+
+## 可选值
+
+除了 `'web'` 外，`target` 还可以设置为以下值：
+
+- `'node'`：构建出运行在 Node.js 环境的产物，通常用于 SSR 等场景。
+- `'web-worker'`：构建出运行在 Web Workers 里的产物。
+
+比如构建出适用于 Node.js 环境的产物：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    target: 'node',
+  },
+};
+```
+
+## 并行构建
+
+你可以使用 [environments](/config/environments) 来并行构建多种 targets。
+
+比如同时构建 `web` 产物和 `node` 产物：
+
+```ts title="rsbuild.config.ts"
+export default {
+  environments: {
+    web: {
+      output: {
+        target: 'web',
+      },
+    },
+    node: {
+      output: {
+        target: 'node',
+        distPath: {
+          root: 'dist/server',
+        },
+      },
+    },
+  },
+};
+```
+
+## Node 产物 \{#node-target}
+
+指运行在 Node.js 环境的产物，通常用于 SSR 等场景。
+
+当 `target` 设置为 `'node'` 时，Rsbuild 会进行以下处理：
+
+- 将 Rspack 的 [target](https://rspack.rs/zh/config/target) 设置为 `'node'`。
+- 不会生成 HTML 文件，与 HTML 相关的逻辑也不会执行，因为 Node.js 环境不需要 HTML。
+- 不会开启默认的拆包策略，但 dynamic import 依然可以生效。
+- 不会开启热更新相关的能力。
+- 将 Browserslist 的默认值设置为 `['node >= 20']`。
+- 将 [output.emitCss](/config/output/emit-css) 的默认值设置为 `false`。这意味着 CSS 代码不会被抽取为单独的文件，但产物中会包含 CSS Modules 的 id 信息。
+
+### Node addons
+
+当 `target` 为 `'node'` 时，Rsbuild 允许你在 JavaScript 文件中引入 Node.js [Addons](https://nodejs.org/api/addons.html)。
+
+例如：
+
+```js title="src/index.js"
+import addon from './addon.node';
+
+addon.doSomething();
+```
+
+被引用的 addons 文件会被输出到 `dist` 目录下：
+
+```
+dist/index.js
+dist/addon.node
+```
+
+## Web Workers 产物
+
+指运行在 [Web Worker](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API) 环境的产物。
+
+当 `target` 设置为 `'web-worker'` 时，Rsbuild 会进行以下处理：
+
+- 将 Rspack 的 [target](https://rspack.rs/zh/config/target) 设置为 `'webworker'`。
+- 不会生成 HTML 文件，与 HTML 相关的逻辑也不会执行，因为 Web Worker 环境不需要 HTML。
+- 不会开启默认的拆包策略，**并且 dynamic import 也不会生效**，因为 Web Worker 仅运行支持单个 JavaScript 文件。
+- 将 [output.emitCss](/config/output/emit-css) 的默认值设置为 `false`。这意味着 CSS 代码不会被抽取为单独的文件，但产物中会包含 CSS Modules 的 id 信息。
+- 不会开启热更新相关的能力。
+
+更多信息可参考 [Web Workers](/guide/basic/web-workers)。
+
+## 其他 target
+
+Rspack 支持的 [target](https://rspack.rs/zh/config/target) 类型更为丰富，比如 `electron-main` 和 `electron-renderer` 等。
+
+目前 Rsbuild 暂未支持这些 target，你可以通过 [tools.rspack](/config/tools/rspack) 来配置这些 target。
+
+例如设置 `target` 为 `'electron-main'`，这会覆盖 Rsbuild 默认设置的 `'web'`。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: {
+      target: 'electron-main',
+    },
+  },
+};
+```
