@@ -18,18 +18,26 @@ For commercial licensing, please contact support@quantumnous.com
 */
 /* eslint-disable react-refresh/only-export-components */
 import { useQueryClient } from '@tanstack/react-query'
-import type { OnChangeFn, SortingState } from '@tanstack/react-table'
+import type {
+  ColumnSort,
+  OnChangeFn,
+  SortingState,
+} from '@tanstack/react-table'
 import React, {
   createContext,
   useContext,
   useState,
   useCallback,
   useMemo,
-  useEffect,
 } from 'react'
 
 import { useChannelUpstreamUpdates } from '../hooks/use-channel-upstream-updates'
-import { channelsQueryKeys } from '../lib'
+import {
+  DEFAULT_CHANNEL_SORT,
+  channelsQueryKeys,
+  loadChannelSorting,
+  writeChannelSorting,
+} from '../lib'
 import type { Channel } from '../types'
 
 // ============================================================================
@@ -91,18 +99,20 @@ export function ChannelsProvider({ children }: { children: React.ReactNode }) {
   const [enableTagMode, setEnableTagMode] = useState(() => {
     return localStorage.getItem('enable-tag-mode') === 'true'
   })
-  const [sorting, setSorting] = useState<SortingState>(() => [
-    {
-      id:
-        localStorage.getItem('channels-id-sort') === 'true' ? 'id' : 'priority',
-      desc: true,
-    },
-  ])
-  const idSort = sorting[0]?.id === 'id'
-  useEffect(() => {
-    // Retain the existing ID-sort preference for returning users.
-    localStorage.setItem('channels-id-sort', String(idSort))
-  }, [idSort])
+
+  // The channel API sorts by a single field, so the persisted state is one
+  // ColumnSort; the table still receives the array shape it expects.
+  const [sort, setSortState] = useState<ColumnSort>(loadChannelSorting)
+  const setSorting = useCallback<OnChangeFn<SortingState>>((updater) => {
+    setSortState((previous) => {
+      const next = typeof updater === 'function' ? updater([previous]) : updater
+      const active = next[0] ?? DEFAULT_CHANNEL_SORT
+      writeChannelSorting(active)
+      return active
+    })
+  }, [])
+  const sorting = useMemo<SortingState>(() => [sort], [sort])
+
   const [batchMode, setBatchMode] = useState(false)
   const [sensitiveVisible, setSensitiveVisible] = useState(true)
   const [priorityActionContainer, setPriorityActionContainer] =
@@ -143,6 +153,7 @@ export function ChannelsProvider({ children }: { children: React.ReactNode }) {
       currentTag,
       enableTagMode,
       sorting,
+      setSorting,
       batchMode,
       sensitiveVisible,
       priorityActionContainer,
