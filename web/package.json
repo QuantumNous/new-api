@@ -32,7 +32,7 @@
     "@codemirror/view": "^6.43.9",
     "@fontsource-variable/lora": "^5.3.0",
     "@fontsource-variable/public-sans": "^5.3.0",
-    "@hookform/resolvers": "^5.9.1",
+    "@hookform/resolvers": "^7.0.5",
     "@hugeicons/core-free-icons": "^4.3.0",
     "@hugeicons/react": "^1.1.10",
     "@lezer/highlight": "^1.2.3",
