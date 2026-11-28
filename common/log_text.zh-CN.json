@@ -743,6 +743,7 @@
   "stream scanner data: %s": "收到流数据: %s",
   "streaming timeout seconds: %d": "流式超时: %d 秒",
   "stripe topup": "Stripe 充值",
+  "subscription %d exhausted at settlement, %d quota of the final delta uncovered": "订阅 %d 在结算时已用尽，最终差额中有 %d 额度未扣除",
   "subscription balance purchase": "余额购买订阅",
   "subscription expiration": "订阅到期",
   "subscription expire task failed: %v": "处理过期订阅失败: %v",
