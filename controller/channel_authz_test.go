@@ -45,6 +45,21 @@ func TestChannelHasSensitiveChanges(t *testing.T) {
 		assert.True(t, channelHasSensitiveChanges(&updated, origin, map[string]any{"key": updated.Key}))
 	})
 
+	t.Run("scheduled test opt out is non-sensitive", func(t *testing.T) {
+		updated := PatchChannel{Channel: *origin}
+		updated.SkipAutoTest = common.GetPointer(1)
+
+		assert.False(t, channelHasSensitiveChanges(&updated, origin, map[string]any{"skip_auto_test": 1}))
+	})
+
+	t.Run("scheduled test opt out does not bypass key permissions", func(t *testing.T) {
+		updated := PatchChannel{Channel: *origin}
+		updated.SkipAutoTest = common.GetPointer(1)
+		updated.Key = "new-key"
+
+		assert.True(t, channelHasSensitiveChanges(&updated, origin, map[string]any{"skip_auto_test": 1, "key": updated.Key}))
+	})
+
 	t.Run("base url change", func(t *testing.T) {
 		updated := PatchChannel{Channel: *origin}
 		newBaseURL := "https://leak.example.com"
