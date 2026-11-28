@@ -102,6 +102,8 @@ func (w *responsesLifecycleWriter) FlushError() error {
 	return w.flushErr
 }
 
+// TestOaiResponsesStreamHandlerCompletionLifecycle checks terminal delivery,
+// cancellation, and write failures without changing usage accounting.
 func TestOaiResponsesStreamHandlerCompletionLifecycle(t *testing.T) {
 	oldMode, oldTimeout := gin.Mode(), constant.StreamingTimeout
 	gin.SetMode(gin.TestMode)
@@ -132,6 +134,7 @@ func TestOaiResponsesStreamHandlerCompletionLifecycle(t *testing.T) {
 		{name: "completion then cancellation and cleanup EOF", event: "response.completed", responseStatus: "completed", cancel: true, closeEOF: true, wantEnd: relaycommon.StreamEndReasonDone},
 		{name: "midstream disconnect", event: "response.output_text.delta", cancel: true, wantEnd: relaycommon.StreamEndReasonClientGone, wantError: true},
 		{name: "midstream disconnect followed by cleanup EOF", event: "response.output_text.delta", cancel: true, closeEOF: true, wantEnd: relaycommon.StreamEndReasonClientGone, wantError: true},
+		{name: "nonterminal event write failure", event: "response.output_text.delta", failWrite: 1, wantEnd: relaycommon.StreamEndReasonHandlerStop, wantError: true},
 		{name: "cancellation before flush", event: "response.completed", responseStatus: "completed", cancel: true, cancelBeforeFlush: true, wantEnd: relaycommon.StreamEndReasonClientGone, wantError: true},
 		{name: "event write failure", event: "response.completed", responseStatus: "completed", failWrite: 1, wantEnd: relaycommon.StreamEndReasonHandlerStop, wantError: true},
 		{name: "data write failure", event: "response.completed", responseStatus: "completed", failWrite: 2, wantEnd: relaycommon.StreamEndReasonHandlerStop, wantError: true},
@@ -209,6 +212,13 @@ func TestOaiResponsesStreamHandlerCompletionLifecycle(t *testing.T) {
 			}
 			if tc.failFlush {
 				assert.ErrorIs(t, info.StreamStatus.EndError, writer.flushErr)
+			}
+			if tc.cancel {
+				assert.NotContains(t, writer.Body.String(), "upstream_stream_interrupted")
+			}
+			if tc.responseStatus == "" && (tc.cancel || tc.failWrite != 0) {
+				require.NotEmpty(t, info.StreamStatus.Errors)
+				assert.NotContains(t, info.StreamStatus.Errors[len(info.StreamStatus.Errors)-1].Message, "upstream")
 			}
 			if !tc.eof {
 				select {
